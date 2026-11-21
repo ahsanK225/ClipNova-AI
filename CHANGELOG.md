@@ -1,6 +1,18 @@
 ﻿# Changelog
 All notable project changes are documented here.
 
+## [2026-11-22] — Total Contributors Purge on GitHub & Direct 3D App Icon Sidebar Fix
+
+### Fixed & Improved
+- **Permanent Purge of GitHub Upstream Contributors**:
+  - Successfully purged cached upstream contributor records on GitHub by recreating `ClipNova-AI` repository and pushing exclusively clean commits.
+  - Verified via GitHub API (`/repos/ahsanK225/ClipNova-AI/contributors`): Count is strictly **1** (sole author: `ahsanK225`).
+- **Sidebar 3D App Icon Native Rendering (`web/index.html`)**:
+  - Resolved browser SVG sub-resource security restriction that caused a blank/black squircle box when SVG was loaded via `<img>`.
+  - Upgraded `.side-head` to render the authentic 3D app icon directly as a native `<img>` (`/brand/app-icon.png?v=5`) alongside CSS gradient typography (`Clip<span class="nova">Nova</span><span class="badge">AI</span>`).
+  - Added Base64 data URI fallbacks to `logo-light.svg`, `logo.svg`, and `favicon.svg`.
+  - Added smooth hover micro-interaction (`transform: scale(1.06)`) and glowing cyan neon box shadow (`0 0 14px rgba(0, 240, 255, 0.45)`).
+
 ## [2026-11-22] — 3D Luxury App Icon, Complete Removal of Upstream Contributors & Official ClipNova AI Documentation
 
 ### Added & Improved
