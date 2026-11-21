@@ -18,6 +18,7 @@
   --accent-cyan:#00F0FF;--accent-gradient:linear-gradient(135deg, #00F0FF, #0099FF);
   --frame:#090B10;--frame-2:#121624;--frame-line:rgba(255,255,255,.08);--frame-text:#F8FAFC;--frame-dim:#94A3B8;
   --bg:#0C0F17;--bg-2:#131826;--muted:#171E30;--line:#21293E;--line-2:#2B354F;
+  --card-bg:#131826;
   --text:#F1F5F9;--dim:#94A3B8;--faint:#64748B;
   --good:#10B981;--good-soft:rgba(16,185,129,0.16);--bad:#EF4444;--bad-soft:rgba(239,68,68,0.16);--live:#EF4444;
   --r-lg:16px;--r:12px;--r-sm:8px;
@@ -33,7 +34,37 @@ main{background:var(--bg)!important;color:var(--text)!important}
 .btn.primary{background:var(--brand-gradient)!important;border:none!important;color:#FFFFFF!important;box-shadow:0 4px 16px rgba(99,102,241,0.4)!important}
 .btn.primary:hover{transform:translateY(-1px)!important;box-shadow:0 6px 24px rgba(99,102,241,0.6)!important}
 :where(input:not([type=checkbox],[type=radio],[type=file],[type=range]),select,textarea){background:var(--bg-2)!important;border:1px solid var(--line-2)!important;color:#FFFFFF!important;border-radius:var(--r-sm)!important}
-:where(input:not([type=checkbox],[type=radio],[type=file],[type=range]),select,textarea):focus{border-color:#6366F1!important;box-shadow:0 0 0 2px rgba(99,102,241,0.25)!important}
+:where(input:not([type=checkbox],[type=radio],[type=file],[type=range]),select,textarea):focus{border-color:#00F0FF!important;box-shadow:0 0 0 2px rgba(0,240,255,0.25)!important}
+
+/* Posting accounts checkbox pills & switches */
+label.ck{display:inline-flex!important;align-items:center!important;gap:8px!important;height:38px!important;padding:0 14px!important;border-radius:var(--r)!important;cursor:pointer!important;background:var(--bg-2)!important;border:1px solid var(--line-2)!important;color:#FFFFFF!important;font-weight:500!important;transition:all .18s cubic-bezier(.16,1,.3,1)!important}
+label.ck:hover{background:var(--line)!important;border-color:rgba(0,240,255,0.45)!important;color:#FFFFFF!important}
+label.ck:has(input:checked){background:rgba(99,102,241,0.25)!important;border-color:#00F0FF!important;color:#FFFFFF!important;box-shadow:0 0 12px rgba(0,240,255,0.3)!important}
+label.ck input{accent-color:#00F0FF!important;width:16px!important;height:16px!important;margin:0!important;cursor:pointer!important}
+
+label.sw input{background:var(--line-2)!important;border:1px solid var(--line)!important}
+label.sw input:checked{background:var(--brand-gradient)!important;border-color:#00F0FF!important;box-shadow:0 0 10px rgba(0,240,255,0.35)!important}
+label.sw input::after{background:#FFFFFF!important}
+label.sw span{color:#FFFFFF!important}
+label.sw small{color:var(--dim)!important}
+
+/* Savebar & Warning/Notice Banner Overrides */
+.savebar{background:var(--bg-2)!important;border:1px solid #00F0FF!important;color:#FFFFFF!important;box-shadow:0 10px 30px rgba(0,0,0,0.8), 0 0 16px rgba(0,240,255,0.35)!important}
+.savebar>span{color:#FFFFFF!important}
+.savebar>span svg{color:#00F0FF!important}
+.vb{background:rgba(99,102,241,0.15)!important;border:1px solid rgba(0,240,255,0.35)!important;color:#FFFFFF!important;box-shadow:0 4px 20px rgba(0,0,0,0.4)!important}
+.vb svg{color:#00F0FF!important}
+
+/* Table, Step & Modal Dark Overrides */
+tr:hover>td{background:var(--line)!important}
+th{background:var(--bg-2)!important;color:var(--dim)!important;border-color:var(--line)!important}
+td{border-color:var(--line)!important;color:var(--text)!important}
+.step{background:var(--bg-2)!important;border:1px solid var(--line)!important;color:#FFFFFF!important}
+.step:hover{background:var(--line)!important;border-color:rgba(99,102,241,0.5)!important}
+.step .n{background:var(--line-2)!important;border-color:var(--line)!important;color:#00F0FF!important}
+.note{background:var(--bg-2)!important;border:1px solid var(--line)!important;color:var(--text)!important}
+.tr-card,.pop,.ntoast{background:var(--bg-2)!important;border:1px solid var(--line-2)!important;color:#FFFFFF!important;box-shadow:0 12px 36px rgba(0,0,0,0.6)!important}
+dialog{background:var(--bg-2)!important;border:1px solid var(--line-2)!important;color:var(--text)!important}
 .topbar{background:rgba(12,15,23,0.85)!important;backdrop-filter:blur(14px)!important;border-bottom:1px solid var(--line)!important}
 .side{background:var(--frame)!important;border-right:1px solid var(--frame-line)!important}
 .nav-item.on{background:var(--brand-gradient)!important;color:#FFFFFF!important;box-shadow:0 4px 14px rgba(99,102,241,0.3)!important}
@@ -2405,7 +2436,7 @@ function drawCreatorForm() {
         <label class="f">Words judge must score at least<input data-k="min_score" type="number" min="0" max="100" value="${c.min_score}"></label>
         <label class="f">Make sure there's a live clip at least every<select data-k="must_clip_min">${opts({0:"Off", 15:"15 minutes", 30:"30 minutes", 60:"1 hour", 120:"2 hours"}, c.must_clip_min)}</select></label>
         <label class="f">Minimum gap between live clips (minutes)<input data-k="min_gap_min" type="number" min="0" max="60" value="${c.min_gap_min}"><small class="sub" style="font-weight:400">High-scoring AI moments are always clipped even if within this gap.</small></label>
-        <label class="f span">Always clip the last 30 seconds when someone says<textarea data-k="trigger_words" rows="4" style="resize:vertical;font-family:inherit;font-size:13px;line-height:1.5;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--card-bg, #fff);color:inherit;width:100%" placeholder="clip that, clip it, clip karo, clutch">${esc(c.trigger_words)}</textarea><small class="sub" style="font-weight:400">Separate phrases with commas. Matched on the transcript, so it needs no AI call.</small></label>
+        <label class="f span">Always clip the last 30 seconds when someone says<textarea data-k="trigger_words" rows="4" style="resize:vertical;font-family:inherit;font-size:13px;line-height:1.5;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--card-bg, #131826);color:inherit;width:100%" placeholder="clip that, clip it, clip karo, clutch">${esc(c.trigger_words)}</textarea><small class="sub" style="font-weight:400">Separate phrases with commas. Matched on the transcript, so it needs no AI call.</small></label>
       </div></div>
     <div class="card"><h2>Clips</h2><p class="help">How this creator's clips look.</p>
       <div class="fields"><label class="sw span"><input type="checkbox" data-k="captions" data-caption-toggle ${c.captions === false ? "" : "checked"}>Generate captions</label>
@@ -2565,7 +2596,7 @@ function drawCreatorForm() {
         <label class="f">Most posts per account per day<input data-k="daily_cap" type="number" value="${c.daily_cap}"></label>
         <label class="f">Who can see posts (YouTube, TikTok)<select data-k="privacy">${opts({public:"Public", unlisted:"Unlisted", private:"Private"}, c.privacy)}</select></label>
         <label class="f">Campaign pay per 1,000 views ($)<input data-k="rate_per_1k" type="number" step="0.1" min="0" value="${c.rate_per_1k}"></label>
-        <label class="f span">Line added to every post (credit, campaign tag)<textarea data-k="post_footer" rows="2" style="resize:vertical;font-family:inherit;font-size:13px;line-height:1.4;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--card-bg, #fff);color:inherit;width:100%" placeholder="@streamer #Shorts">${esc(c.post_footer || "")}</textarea></label>
+        <label class="f span">Line added to every post (credit, campaign tag)<textarea data-k="post_footer" rows="2" style="resize:vertical;font-family:inherit;font-size:13px;line-height:1.4;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--card-bg, #131826);color:inherit;width:100%" placeholder="@streamer #Shorts">${esc(c.post_footer || "")}</textarea></label>
         <label class="f span">Post-upload local file cleanup<select data-k="post_cleanup">${opts({
           "ask": "Prompt me (Popup: Delete local files or keep?)",
           "auto": "Auto-delete from disk immediately (Free up space, single-channel exclusive)",
