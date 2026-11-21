@@ -57,12 +57,12 @@ svg{width:18px;height:18px;flex:none;fill:currentColor}
 .app{display:grid;grid-template-columns:240px minmax(0,1fr);height:100vh}
 .side{background:var(--frame);color:var(--frame-text);display:flex;flex-direction:column;height:100vh;padding:14px 10px 12px;min-width:0}
 .side-head{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:4px 4px 22px 6px}
-.brand-link{display:flex;align-items:center;gap:10px;text-decoration:none;min-width:0;cursor:pointer;flex:1}
+.brand-link{display:inline-flex;align-items:center;gap:10px;text-decoration:none;min-width:0;cursor:pointer;flex:1;overflow:hidden}
 .brand-icon-3d{width:36px;height:36px;border-radius:10px;object-fit:cover;box-shadow:0 0 14px rgba(0,240,255,0.45);flex:none;transition:transform .2s ease;display:block}
 .brand-link:hover .brand-icon-3d{transform:scale(1.06)}
-.brand-text{display:flex;align-items:center;gap:6px;font-family:'Geist','Segoe UI',system-ui,sans-serif;font-size:18px;font-weight:800;letter-spacing:-0.4px;color:#FFFFFF;white-space:nowrap}
-.brand-text .nova{background:linear-gradient(135deg,#00F0FF 0%,#8B5CF6 50%,#EC4899 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
-.brand-text .badge{font-size:10px;font-weight:900;letter-spacing:1px;padding:2px 7px;border-radius:6px;background:rgba(99,102,241,0.22);border:1px solid #00F0FF;color:#00F0FF;box-shadow:0 0 8px rgba(0,240,255,0.3)}
+.brand-text{display:inline-flex;align-items:center;gap:6px;font-family:'Geist','Segoe UI',system-ui,sans-serif;font-size:17px;font-weight:800;letter-spacing:-0.4px;color:#FFFFFF;white-space:nowrap;flex-wrap:nowrap;flex-shrink:0}
+.brand-text .nova{background:linear-gradient(135deg,#00F0FF 0%,#8B5CF6 50%,#EC4899 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;display:inline}
+.brand-text .badge{font-size:9px;font-weight:900;letter-spacing:1px;padding:2px 5px;border-radius:5px;background:rgba(99,102,241,0.22);border:1px solid #00F0FF;color:#00F0FF;box-shadow:0 0 8px rgba(0,240,255,0.3);display:inline-block;vertical-align:middle;line-height:1}
 .app.mini .brand-text{display:none}
 .app.mini .brand-link{justify-content:center}
 .side-head .logo{height:36px;width:auto;display:block}
