@@ -1,0 +1,9 @@
+<svg width="256" height="256" viewBox="0 0 256 256" fill="none" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+  <defs>
+    <clipPath id="favClip">
+      <rect x="0" y="0" width="256" height="256" rx="58"/>
+    </clipPath>
+  </defs>
+  <image href="/brand/app-icon.png" x="0" y="0" width="256" height="256" preserveAspectRatio="xMidYMid slice" clip-path="url(#favClip)"/>
+  <rect x="1" y="1" width="254" height="254" rx="57" fill="none" stroke="rgba(255,255,255,0.3)" stroke-width="2"/>
+</svg>

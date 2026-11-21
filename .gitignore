@@ -1,0 +1,52 @@
+# ---- never publish: settings, keys and anything users made
+.env
+.env.*
+!.env.example
+secrets/
+*.pem
+*.key
+*service-account*.json
+*client_secret*.json
+data/
+storage.json
+*.db
+*.db-wal
+*.db-shm
+*.sqlite*
+*.log
+
+# ---- this computer only
+.claude/
+CLAUDE.local.md
+.vscode/
+.idea/
+*.bat
+Thumbs.db
+.DS_Store
+
+# ---- Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+
+# ---- Temp & scratch test media
+cookies.txt
+scratch/
+scratch_*
+frame_*.jpg
+sub_*.jpg
+sync_test_*
+test1.mp4
+test2.mp4
+test_*.mp4
+test_*.wav
+test_*.jpg
+clip*.jpg
+clip*.wav
+speed_stolen_*
+test_sync_debug/
+tmp_test.wav
+test_innertube.py
+test_outro.py
