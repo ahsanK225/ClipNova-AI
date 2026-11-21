@@ -1,7 +1,7 @@
-# SYSTEM_DESIGN.md — PeakCut System Architecture & Gaming Workflow
+# SYSTEM_DESIGN.md — ClipNova AI System Architecture & Gaming Workflow
 
 ## 1. System Goals and Scope
-PeakCut is an autonomous, open-source pipeline designed to process gaming livestreams (Twitch, YouTube, Kick) and long videos into viral, captioned 9:16 vertical clips. The system operates locally without subscriptions or watermarks, using on-device speech models (`sherpa-onnx`) or user-configured AI APIs (Gemini, OpenAI, Claude, Ollama).
+ClipNova AI is an autonomous, open-source pipeline designed to process gaming livestreams (Twitch, YouTube, Kick) and long videos into viral, captioned 9:16 vertical clips. The system operates locally without subscriptions or watermarks, using on-device speech models (`sherpa-onnx`) or user-configured AI APIs (Gemini, OpenAI, Claude, Ollama).
 
 ---
 

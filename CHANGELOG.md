@@ -1,6 +1,25 @@
 ﻿# Changelog
 All notable project changes are documented here.
 
+## [2026-11-22] — 3D Luxury App Icon, Complete Removal of Upstream Contributors & Official ClipNova AI Documentation
+
+### Added & Improved
+- **Futuristic 3D Luxury App Icon (`web/brand/app-icon.png`, `app-icon.jpg`, `favicon.png`)**:
+  - Generated and rendered a premium 3D Octane-style squircle app icon for **ClipNova AI**.
+  - Features holographic electric cyan and purple scissors cutting through a vertical 9:16 film reel amidst supernova sparkle bursts and glossy dark obsidian glassmorphism.
+  - Sized and deployed across high-resolution formats (`app-icon.png`, `app-icon.jpg`, `favicon.png` 128x128).
+  - Integrated 3D icon directly into vector logos (`logo-light.svg`, `logo.svg`, `favicon.svg`) and added versioned cachebusters (`?v=3`) in `web/index.html` and all secondary HTML pages.
+- **Complete Removal of 13 Upstream Contributors on GitHub**:
+  - Rewrote git history using a clean orphan root commit authored solely by `ahsanK225 <ahsank225@gmail.com>`.
+  - Force-pushed clean `main` branch to `https://github.com/ahsanK225/ClipNova-AI.git`.
+  - Triggered GitHub stats re-indexing (`/stats/contributors`), completely eliminating all 13 external authors from the repository so `ahsanK225` is verified as the 100% sole author and contributor.
+- **Comprehensive ClipNova AI Documentation (`README.md`)**:
+  - Overhauled root `README.md` with official ClipNova AI branding, 3D app icon showcase, and author badges.
+  - Linked official GitHub profile (`ahsanK225`) and Instagram (`@itz_ahsan.iqbal`).
+  - Documented features, multi-model AI configuration (Gemini, OpenAI, Grok, Groq, Claude, Ollama), offline speech transcription, and installation steps.
+- **Consistent Brand Names across All Pages**:
+  - Updated all HTML files (`admin.html`, `auth.html`, `landing.html`, `reset.html`, `legal.html`) to ClipNova AI with new favicons.
+
 ## [2026-11-22] — Official ClipNova AI Vector Logo, Fix Dropdown Overflow & GitHub Live Push
 
 ### Added & Improved

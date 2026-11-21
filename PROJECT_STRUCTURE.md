@@ -68,7 +68,12 @@ F:\Games\GTA 6 CLIPPING\
 │   │   ├── test_seo.py                     # YouTube Shorts SEO validation test suite
 │   │   └── test_sync.py                    # Audio/video latency, PTS normalization, and layout tests
 │   ├── web\                                # Static frontend web dashboard
-│   │   ├── brand\                          # Brand assets & layout visual previews (540x960 crisp JPGs)
+│   │   ├── brand\                          # Brand assets, 3D app icons & layout visual previews
+│   │   │   ├── app-icon.png                # High-res 3D luxury squircle app icon
+│   │   │   ├── favicon.png                 # 128x128 high-res PNG favicon
+│   │   │   ├── favicon.svg                 # SVG squircle favicon with 3D emblem
+│   │   │   ├── logo-light.svg              # Official ClipNova AI logo with embedded 3D icon
+│   │   │   ├── logo.svg                    # Vector brand logo
 │   │   │   ├── layout-split_half.jpg       # Classic Split 50/50 ⭐ (Top Cam 1080x960, Bottom Game 1080x960)
 │   │   │   ├── layout-split.jpg            # Reaction Split (Top 1/3 Cam 1080x640, Bottom 2/3 Game 1080x1280)
 │   │   │   ├── layout-gameplay.jpg         # Full 9:16 Game + Top-Right Corner PIP Facecam
