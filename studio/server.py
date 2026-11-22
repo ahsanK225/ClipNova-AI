@@ -1150,15 +1150,43 @@ def review_clip(jid: str, cid: str, body: dict = Body(...)):
 
 @app.post("/api/jobs/{jid}/clips/{cid}/write")
 def clip_write(jid: str, cid: str):
-    """Ask the AI for a new title, description and hashtags for one clip. Returned to the page, not saved."""
+    """Ask the AI for a new visually-grounded title, description and hashtags for one clip."""
     job, clip = _clip_or_404(jid, cid)
     _throttle("clipwrite:" + ctx.uid(), 20, 600, "That's a lot of rewrites in a short time. Wait a few minutes.")
     usage.set_context(job.get("creator"), job.get("title") or "")
     try:
-        res = brain.post_text(jobs.spoken_in(job, clip), job.get("title") or "", job.get("uploader") or "",
-                               game=job.get("game") or None)
-        if isinstance(res, dict) and res.get("titles"):
-            clip["titles"] = res["titles"]
+        text = jobs.spoken_in(job, clip)
+        title = job.get("title") or clip.get("title") or ""
+        uploader = job.get("uploader") or job.get("creator") or ""
+        game = job.get("game") or None
+        frames = jobs.get_clip_frames_payload(job, clip, n_frames=6)
+        meta = None
+        if frames and ai.ready():
+            try:
+                meta = brain.describe_multimodal(frames, text=text, title=title, uploader=uploader, game=game)
+            except Exception as e:
+                print(f"[clip_write] Multimodal describe notice: {e}", flush=True)
+        if meta and meta.get("title"):
+            res = {
+                "title": meta["title"],
+                "titles": meta.get("titles", []),
+                "description": meta["description"],
+                "hashtags": meta.get("hashtags", []),
+                "seo_title": meta.get("seo_title", meta["title"]),
+                "seo_tags": meta.get("seo_tags", []),
+                "pinned_comment": meta.get("pinned_comment", ""),
+                "hook": meta.get("hook"),
+                "hooks": meta.get("hooks", [])
+            }
+        else:
+            res = brain.post_text(text, title, uploader, game=game)
+        if isinstance(res, dict):
+            if res.get("titles"):
+                clip["titles"] = res["titles"]
+            if res.get("hooks"):
+                clip["hooks"] = res["hooks"]
+            if res.get("hook"):
+                clip["hook"] = res["hook"]
             jobs.save(job)
         return res
     except ValueError as e:
@@ -1170,7 +1198,7 @@ def clip_write(jid: str, cid: str):
 @app.get("/api/jobs/{jid}/clips/{cid}/titles")
 @app.post("/api/jobs/{jid}/clips/{cid}/titles")
 def clip_generate_titles(jid: str, cid: str):
-    """Generate 4 viral, high-CTR YouTube Shorts title suggestions using AI."""
+    """Generate 4 viral, high-CTR YouTube Shorts title suggestions using AI vision and video frames."""
     job, clip = _clip_or_404(jid, cid)
     _throttle("cliptitles:" + ctx.uid(), 30, 600, "Please wait a moment before generating more titles.")
     usage.set_context(job.get("creator"), job.get("title") or "")
@@ -1179,7 +1207,8 @@ def clip_generate_titles(jid: str, cid: str):
         title = job.get("title") or clip.get("title") or ""
         uploader = job.get("uploader") or job.get("creator") or ""
         game = job.get("game") or None
-        titles = brain.generate_viral_titles(text, title, uploader, game=game, count=4)
+        frames = jobs.get_clip_frames_payload(job, clip, n_frames=6)
+        titles = brain.generate_viral_titles(text, title, uploader, game=game, count=4, image=frames)
         clip["titles"] = titles
         if titles and not clip.get("title"):
             clip["title"] = titles[0]
@@ -1192,16 +1221,17 @@ def clip_generate_titles(jid: str, cid: str):
 @app.get("/api/jobs/{jid}/clips/{cid}/hooks")
 @app.post("/api/jobs/{jid}/clips/{cid}/hooks")
 def clip_generate_hooks(jid: str, cid: str):
-    """Generate 5 viral hook banner variations for this clip using AI."""
+    """Generate 5 viral hook banner variations for this clip using AI vision and video frames."""
     job, clip = _clip_or_404(jid, cid)
     _throttle("cliphooks:" + ctx.uid(), 30, 600, "Please wait a moment before generating more hooks.")
     usage.set_context(job.get("creator"), job.get("title") or "")
     try:
         text = jobs.spoken_in(job, clip)
-        title = job.get("title") or ""
-        uploader = job.get("uploader") or ""
+        title = job.get("title") or clip.get("title") or ""
+        uploader = job.get("uploader") or job.get("creator") or ""
         game = job.get("game") or None
-        hooks = brain.generate_viral_hooks(text, title, uploader, game=game)
+        frames = jobs.get_clip_frames_payload(job, clip, n_frames=6)
+        hooks = brain.generate_viral_hooks(text, title, uploader, game=game, count=5, image=frames)
         clip["hooks"] = hooks
         if hooks and not clip.get("hook"):
             clip["hook"] = hooks[0]
@@ -1299,19 +1329,7 @@ def generate_clip_ai_seo(jid: str, cid: str, body: dict = Body(default={})):
     model = body.get("model")
     tone = body.get("tone")
     d = Path(job["dir"])
-    src = Path(clip["src"]) if clip.get("src") else (Path(job.get("source_path")) if job.get("source_path") else None)
-    frame_payload = None
-    if src and src.is_file():
-        off = clip.get("src_offset", 0.0)
-        local_start = max(0.0, clip["start"] - off)
-        local_end = max(local_start + 1.0, clip["end"] - off)
-        extracted = jobs.extract_clip_frames_bytes(src, local_start, local_end, n_frames=6)
-        if extracted:
-            frame_payload = extracted
-    if not frame_payload:
-        cover_path = d / "clips" / f"{cid}.jpg"
-        if cover_path.is_file() and cover_path.stat().st_size > 1000:
-            frame_payload = cover_path.read_bytes()
+    frame_payload = jobs.get_clip_frames_payload(job, clip, n_frames=6)
 
     words_file = d / "words.json"
     words = []

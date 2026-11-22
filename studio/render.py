@@ -547,15 +547,15 @@ def _filter(layout, fg_h, facecam=None, facecam_pos="top-right", facecam_delay=0
             return (f"{vin_prefix},split=2[base][fc];"
                     f"[base]crop={gw}:{gh}:{gx}:{gy},"
                     f"scale={W}:{H}:flags=lanczos+accurate_rnd:force_original_aspect_ratio=increase,"
-                    f"crop={W}:{H},unsharp=5:5:0.5:5:5:0.0,setsar=1[b];"
+                    f"crop={W}:{H},cas=0.30,unsharp=5:5:0.5:5:5:0.0,setsar=1[b];"
                     f"[fc]crop={fw}:{fh}:{fx}:{fy}{fc_delay_filter},"
-                    f"scale={pip_size}:{pip_h}:flags=lanczos+accurate_rnd,setsar=1[p];"
+                    f"scale={pip_size}:{pip_h}:flags=lanczos+accurate_rnd,cas=0.25,setsar=1[p];"
                     f"[b][p]overlay={px}:{py}[v0];")
 
         elif cl_mode == "crop":
             return (f"{vin_prefix},crop={gw}:{gh}:{gx}:{gy},"
                     f"scale={W}:{H}:flags=lanczos+accurate_rnd:force_original_aspect_ratio=increase,"
-                    f"crop={W}:{H},unsharp=5:5:0.5:5:5:0.0,setsar=1[v0];")
+                    f"crop={W}:{H},cas=0.30,unsharp=5:5:0.5:5:5:0.0,setsar=1[v0];")
 
         else:
             ratio = float(custom_layout.get("split_ratio") or 0.35)
@@ -568,10 +568,10 @@ def _filter(layout, fg_h, facecam=None, facecam_pos="top-right", facecam_delay=0
             return (f"{vin_prefix},split=2[game][cam];"
                     f"[cam]crop={fw}:{fh}:{fx}:{fy}{fc_delay_filter},"
                     f"scale={W}:{cam_h}:flags=lanczos+accurate_rnd:force_original_aspect_ratio=increase,"
-                    f"crop={W}:{cam_h}:(in_w-out_w)/2:0,unsharp=5:5:0.4:5:5:0.0,setsar=1[f];"
+                    f"crop={W}:{cam_h}:(in_w-out_w)/2:0,cas=0.25,unsharp=5:5:0.4:5:5:0.0,setsar=1[f];"
                     f"[game]crop={gw}:{gh}:{gx}:{gy},"
                     f"scale={W}:{game_h}:flags=lanczos+accurate_rnd:force_original_aspect_ratio=increase,"
-                    f"crop={W}:{game_h}:(in_w-out_w)/2:0,unsharp=5:5:0.5:5:5:0.0,setsar=1[g];"
+                    f"crop={W}:{game_h}:(in_w-out_w)/2:0,cas=0.30,unsharp=5:5:0.5:5:5:0.0,setsar=1[g];"
                     f"[f][g]vstack=inputs=2{div_filter}[v0];")
 
     if layout == "split" and facecam and len(facecam) == 4 and int(facecam[2]) > 8:
@@ -597,9 +597,9 @@ def _filter(layout, fg_h, facecam=None, facecam_pos="top-right", facecam_delay=0
         return (f"{vin_prefix},split=2[game][cam];"
                 f"[cam]crop={fw}:{fh_clean}:{fx}:{fy_clean}{fc_delay_filter},"
                 f"scale={W}:{cam_h}:flags=lanczos+accurate_rnd:force_original_aspect_ratio=increase,"
-                f"crop={W}:{cam_h}:(in_w-out_w)/2:0,unsharp=5:5:0.4:5:5:0.0,setsar=1[f];"
+                f"crop={W}:{cam_h}:(in_w-out_w)/2:0,cas=0.25,unsharp=5:5:0.4:5:5:0.0,setsar=1[f];"
                 f"[game]{game_crop},"
-                f"scale={W}:{game_h}:flags=lanczos+accurate_rnd,unsharp=5:5:0.5:5:5:0.0,setsar=1[g];"
+                f"scale={W}:{game_h}:flags=lanczos+accurate_rnd,cas=0.30,unsharp=5:5:0.5:5:5:0.0,setsar=1[g];"
                 f"[f][g]vstack=inputs=2,"
                 f"drawbox=x=0:y={cam_h-3}:w={W}:h=6:color=0x141210:t=fill,"
                 f"drawbox=x=0:y={cam_h-1}:w={W}:h=2:color=0x00F0FF@0.9:t=fill[v0];")
@@ -623,9 +623,9 @@ def _filter(layout, fg_h, facecam=None, facecam_pos="top-right", facecam_delay=0
         return (f"{vin_prefix},split=2[base][fc];"
                 f"[fc]crop={fw}:{fh_clean}:{fx}:{fy_clean}{fc_delay_filter},"
                 f"scale={W}:960:flags=lanczos+accurate_rnd:force_original_aspect_ratio=increase,"
-                f"crop={W}:960:(in_w-out_w)/2:0,unsharp=5:5:0.4:5:5:0.0,setsar=1[f];"
+                f"crop={W}:960:(in_w-out_w)/2:0,cas=0.25,unsharp=5:5:0.4:5:5:0.0,setsar=1[f];"
                 f"[base]{game_crop},"
-                f"scale={W}:960:flags=lanczos+accurate_rnd,unsharp=5:5:0.5:5:5:0.0,setsar=1[g];"
+                f"scale={W}:960:flags=lanczos+accurate_rnd,cas=0.30,unsharp=5:5:0.5:5:5:0.0,setsar=1[g];"
                 f"[f][g]vstack=inputs=2,drawbox=x=0:y=957:w={W}:h=6:color=0x141210:t=fill,drawbox=x=0:y=959:w={W}:h=2:color=0x00F0FF@0.9:t=fill[v0];")
 
     if layout == "gameplay" and facecam and len(facecam) == 4 and int(facecam[2]) > 8:
@@ -651,14 +651,14 @@ def _filter(layout, fg_h, facecam=None, facecam_pos="top-right", facecam_delay=0
 
         return (f"{vin_prefix},split=2[base][fc];"
                 f"[base]scale={W}:{H}:flags=lanczos+accurate_rnd:force_original_aspect_ratio=increase,"
-                f"crop={W}:{H},unsharp=5:5:0.5:5:5:0.0,setsar=1[b];"
+                f"crop={W}:{H},cas=0.30,unsharp=5:5:0.5:5:5:0.0,setsar=1[b];"
                 f"[fc]crop={fw}:{fh}:{fx}:{fy}{fc_delay_filter},scale={PIP_W}:{pip_h}:flags=lanczos+accurate_rnd,"
-                f"setsar=1[p];"
+                f"cas=0.25,setsar=1[p];"
                 f"[b][p]overlay={pip_x}:{pip_y}[v0];")
 
     fill = f"{vin_prefix},scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H}"
     if layout == "crop" or (layout in ("gameplay", "split", "split_half") and not facecam):
-        return f"{fill},unsharp=5:5:0.5:5:5:0.0,setsar=1[v0];"
+        return f"{fill},cas=0.30,unsharp=5:5:0.5:5:5:0.0,setsar=1[v0];"
     if layout == "left":
         return fill + ":0:0,setsar=1[v0];"
     if layout == "right":
@@ -815,11 +815,12 @@ def _render_in(work: Path, src: Path, out_dir: Path, name: str, start, end, layo
             base += ["-metadata", f"{k}={v}"]
     base += ["-shortest", "-movflags", "+faststart", "-pix_fmt"]
     encoders = []
-    # Ultra-clear 1080p60 broadcast profile: CRF 15, 16M average bitrate, 24M peak burst, Rec.709 color fidelity
+    # Ultra-clear 1080p60 broadcast profile: CRF 14, 20M average bitrate, 30M peak burst, film-tuned texture fidelity
     encoders.append(("x264", [
-        "yuv420p", "-c:v", "libx264", "-crf", "15", "-preset", "medium",
-        "-b:v", "16M", "-maxrate", "24M", "-bufsize", "32M",
+        "yuv420p", "-c:v", "libx264", "-crf", "14", "-preset", "medium",
+        "-b:v", "20M", "-maxrate", "30M", "-bufsize", "40M",
         "-profile:v", "high", "-level", "4.2",
+        "-tune", "film", "-g", "60", "-keyint_min", "30",
         "-color_primaries", "bt709", "-color_trc", "bt709", "-colorspace", "bt709", "-color_range", "tv"
     ]))
     if _qsv_ok is not False:

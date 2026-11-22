@@ -1,6 +1,24 @@
 ﻿# Changelog
 All notable project changes are documented here.
 
+## [2026-11-23] — True Video Frame-Grounded AI Viral Hooks, Title Ideas & Vision SEO
+
+### Added
+- **Multimodal Video Frame Grounding for Viral Hooks, Titles & Post Text (`studio/jobs.py`, `studio/brain.py`, `studio/server.py`, `web/index.html`)**:
+  - Solved issue where AI Viral Hooks (`/hooks`), Title Ideas (`/titles`), and "Write again with AI" (`/write`) were running on blind text transcripts, causing generic hallucinated clichés (e.g. `GTA 6 *flashbacks* are wild 💀`, `Ohnepixel loses his *mind* live 😭`).
+  - Added `jobs.get_clip_frames_payload(job, clip, n_frames=6)` in `studio/jobs.py` extracting 6 sequential video frames across the clip timeline (0.15, 0.35, 0.55, 0.70, 0.85, 0.95) directly from clip MP4s, source slices, or cover JPEGs.
+  - Upgraded `generate_viral_hooks` and `generate_viral_titles` in `studio/brain.py` to accept `image: bytes | list[bytes] | None`. When video frames are available, prompts run through Gemini Vision (`ai.see_json(prompt, image, schema=...)`).
+  - Generated hooks now physically describe on-screen vehicles, crashes, alligators, stunts, and streamer facial expressions with single-word yellow asterisks (`*CAR*`, `*ALLIGATOR*`, `*BOAT*`) and emojis (just like ChatGPT).
+  - Integrated `jobs.get_clip_frames_payload` into `clip_generate_hooks`, `clip_generate_titles`, `clip_write`, and `generate_clip_ai_seo` in `studio/server.py`.
+  - Updated UI buttons and toast notifications in `web/index.html` to clearly inform the user that AI is visually watching video frames (`📸 Watching video…`).
+
+### Tests and Verification
+- Added multimodal tests in `tests/test_seo_title_suggestions.py`:
+  - `test_multimodal_frames_payload_and_hooks`: Passed (6/6 passed).
+  - Verified `test_post_text.py` and `test_origins_chat_teaser.py` (4/4 passed).
+- Verified live Gemini vision execution on 6 Vice City stream frames, generating grounded hooks (`WHAT IS THAT *ALLIGATOR*?! 🐊💀`, `BRO DID NOT SEE THE *BRIDGE* 🌉💥`, `WHAT IS ON THAT *BOAT*?! 🛥️👀`).
+- Validated JavaScript AST in `web/index.html` with Node.js (Exit code 0).
+
 ## [2026-11-23] — Multi-Title SEO Suggestions & Interactive Title Pill Selection in Clip Editor
 
 ### Added

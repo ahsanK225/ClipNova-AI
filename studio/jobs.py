@@ -531,6 +531,51 @@ def extract_clip_frames_bytes(src: Path, start: float, end: float, n_frames: int
     return frames
 
 
+def get_clip_frames_payload(job: dict, clip: dict, n_frames: int = 6) -> list[bytes] | bytes | None:
+    """Finds the video file or cover JPEG for this clip and extracts physical visual frames for Gemini vision."""
+    d = Path(job.get("dir", ""))
+    cid = clip.get("id", "")
+
+    # 1. Try clip source video or job source video
+    src = Path(clip["src"]) if clip.get("src") else (Path(job.get("source_path")) if job.get("source_path") else None)
+    if src and src.is_file():
+        off = float(clip.get("src_offset", 0.0))
+        local_start = max(0.0, float(clip.get("start", 0.0)) - off)
+        local_end = max(local_start + 1.0, float(clip.get("end", local_start + 30.0)) - off)
+        extracted = extract_clip_frames_bytes(src, local_start, local_end, n_frames=n_frames)
+        if extracted:
+            return extracted
+
+    # 2. Try the rendered or sliced clip MP4
+    candidates = [
+        d / "clips" / f"{cid}.mp4",
+        d / "clips" / f"{cid}.src.mp4",
+        d / f"{cid}.mp4",
+    ]
+    if clip.get("file"):
+        candidates.insert(0, Path(clip["file"]))
+        candidates.insert(1, d / "clips" / Path(clip["file"]).name)
+
+    for cand in candidates:
+        if cand.is_file() and cand.stat().st_size > 10000:
+            dur = max(1.0, float(clip.get("end", 30.0)) - float(clip.get("start", 0.0)))
+            extracted = extract_clip_frames_bytes(cand, 0.0, dur, n_frames=n_frames)
+            if extracted:
+                return extracted
+
+    # 3. Try the clip cover JPEG
+    cover_candidates = [
+        d / "clips" / f"{cid}.jpg",
+        d / "clips" / f"{cid}.png",
+        d / f"{cid}.jpg",
+    ]
+    for cov in cover_candidates:
+        if cov.is_file() and cov.stat().st_size > 1000:
+            return cov.read_bytes()
+
+    return None
+
+
 def clean_hashtags(v) -> list:
     """Hashtags typed by a person ("#funny gaming") or sent by the page as a list: plain words, at most 8."""
     if isinstance(v, str):

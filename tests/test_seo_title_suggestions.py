@@ -110,6 +110,39 @@ class TestSeoTitleSuggestions(unittest.TestCase):
         self.assertIn('title-pill-btn', html)
         self.assertIn('seo-title-pill-btn', html)
 
+    def test_multimodal_frames_payload_and_hooks(self):
+        """jobs.get_clip_frames_payload extracts frames and passes them to brain.generate_viral_hooks."""
+        uid = auth.local_user().id
+        clip = {
+            "id": "clip_hook_vision_test", "start": 0.0, "end": 10.0,
+            "status": "done", "hook": "FAST CAR", "title": "Speed Drives",
+            "score": 90, "version": 1
+        }
+        with ctx.as_user(uid):
+            job = jobs.create({"type": "file", "name": "Vision Hook Test"}, {}, enqueue=False)
+            job.update(status="done", title="Speed Plays GTA 6", uploader="IShowSpeed", game="GTA 6", clips=[clip])
+            jobs.save(job)
+
+            # Test frame extraction fallback
+            frames = jobs.get_clip_frames_payload(job, clip, n_frames=6)
+            self.assertIsNone(frames)  # No media files created in dummy job
+
+            # Test server.clip_generate_hooks with mocked brain and frames
+            with patch.object(jobs, "get_clip_frames_payload", return_value=[b"fake_jpg_1", b"fake_jpg_2"]):
+                with patch.object(brain, "generate_viral_hooks", return_value=[
+                    "LOOK AT THAT *CAR*! 🏎️💨",
+                    "BRO FORGOT TO *BRAKE* 😭",
+                    "WORST *DRIVER* IN VICE CITY 💀",
+                    "WHAT IS HAPPENING TO THAT *DOOR*?! 🚪😳",
+                    "THE POLICE ARE *EVERYWHERE* 🚨🚔"
+                ]) as mock_hooks:
+                    res = server.clip_generate_hooks(job["id"], "clip_hook_vision_test")
+                    self.assertTrue(res.get("ok"))
+                    self.assertEqual(len(res["hooks"]), 5)
+                    mock_hooks.assert_called_once()
+                    self.assertIsNotNone(mock_hooks.call_args.kwargs.get("image"))
+                    self.assertEqual(len(mock_hooks.call_args.kwargs.get("image")), 2)
+
 
 if __name__ == "__main__":
     unittest.main()

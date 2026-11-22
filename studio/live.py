@@ -134,6 +134,7 @@ class Session:
         self.user_stopped = False     # Stop pressed: wrap up at once, no last AI check
         self.proc = None
         self.pending = bytearray()    # audio received but not yet transcribed
+        self.audio_downsampled = []   # 2000Hz downsampled audio float32 history for waveform synchronization
         self.clock_fix = 0.0          # how far the video-piece clock is behind the audio clock, last measured
         self.pending_base = 0         # sample index where `pending` starts
         self.samples = 0              # total audio samples received
@@ -328,6 +329,10 @@ class Session:
                         self.pending += data
                         self.samples += len(data) // 2
                         self.db.append(level)
+                        if len(x):
+                            self.audio_downsampled.extend(x[::8].tolist())
+                            if len(self.audio_downsampled) > 15 * 60 * 2000:
+                                self.audio_downsampled = self.audio_downsampled[-15 * 60 * 2000:]
                     if self.samples / SR - self.seg_clock > STALL_SEC:
                         # The sound is still arriving but no picture has been written for a while: Twitch
                         # does this around an ad break or a stream hiccup, and ffmpeg can stay stuck on it
@@ -905,18 +910,18 @@ class Session:
             c.update(
                 start=round(req["start"], 2),
                 end=round(min(req["end"], self.samples / SR), 2),
-                score=mm["score"],
-                priority=mm["priority"],
-                breakdown=mm["breakdown"],
-                detection_mode=mm["mode"],
+                score=mm.get("score", 70),
+                priority=mm.get("priority", "HIGH PRIORITY"),
+                breakdown=mm.get("breakdown") or {},
+                detection_mode=mm.get("mode", "MODE B (KEYWORD FALLBACK)"),
                 signals=mm.get("signals"),
             )
             c["judges"] = {
-                "mode": mm["mode"],
-                "score": mm["score"],
-                "priority": mm["priority"],
-                "breakdown": mm["breakdown"],
-                "why": mm["reason"],
+                "mode": mm.get("mode", "MODE B (KEYWORD FALLBACK)"),
+                "score": mm.get("score", 70),
+                "priority": mm.get("priority", "HIGH PRIORITY"),
+                "breakdown": mm.get("breakdown") or {},
+                "why": mm.get("reason", ""),
                 "model": ai.last_active_model(),
             }
             if is_button:
@@ -1089,11 +1094,13 @@ class Session:
         clocks that drift apart, so transcribe the clip's own audio and line its words up with the live words.
         Local speech model only: no AI calls."""
         key = lambda w: _plain(w).replace("'", "")
+        clip_pcm = None
         try:
             wav = src.with_suffix(".wav")
             media.extract_audio(src, wav)
-            heard = transcribe.transcribe(media.load_audio(wav), lang=self.job.get("lang") or "en")
+            clip_pcm = media.load_audio(wav)
             wav.unlink(missing_ok=True)
+            heard = transcribe.transcribe(clip_pcm, lang=self.job.get("lang") or "en")
             with self.lock:
                 near = [w for w in self.words if guess - 15 <= w["s"] <= guess + dur + 15]
             diffs = []
@@ -1104,10 +1111,39 @@ class Session:
                 m = [w["s"] for w in near if key(w["w"]) == k and abs(w["s"] - (guess + h["s"])) < 8]
                 if m:
                     diffs.append(min(m, key=lambda s: abs(s - (guess + h["s"]))) - h["s"])
-            if len(diffs) >= 4:
+            if len(diffs) >= 4 or (len(diffs) >= 2 and (max(diffs) - min(diffs)) < 0.5):
                 return float(np.median(diffs))
-        except Exception:  # noqa: BLE001 - fall back to the piece clock
+        except Exception:  # noqa: BLE001 - fall back to waveform correlation
             pass
+
+        # Sub-frame audio waveform cross-correlation fallback:
+        # If words were not matched (e.g. non-English speech, laughter, background game noise, or silence),
+        # cross-correlate clip audio with the live stream audio buffer for millisecond-exact alignment.
+        if clip_pcm is not None and len(clip_pcm) >= 16000:
+            try:
+                ds_rate = 8
+                target_ds = 2000
+                clip_ds = np.array(clip_pcm[:16000 * 5:ds_rate], dtype=np.float32)
+                with self.lock:
+                    total_ds = len(self.audio_downsampled)
+                    cur_samples = self.samples
+                    ds_copy = list(self.audio_downsampled)
+                if total_ds > target_ds * 10 and len(clip_ds) >= target_ds * 2:
+                    stream_elapsed = cur_samples / SR
+                    ds_start_sec = max(0.0, stream_elapsed - (total_ds / target_ds))
+                    win_start_sec = max(ds_start_sec, guess - 10.0)
+                    win_end_sec = min(stream_elapsed, guess + 10.0 + len(clip_ds) / target_ds)
+                    idx_start = int((win_start_sec - ds_start_sec) * target_ds)
+                    idx_end = int((win_end_sec - ds_start_sec) * target_ds)
+                    buf_slice = np.array(ds_copy[idx_start:idx_end], dtype=np.float32)
+                    if len(buf_slice) > len(clip_ds):
+                        corr = np.correlate(buf_slice, clip_ds, mode="valid")
+                        best_local_idx = int(np.argmax(corr))
+                        best_offset_sec = win_start_sec + (best_local_idx / target_ds)
+                        return float(round(best_offset_sec, 3))
+            except Exception:
+                pass
+
         return guess
 
     def clip_last(self, seconds):
@@ -1119,9 +1155,6 @@ class Session:
         self.manual.append({
             "start": max(0.0, end - seconds),
             "end": end,
-            "source": "manual",
-            "trigger_type": "manual",
-            "why": "Hand clip",
         })
 
     def _publish(self):

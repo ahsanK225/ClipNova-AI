@@ -5905,8 +5905,8 @@ document.addEventListener("click", async e => {
       if (!jid || !cid) return toast("No clip selected", "bad");
       const origHtml = btn.innerHTML;
       btn.disabled = true;
-      btn.innerHTML = `<span>⏳</span> Generating…`;
-      toast("AI is creating 5 viral hook variations…", "ok");
+      btn.innerHTML = `<span>📸</span> Watching video…`;
+      toast("AI is watching video frames to generate grounded viral hooks…", "ok");
       try {
         const res = await send(`/api/jobs/${encodeURIComponent(jid)}/clips/${encodeURIComponent(cid)}/hooks`, {});
         if (res && res.hooks && res.hooks.length) {
@@ -5929,7 +5929,7 @@ document.addEventListener("click", async e => {
             hookInput.value = res.hooks[0];
             if (c) c.hook = res.hooks[0];
           }
-          toast("✨ 5 viral hooks generated!", "ok");
+          toast("✨ 5 grounded viral hooks generated from video frames!", "ok");
         } else {
           toast("AI returned no hooks. Please try again.", "bad");
         }
@@ -5977,8 +5977,8 @@ document.addEventListener("click", async e => {
       if (!jid || !cid) return toast("No clip selected", "bad");
       const origHtml = btn.innerHTML;
       btn.disabled = true;
-      btn.innerHTML = `<span>⏳</span> Generating…`;
-      toast("AI is creating 4 viral title suggestions…", "ok");
+      btn.innerHTML = `<span>📸</span> Watching video…`;
+      toast("AI is watching video frames to craft grounded viral titles…", "ok");
       try {
         const res = await send(`/api/jobs/${encodeURIComponent(jid)}/clips/${encodeURIComponent(cid)}/titles`, {});
         if (res && res.titles && res.titles.length) {
@@ -6007,7 +6007,7 @@ document.addEventListener("click", async e => {
           const seoTitlePills = $("#dlg_seo_title_pills");
           if (titlePills) titlePills.innerHTML = renderTitleBtns("title-pill-btn", res.titles[0]);
           if (seoTitlePills) seoTitlePills.innerHTML = renderTitleBtns("seo-title-pill-btn", firstSeo);
-          toast("✨ 4 fresh viral titles generated!", "ok");
+          toast("✨ 4 grounded viral titles generated from video frames!", "ok");
         }
       } catch (err) {
         toast("Failed to generate titles: " + err.message, "bad");
@@ -6508,7 +6508,8 @@ HOOKS:
       return tick();
     }
     if (a === "writetext") {
-      b.disabled = true; const was = b.textContent; b.textContent = "Writing…";
+      b.disabled = true; const was = b.innerHTML; b.innerHTML = `<span>📸</span> Watching video…`;
+      toast("AI is watching video frames to write viral post text…", "ok");
       try {
         const t = await send(`/api/jobs/${D.jid}/clips/${D.cid}/write`, {});
         const f = k => $(`#clipdlg [data-f="${k}"]`);
@@ -6534,8 +6535,8 @@ HOOKS:
           if (titlePills) titlePills.innerHTML = renderTitleBtns("title-pill-btn", t.title);
           if (seoTitlePills) seoTitlePills.innerHTML = renderTitleBtns("seo-title-pill-btn", seoT);
         }
-        return toast("New post text written. Read it over: it is saved when you post.", "ok");
-      } finally { b.disabled = false; b.textContent = was; }
+        return toast("✨ Fresh grounded post text written from video frames!", "ok");
+      } finally { b.disabled = false; b.innerHTML = was; }
     }
     if (a === "postnow" || a === "postqueue") {
       const accs = $$("#clipdlg [data-pacc]:checked").map(i => i.value);

@@ -868,7 +868,7 @@ def describe_multimodal(image_bytes: bytes, text: str = "", title: str = "", upl
     return describe(text, title=title, uploader=uploader, game=game, timeout=timeout)
 
 
-def post_text(text, title="", uploader="", game=None):
+def post_text(text, title="", uploader="", game=None, full=False):
     """A fresh title, description and hashtags for a clip that is already made, from what is said in it.
     Nothing is saved here: the person reads it and decides. Says plainly why when it can't.
     On a game stream the AI reads the same game rules as when the clip was found."""
@@ -881,21 +881,23 @@ def post_text(text, title="", uploader="", game=None):
         raise RuntimeError("The AI answered, but without a usable title or description. Try again.")
     c = _tidy(c, 0, 0, game)
     titles = c.get("titles") or []
-    if not titles or len(titles) < 3:
+    if full and (not titles or len(titles) < 3):
         try:
             titles = generate_viral_titles(text, title=c.get("title") or title, uploader=uploader, game=game, count=4)
         except Exception:
             titles = [c["title"]]
     c["titles"] = titles
-    return {
+    res = {
         "title": c["title"],
-        "titles": titles,
         "description": c["description"],
         "hashtags": c["hashtags"],
-        "seo_title": c.get("seo_title", c["title"]),
-        "seo_tags": c.get("seo_tags", []),
-        "pinned_comment": c.get("pinned_comment", "")
+        "titles": titles,
     }
+    if full:
+        res["seo_title"] = c.get("seo_title", c["title"])
+        res["seo_tags"] = c.get("seo_tags", [])
+        res["pinned_comment"] = c.get("pinned_comment", "")
+    return res
 
 
 TITLES_SCHEMA = {
@@ -910,11 +912,44 @@ TITLES_SCHEMA = {
 }
 
 
-def generate_viral_titles(text, title="", uploader="", game=None, count=4) -> list[str]:
-    """Generates 4 high-CTR, viral YouTube Shorts title suggestions with emojis and #Shorts."""
+def generate_viral_titles(text, title="", uploader="", game=None, count=4, image=None, tone=None) -> list[str]:
+    """Generates 4 high-CTR, viral YouTube Shorts title suggestions with emojis and #Shorts.
+    If image frames are provided, performs true multimodal vision analysis so titles 100% reflect the visual video scene."""
     t_clean = (text or "").strip()
     gname = game if (game and game != "None") else "Gaming"
     streamer_name = uploader or "Streamer"
+
+    if image and ai.ready():
+        is_multi = isinstance(image, list) and len(image) > 1
+        frame_desc = f"{len(image)} sequential video frames across the clip timeline (Setup -> Build-up -> Climax -> Payoff / Streamer Reaction)" if is_multi else "the video frame of this clip"
+        vision_prompt = f"""You are a master viral YouTube Shorts title writer analyzing {frame_desc} of an actual gaming clip alongside streamer dialogue.
+
+Streamer: {streamer_name}
+Game: {gname}
+Video Title: {title or 'Stream Highlight'}
+Spoken in clip: "{t_clean if t_clean else '(dialogue minimal or laughing - examine visual scene)'}"
+
+CRITICAL GROUNDING INSTRUCTIONS (LIKE CHATGPT / VIRAL CREATORS):
+1. LOOK AT THE ACTUAL VIDEO FRAMES:
+   - Identify the exact car, weapon, action, environment, outfit, NPC interaction, or stunt that is VISUALLY PRESENT!
+   - What is {streamer_name}'s visible facial reaction (laughing, shock, dying inside, rage)?
+2. Write {count} high-CTR, click-worthy YouTube Shorts titles under 70 characters ending with #Shorts.
+   - Title 1: Streamer funny reaction / shock centering on the EXACT visual event (e.g. '{streamer_name} Loses It Driving This Purple Whip in {gname}! 💀 #Shorts')
+   - Title 2: Curiosity gap / mystery (e.g. 'What Did {streamer_name} Just Find in {gname}?! 😱 #Shorts')
+   - Title 3: Relatable question / challenge (e.g. 'Would You Have Survived This in {gname}?! 😂 #Shorts')
+   - Title 4: High energy spectacle / funny fail (e.g. '{streamer_name}\\'s Funniest {gname} Moment Ever! 🔥 #Shorts')
+3. End each title with #Shorts and 1-2 fitting emojis.
+4. STRICTLY BANNED: Do NOT invent fake events that are not in the frames. Describe WHAT IS ON SCREEN!
+5. Return JSON with key 'titles' containing exactly {count} distinct options."""
+        try:
+            out, _ti, _to = ai.see_json(vision_prompt, image, schema=TITLES_SCHEMA, timeout=18)
+            if isinstance(out, dict) and "titles" in out and isinstance(out["titles"], list):
+                res = [re.sub(r'["\\]', '', str(t)).strip() for t in out["titles"] if str(t).strip()]
+                res = [t if "#shorts" in t.lower() else f"{t} #Shorts" for t in res]
+                if len(res) >= 2:
+                    return res[:count]
+        except Exception as e:
+            print(f"[brain] Multimodal title vision notice: {e}", flush=True)
 
     prompt = f"""You are a master viral YouTube Shorts title writer for gaming clips.
 Create {count} distinct, click-worthy YouTube Shorts titles under 70 characters that end with #Shorts.
@@ -930,7 +965,7 @@ Rules for high CTR Shorts titles:
 2. Title 1: Streamer funny reaction / shock (e.g. '{streamer_name} Loses It Driving This Purple Whip in {gname}! 💀 #Shorts')
 3. Title 2: Curiosity gap / mystery (e.g. 'What Did {streamer_name} Just Find in {gname}?! 😱 #Shorts')
 4. Title 3: Relatable question / challenge (e.g. 'Would You Have Survived This in {gname}?! 😂 #Shorts')
-5. Title 4: High energy spectacle / fail (e.g. '{streamer_name}'s Funniest {gname} Moment Ever! 🔥 #Shorts')
+5. Title 4: High energy spectacle / fail (e.g. '{streamer_name}\\'s Funniest {gname} Moment Ever! 🔥 #Shorts')
 6. Each title MUST end with #Shorts and include 1-2 emojis.
 7. Return JSON with key 'titles' containing exactly {count} distinct options."""
 
@@ -966,16 +1001,52 @@ HOOKS_SCHEMA = {
 }
 
 
-def generate_viral_hooks(text, title="", uploader="", game=None, count=5) -> list[str]:
-    """Generates punchy, viral headline hook banners for TikTok / YouTube Shorts based on dialogue and game context."""
+def generate_viral_hooks(text, title="", uploader="", game=None, count=5, image=None, tone=None) -> list[str]:
+    """Generates punchy, viral headline hook banners for TikTok / YouTube Shorts.
+    If image frames are provided, performs true multimodal vision analysis so hooks 100% reflect the visual scene."""
     t_clean = (text or "").strip()
     gname = game if (game and game != "None") else "Gaming"
+    streamer_name = uploader or "Streamer"
+
+    if image and ai.ready():
+        is_multi = isinstance(image, list) and len(image) > 1
+        frame_desc = f"{len(image)} sequential video frames across the clip timeline (Setup -> Build-up -> Climax -> Payoff / Streamer Reaction)" if is_multi else "the video frame of this clip"
+        vision_prompt = f"""You are an elite, hilarious viral TikTok & YouTube Shorts editor watching {frame_desc} of an actual gaming clip alongside streamer dialogue.
+
+Streamer: {streamer_name}
+Game: {gname}
+Video Title: {title or 'Stream Highlight'}
+Spoken in clip: "{t_clean if t_clean else '(dialogue minimal or shouting - examine the visual action)'}"
+
+CRITICAL GROUNDING & VIRALITY INSTRUCTIONS (LIKE CHATGPT / VIRAL EDITORS):
+1. LOOK CLOSELY AT THE VIDEO FRAMES:
+   - Identify the EXACT car, weapon, outfit/clothing, character, stunt, crash, police chase, or funny disaster that is ACTUALLY VISIBLE on screen!
+   - What is {streamer_name}'s physical reaction (hands on head, screaming, laughing, dying inside, shocked)?
+2. WRITE {count} UNFORGETTABLE, ULTRA-COMPELLING, VIRAL HOOK BANNERS (3 to 6 words each, ALL CAPS):
+   - Hook 1: Hilarious Reaction / Disbelief hook describing the exact visual event (e.g. 'WHAT IS THAT *CAR*?! 🚗', 'RATE THE *DRIP* CHAT 👗💀', 'SPEED CAUGHT *LACKING* 😂')
+   - Hook 2: Shock / Unexpected outcome (e.g. 'BRO DID NOT SEE THE *TREE* 💥', 'THE POLICE WENT TOO *FAR* 🚨')
+   - Hook 3: Curiosity gap (e.g. 'WHAT IS IN THAT *TRUNK*?! 📦💀', 'HE ACTUALLY PULLED THIS *OFF*?! 😱')
+   - Hook 4: Relatable gaming fail / troll (e.g. 'WORST *DRIVER* IN GTA 6 💀', 'THIS NPC CHOSE *VIOLENCE* 😂')
+   - Hook 5: Dramatic climax (e.g. 'HE LOST *EVERYTHING* IN 5 SECONDS 😭', 'NO WAY HE *SURVIVED* THIS 🔥')
+3. RULES:
+   - Surround the single most punchy keyword with asterisks (e.g. '*CAR*', '*DRIP*', '*LACKING*') so it gets highlighted in vibrant yellow on video.
+   - End each hook with 1-2 viral emojis.
+   - STRICTLY FORBIDDEN: NEVER write generic disconnected phrases like 'flashbacks are wild' or 'historic moment'. Describe WHAT IS PHYSICALLY ON SCREEN!
+4. Return JSON with key 'hooks' containing exactly {count} distinct options."""
+        try:
+            out, _ti, _to = ai.see_json(vision_prompt, image, schema=HOOKS_SCHEMA, timeout=18)
+            if isinstance(out, dict) and "hooks" in out and isinstance(out["hooks"], list):
+                res = [re.sub(r'["\\]', '', str(h)).strip() for h in out["hooks"] if str(h).strip()]
+                if len(res) >= 3:
+                    return res[:count]
+        except Exception as e:
+            print(f"[brain] Multimodal hook vision notice: {e}", flush=True)
 
     prompt = f"""You are a master viral TikTok & YouTube Shorts editor for gaming and stream clips.
 Create {count} ultra-compelling, high-CTR hook banner headlines (max 4 to 7 words each) for this moment.
 
 Video Title: {title or 'Stream Highlight'}
-Streamer: {uploader or 'Streamer'}
+Streamer: {streamer_name}
 Game: {gname}
 Spoken in clip:
 {t_clean if t_clean else '(High action gameplay moment, minimal dialogue)'}

@@ -50,3 +50,5 @@ test_sync_debug/
 tmp_test.wav
 test_innertube.py
 test_outro.py
+.test_data*
+

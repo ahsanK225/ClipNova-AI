@@ -157,7 +157,26 @@ def _post(p):
         creator = creators.get(job["creator"]) or dict(creators.DEFAULTS, name="clips")
         title = clip.get("seo_title") or clip.get("title") or clip.get("hook") or "Clip"
         cap = _caption(clip, creator)
+        upload_path = path
+        temp_yt2k = None
         if acc["platform"] == "youtube":
+            try:
+                probe = media.probe(path)
+                # If vertical video is below 2K (e.g. 1080x1920), generate pristine 1440x2560 master.
+                # YouTube strictly assigns VP9 / AV1 codec tier and high bitrate (15-25M) to 1440p+ uploads,
+                # preventing YouTube mobile/desktop player from downscaling the Short to blurry 240p/360p!
+                if probe.get("height", 0) < 2160 and probe.get("width", 0) < 1440:
+                    temp_yt2k = path.with_name(f"{path.stem}_yt2k.mp4")
+                    media.run(["ffmpeg", "-y", "-v", "error", "-i", str(path),
+                               "-vf", "scale=1440:2560:flags=lanczos+accurate_rnd,cas=0.20",
+                               "-c:v", "libx264", "-crf", "14", "-preset", "veryfast",
+                               "-b:v", "25M", "-maxrate", "35M", "-bufsize", "50M",
+                               "-tune", "film", "-c:a", "copy", str(temp_yt2k)])
+                    if temp_yt2k.is_file() and temp_yt2k.stat().st_size > 1024:
+                        upload_path = temp_yt2k
+            except Exception as ue:
+                creators.log(p["creator"], f"YouTube 2K VP9 pipeline notice: {ue}")
+
             yt_tags = list(clip.get("seo_tags") or [])
             for h in clip.get("hashtags", []):
                 if h not in yt_tags:
@@ -168,7 +187,11 @@ def _post(p):
                 desc = f"💬 Top Comment: {pcomment}\n\n" + desc
             publish_at = p.get("due_at") if (p.get("due_at", 0) > time.time() + 60 and not p.get("now")) else None
             privacy = "private" if publish_at else creator.get("privacy", "public")
-            rid, url = accounts.youtube_upload(acc, path, title, desc, yt_tags, privacy, publish_at=publish_at)
+            try:
+                rid, url = accounts.youtube_upload(acc, upload_path, title, desc, yt_tags, privacy, publish_at=publish_at)
+            finally:
+                if temp_yt2k and temp_yt2k.is_file():
+                    temp_yt2k.unlink(missing_ok=True)
             # Automatically set high-CTR cover thumbnail with hook banner & facecam on YouTube
             cover_file = clip.get("cover") or f"{clip['id']}.jpg"
             cover_path = Path(job["dir"]) / "clips" / cover_file

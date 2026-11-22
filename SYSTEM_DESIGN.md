@@ -126,10 +126,11 @@ The live speech trigger engine (`studio/live.py:Session._triggers`) continuously
 
 ## 9. Story-Driven YouTube Shorts SEO Pipeline
 Integrated directly in `studio/brain.py` and `studio/posting.py`:
-- **Multimodal Video Frame Scene Understanding (`ai.py`, `brain.py`)**:
-  - In addition to spoken audio transcripts, PeakCut extracts high-resolution video frames at highlights via fast ffmpeg pipes and submits them to multimodal vision models (`gemini-3.5-flash-lite`).
-  - Visual objects, actions, setting (poolside, neon street, police cruiser), and streamer expressions are extracted into structured JSON metadata.
-  - Generates ground-truth hooks that strictly match what is happening visually on screen, banning repetitive cliché templates (e.g. `"THIS NPC HAS NO CHILL"`).
+- **Multimodal Video Frame Grounding for Hooks, Titles & Post Text (`jobs.py`, `ai.py`, `brain.py`)**:
+  - In addition to spoken audio transcripts, PeakCut extracts 6 high-resolution video frames across the clip timeline (0.15, 0.35, 0.55, 0.70, 0.85, 0.95) via `jobs.get_clip_frames_payload` and submits them to multimodal vision models (`gemini-3.5-flash-lite` via `ai.see_json`).
+  - Physical vehicles, objects, crashes, characters, and streamer facial expressions are extracted into structured JSON metadata.
+  - Generates ground-truth hooks (`*CAR*`, `*ALLIGATOR*`, `*BOAT*`) and titles that strictly describe what is visually happening on screen, completely eliminating blind transcript cliché templates (e.g. `"GTA 6 flashbacks are wild"`, `"He lost his mind"`).
+  - All 3 creative generation endpoints (`/hooks`, `/titles`, `/write`) now leverage this 6-frame vision payload.
 - **1-Click AI Video Scan in Clip Editor (`server.py`, `web/index.html`)**:
   - Allows creators to re-scan any clip's visual frame with AI via `POST /api/jobs/{jid}/clips/{cid}/ai_seo`.
   - Instantly populates and refreshes Hook, Title, Description, YouTube search tags, and Pinned comment in the editor dialog.
