@@ -1,6 +1,35 @@
 ﻿# Changelog
 All notable project changes are documented here.
 
+## [2026-11-23] — Creator Content Calendar & Setup Schedule View
+
+### Added
+- **Dedicated 'Publishing Calendar' Tab in Creator View (`web/index.html`)**:
+  - Added `["calendar", "Publishing Calendar", "calendar", nSched]` in creator navigation bar (`#utabs`) with dynamic badge counter showing total scheduled videos.
+  - Clicking the tab loads a full-width immersive content calendar view (`#creator_calendar_view`) rendered via `drawCreatorCalendarTab()`.
+- **Persistent Publishing Calendar Card in Creator Setup (`web/index.html`)**:
+  - Embedded the USA Content Calendar card directly at the very top of the Creator Setup form (`#cform`) right before "Their stream" settings per user request.
+  - Automatically loads and displays the creator's schedule when navigating to Setup.
+- **Backend Creator Calendar API (`studio/server.py`)**:
+  - Added `GET /api/creators/{cid}/calendar` endpoint returning the creator's active scheduled videos, paired Community Posts (+30m), recent uploads, and the next 9 available USA publishing slots with PKT and US Eastern/Pacific times.
+- **Rich Calendar Schedule Card UI (`web/index.html`)**:
+  - Day-by-day timeline cards showing:
+    - Exact PKT upload time (`06:00 PM`, `12:00 AM`, `06:00 AM PKT`)
+    - Exact US time with DST (`08:00 AM EST / 05:00 AM PST`)
+    - Video cover thumbnail preview and duration badge
+    - Account badge and title
+    - Paired Community Post time (+30m offset) with 1-click `📋 Copy` button
+    - Action buttons: `[▶ View Clip]` to launch the clip modal, and `[✕ Cancel]` to cancel the scheduled post
+    - Visual indicators for next available publishing slots and today's slot usage (e.g. `Today: 1/3 Used (2 Left)`).
+  - Added `"calendar"` SVG icon in icon dictionary `I`.
+
+### Tests and Verification
+- Executed `tests/test_usa_publishing_calendar.py`: **8/8 PASSED** in 1.224s.
+- Verified `GET /api/creators/ishowspeed/calendar` returning HTTP 200 with 5 scheduled posts and 9 upcoming slots.
+- Node.js AST parser: `web/index.html syntax 100% clean!`.
+- Server running on port 8765 with `/healthz` returning 200 OK.
+
+
 ## [2026-11-23] — Automatic USA-Focused Publishing Calendar & Community Post Scheduling Engine
 
 ### Added

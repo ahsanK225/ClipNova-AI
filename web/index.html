@@ -1008,6 +1008,7 @@ const I = {
  "warn": "<path d=\"M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24Zm0,192a88,88,0,1,1,88-88A88.1,88.1,0,0,1,128,216Zm-8-80V80a8,8,0,0,1,16,0v56a8,8,0,0,1-16,0Zm20,36a12,12,0,1,1-12-12A12,12,0,0,1,140,172Z\"/>",
  "eye": "<path d=\"M247.31,124.76c-.35-.79-8.82-19.58-27.65-38.41C194.57,61.26,162.88,48,128,48S61.43,61.26,36.34,86.35C17.51,105.18,9,124,8.69,124.76a8,8,0,0,0,0,6.5c.35.79,8.82,19.57,27.65,38.4C61.43,194.74,93.12,208,128,208s66.57-13.26,91.66-38.34c18.83-18.83,27.3-37.61,27.65-38.4A8,8,0,0,0,247.31,124.76ZM128,192c-30.78,0-57.67-11.19-79.93-33.25A133.47,133.47,0,0,1,25,128,133.33,133.33,0,0,1,48.07,97.25C70.33,75.19,97.22,64,128,64s57.67,11.19,79.93,33.25A133.46,133.46,0,0,1,231.05,128C223.84,141.46,192.43,192,128,192Zm0-112a48,48,0,1,0,48,48A48.05,48.05,0,0,0,128,80Zm0,80a32,32,0,1,1,32-32A32,32,0,0,1,128,160Z\"/>",
  "money": "<path d=\"M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24Zm0,192a88,88,0,1,1,88-88A88.1,88.1,0,0,1,128,216Zm40-68a28,28,0,0,1-28,28h-4v8a8,8,0,0,1-16,0v-8H104a8,8,0,0,1,0-16h36a12,12,0,0,0,0-24H116a28,28,0,0,1,0-56h4V72a8,8,0,0,1,16,0v8h16a8,8,0,0,1,0,16H116a12,12,0,0,0,0,24h24A28,28,0,0,1,168,148Z\"/>",
+ "calendar": "<path d=\"M208,32H184V24a8,8,0,0,0-16,0v8H88V24a8,8,0,0,0-16,0v8H48A16,16,0,0,0,32,48V208a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V48A16,16,0,0,0,208,32ZM72,48v8a8,8,0,0,0,16,0V48h80v8a8,8,0,0,0,16,0V48h24V80H48V48ZM208,208H48V96H208V208Zm-96-88a8,8,0,0,1,8-8h32a8,8,0,0,1,0,16H120A8,8,0,0,1,112,120Zm0,40a8,8,0,0,1,8-8h32a8,8,0,0,1,0,16H120A8,8,0,0,1,112,160Z\"/>",
  "video": "<path d=\"M251.77,73a8,8,0,0,0-8.21.39L208,97.05V72a16,16,0,0,0-16-16H32A16,16,0,0,0,16,72V184a16,16,0,0,0,16,16H192a16,16,0,0,0,16-16V159l35.56,23.71A8,8,0,0,0,248,184a8,8,0,0,0,8-8V80A8,8,0,0,0,251.77,73ZM192,184H32V72H192V184Zm48-22.95-32-21.33V116.28L240,95Z\"/>",
  "crown": "<path d=\"M230.9,73.6A15.85,15.85,0,0,0,212,77.39l-33.67,36.29-35.8-80.29a1,1,0,0,1,0-.1,16,16,0,0,0-29.06,0,1,1,0,0,1,0,.1l-35.8,80.29L44,77.39A16,16,0,0,0,16.25,90.81c0,.11,0,.21.07.32L39,195a16,16,0,0,0,15.72,13H201.29A16,16,0,0,0,217,195L239.68,91.13c0-.11,0-.21.07-.32A15.85,15.85,0,0,0,230.9,73.6ZM201.35,191.68l-.06.32H54.71l-.06-.32L32,88l.14.16,42,45.24a8,8,0,0,0,13.18-2.18L128,40l40.69,91.25a8,8,0,0,0,13.18,2.18l42-45.24L224,88Z\"/>",
  "film_f": "<path d=\"M216,40H40A16,16,0,0,0,24,56V200a16,16,0,0,0,16,16H216a16,16,0,0,0,16-16V56A16,16,0,0,0,216,40ZM184,56h32V72H184ZM72,200H40V184H72ZM72,72H40V56H72Zm48,128H88V184h32Zm0-128H88V56h32Zm48,128H136V184h32Zm0-128H136V56h32Zm48,128H184V184h32v16Z\"/>",
@@ -1458,7 +1459,8 @@ function drawShell() {  const nav = (v, icon, label, extra = "") => `<button cla
     pic = cav(c);
     subHtml = statusBadge(c);
     const nJobs = S.jobs.filter(j => j.creator === c.id).length, nLog = (c.log || []).length;
-    tabs = [["clips", "Clips", "scissors", nJobs], ["setup", "Setup", "cog", 0], ["activity", "Activity", "clock", nLog]].map(([k, l, i, n]) =>
+    const nSched = (S.overview?.posts || []).filter(p => p.creator === c.id && p.status === "scheduled" && p.kind !== "community").length;
+    tabs = [["clips", "Clips", "scissors", nJobs], ["calendar", "Publishing Calendar", "calendar", nSched], ["setup", "Setup", "cog", 0], ["activity", "Activity", "clock", nLog]].map(([k, l, i, n]) =>
       `<button class="tabbtn ${S.ctab === k ? "on" : ""}" data-act="tab" data-t="${k}" role="tab" aria-selected="${S.ctab === k}">${ic(i)}${l}${n ? `<span class="n">${n > 99 ? "99+" : n}</span>` : ""}</button>`).join("");
     act = c.live_job ? `<button class="btn danger" data-act="stoplive" data-j="${esc(c.live_job)}">${ic("stop")}Stop recording</button>`
                      : `<button class="btn primary" data-act="golive"><span class="rdot"></span>${liveOn(c).length ? "Record live stream" : "Start recording"}</button>`;
@@ -1636,9 +1638,13 @@ function setTab(t) {
   S.ctab = t;
   if (S.view.startsWith("c:")) remember(S.view, t, "replace");
   drawShell();
-  $("#cbody").innerHTML = t === "clips" ? `<div id="live"></div><div id="add"></div><div id="jobs"></div>` : t === "setup" ? `<div id="cform"></div>` : `<div id="clog"></div>`;
+  $("#cbody").innerHTML = t === "clips" ? `<div id="live"></div><div id="add"></div><div id="jobs"></div>`
+    : t === "calendar" ? `<div id="creator_calendar_view" style="padding:4px 0 24px 0"></div>`
+    : t === "setup" ? `<div id="cform"></div>`
+    : `<div id="clog"></div>`;
   if ($("#stream")) $("#stream").style.display = t === "clips" ? "" : "none";
   if (t === "clips") drawAdd("compact");
+  if (t === "calendar") drawCreatorCalendarTab();
   if (t === "setup") drawCreatorForm();
   render();
 }
@@ -2731,10 +2737,174 @@ async function applyPresetToAllClips(pname) {
     toast(`Could not apply to all clips: ${err.message}`, "bad");
   }
 }
+async function renderCreatorCalendarCard(c, targetEl, isCompact = false) {
+  if (!targetEl || !c) return;
+  targetEl.innerHTML = `<div class="card" style="margin-bottom:16px;background:linear-gradient(135deg, rgba(15,23,42,0.9), rgba(10,15,30,0.95));border:1px solid rgba(0,240,255,0.2);border-radius:14px;padding:16px 20px">
+    <div style="display:flex;align-items:center;gap:8px;color:var(--text-dim);font-size:13px">
+      <span class="spin">⏳</span> Loading USA publishing calendar for ${esc(c.name)}…
+    </div>
+  </div>`;
+
+  let calData = null;
+  try {
+    calData = await api(`/api/creators/${c.id}/calendar`);
+  } catch (err) {
+    console.warn("Failed to load creator calendar endpoint:", err);
+  }
+
+  const vPosts = (calData?.scheduled || []).filter(p => p.kind !== "community" && !p.is_community);
+  const commPosts = (calData?.scheduled || []).filter(p => p.kind === "community" || p.is_community);
+  const slots = calData?.upcoming_slots || [];
+
+  // Determine today's scheduled count
+  const todayStr = new Date().toLocaleDateString("en-CA");
+  const todayCount = vPosts.filter(p => {
+    const t = p.scheduled_at || p.due_at;
+    if (!t) return false;
+    return new Date(t * 1000).toLocaleDateString("en-CA") === todayStr;
+  }).length;
+  const slotsLeftToday = Math.max(0, 3 - todayCount);
+
+  targetEl.innerHTML = `
+    <div class="card" style="margin-bottom:18px;background:linear-gradient(135deg, rgba(15,23,42,0.95), rgba(10,15,30,0.98));border:1px solid rgba(0,240,255,0.28);border-radius:14px;padding:18px 20px;box-shadow:0 10px 32px rgba(0,0,0,0.45)">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:14px;border-bottom:1px solid rgba(255,255,255,0.08);padding-bottom:12px">
+        <div style="display:flex;align-items:center;gap:10px">
+          <span style="font-size:24px;filter:drop-shadow(0 0 8px rgba(0,240,255,0.4))">📅</span>
+          <div>
+            <h2 style="margin:0;font-size:17px;font-weight:700;display:flex;align-items:center;gap:8px">
+              USA Publishing Calendar — ${esc(c.name)}
+              <span class="pill sm ok" style="font-size:10px;text-transform:uppercase;letter-spacing:0.5px">Active Engine</span>
+            </h2>
+            <p class="help" style="margin:2px 0 0 0;font-size:12px;color:#94A3B8">
+              Targeted USA Viewing Schedule: <b>6:00 PM · 12:00 AM · 6:00 AM PKT</b> (Max 3 videos/day) + Paired Community Posts (+30m).
+            </p>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+          <span class="pill" style="background:rgba(0,240,255,0.12);border-color:rgba(0,240,255,0.4);color:#00f0ff;font-size:11px;font-weight:600">
+            🎬 ${vPosts.length} Video${vPosts.length === 1 ? '' : 's'} Queued
+          </span>
+          <span class="pill" style="background:rgba(168,85,247,0.14);border-color:rgba(168,85,247,0.4);color:#d8b4fe;font-size:11px;font-weight:600">
+            📢 ${commPosts.length} Community Post${commPosts.length === 1 ? '' : 's'}
+          </span>
+          <span class="pill" style="background:rgba(34,197,94,0.12);border-color:rgba(34,197,94,0.4);color:#4ade80;font-size:11px;font-weight:600">
+            ⚡ Today: ${todayCount}/3 Used (${slotsLeftToday} Left)
+          </span>
+        </div>
+      </div>
+
+      <!-- Scheduled Videos Queue -->
+      ${vPosts.length ? `
+        <div style="margin-bottom:16px">
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:#94A3B8;margin-bottom:8px">
+            ⏳ Scheduled & Queued Videos for ${esc(c.name)}:
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(290px, 1fr));gap:10px">
+            ${vPosts.map((p, idx) => {
+              const due = p.scheduled_at || p.due_at;
+              const datePkt = due ? new Date(due * 1000).toLocaleString([], {weekday:"short", month:"short", day:"numeric", hour:"2-digit", minute:"2-digit"}) : "Scheduled";
+              const commPost = commPosts.find(cp => cp.video_post_id === p.id || cp.clip === p.clip);
+              const commTime = commPost ? new Date((commPost.scheduled_at || commPost.due_at) * 1000).toLocaleString([], {hour:"2-digit", minute:"2-digit"}) : "";
+              const thumbUrl = p.job && p.cover ? `/media/${p.job}/${p.cover}` : "";
+
+              return `
+                <div style="background:rgba(15,23,42,0.8);border:1px solid rgba(0,240,255,0.22);border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:8px">
+                  <div style="display:flex;align-items:center;justify-content:space-between;gap:6px">
+                    <span class="badge" style="background:rgba(0,240,255,0.15);color:#00F0FF;border:1px solid rgba(0,240,255,0.3);font-size:10px;font-weight:700">
+                      #${idx + 1} · ⏱️ ${datePkt} PKT
+                    </span>
+                    <span style="font-size:10px;color:#94A3B8;font-weight:600">${esc(p.account_name || 'YouTube')}</span>
+                  </div>
+                  <div style="display:flex;gap:10px;align-items:center">
+                    ${thumbUrl ? `
+                      <div style="width:48px;height:48px;border-radius:6px;overflow:hidden;flex-shrink:0;background:#000;border:1px solid rgba(255,255,255,0.1)">
+                        <img src="${thumbUrl}" style="width:100%;height:100%;object-fit:cover" alt="">
+                      </div>
+                    ` : ''}
+                    <div style="min-width:0;flex:1">
+                      <div style="font-size:12px;font-weight:700;line-height:1.3;color:#F8FAFC;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical">
+                        ${esc(p.title || 'Clip')}
+                      </div>
+                      ${p.calendar_slot ? `
+                        <div style="font-size:10px;color:#38BDF8;margin-top:2px">
+                          🇺🇸 ${p.calendar_slot.video_us_east_str} · ${p.calendar_slot.video_us_west_str}
+                        </div>
+                      ` : ''}
+                    </div>
+                  </div>
+                  ${commPost ? `
+                    <div style="background:rgba(168,85,247,0.1);border:1px solid rgba(168,85,247,0.3);border-radius:6px;padding:4px 8px;font-size:11px;color:#d8b4fe;display:flex;align-items:center;gap:6px">
+                      <span>📢</span>
+                      <span><b>Community Post:</b> ${commTime} (+30m)</span>
+                      <button type="button" class="btn sm ghost" data-act="copy_post_comm" data-pid="${esc(commPost.id)}" style="margin-left:auto;padding:1px 6px;font-size:10px;color:#f3e8ff">📋 Copy</button>
+                    </div>
+                  ` : ''}
+                  <div style="display:flex;gap:6px;margin-top:auto;padding-top:4px;border-top:1px solid rgba(255,255,255,0.06);align-items:center">
+                    <button class="btn sm" data-act="openclip" data-j="${esc(p.job)}" data-c="${esc(p.clip)}" style="padding:2px 8px;font-size:11px">
+                      ${ic("play")} View Clip
+                    </button>
+                    <span style="flex:1"></span>
+                    <button class="btn sm danger ghost" data-act="cancelpost" data-pid="${esc(p.id)}" style="padding:2px 8px;font-size:11px" title="Cancel this scheduled upload">
+                      ${ic("x")} Cancel
+                    </button>
+                  </div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        </div>
+      ` : `
+        <div style="background:rgba(30,41,59,0.4);border:1px dashed rgba(255,255,255,0.15);border-radius:10px;padding:12px 14px;margin-bottom:14px;display:flex;align-items:center;gap:12px">
+          <span style="font-size:24px">✨</span>
+          <div style="font-size:12px;color:#94A3B8;line-height:1.4">
+            <b>No videos currently queued for ${esc(c.name)}.</b> When clips are rendered, click <b>"Post"</b> or <b>"Add to queue"</b> to automatically assign them to upcoming USA publishing slots!
+          </div>
+        </div>
+      `}
+
+      <!-- Upcoming Publishing Windows Calendar Grid -->
+      <div style="margin-top:12px">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:#94A3B8;margin-bottom:8px">
+          🗓️ Next Available USA Publishing Slots (6:00 PM · 12:00 AM · 6:00 AM PKT):
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(260px, 1fr));gap:8px">
+          ${slots.slice(0, isCompact ? 3 : 6).map((sl) => {
+            return `
+              <div style="background:rgba(15,23,42,0.6);border:1px dashed rgba(0,240,255,0.22);border-radius:8px;padding:8px 10px;display:flex;flex-direction:column;gap:4px">
+                <div style="display:flex;align-items:center;justify-content:space-between">
+                  <span style="font-size:11px;font-weight:700;color:#00F0FF">
+                    Slot ${sl.slot_num} · ${sl.video_time_pkt} PKT
+                  </span>
+                  <span style="font-size:10px;color:#94A3B8">
+                    ${sl.cycle_date}
+                  </span>
+                </div>
+                <div style="font-size:11px;color:#CBD5E1">
+                  🇺🇸 <b>${sl.video_us_east_str}</b> · ${sl.video_us_west_str}
+                </div>
+                <div style="font-size:10px;color:#A855F7;margin-top:2px">
+                  📢 Paired Community Post: <b>${sl.community_time_pkt} PKT (+30m)</b>
+                </div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function drawCreatorCalendarTab() {
+  const c = creator(), box = $("#creator_calendar_view");
+  if (!c || !box) return;
+  renderCreatorCalendarCard(c, box, false);
+}
+
 function drawCreatorForm() {
   const c = creator(), box = $("#cform"); if (!c || !box) return;
   const A = S.accounts;
-  box.innerHTML = `<div class="card"><h2>Their stream</h2><p class="help">Where to record from, and whether to start by itself.</p>
+  box.innerHTML = `<div id="setup_creator_calendar_card"></div>
+    <div class="card"><h2>Their stream</h2><p class="help">Where to record from, and whether to start by itself.</p>
       <div class="chans">${channelRows(c)}</div>
       <div class="fields" style="margin-top:14px"><label class="sw span"><input type="checkbox" data-k="auto_watch" ${c.auto_watch ? "checked" : ""}><span>Record automatically when they go live<small>Checks straight away, then every two minutes.</small></span></label>
         <label class="f">Language they speak<select data-k="lang">${opts(Object.fromEntries(Object.keys(speechLangs()).map(k => [k, langName(k)])), c.lang || "en")}</select><small class="sub" style="font-weight:400">Used for live recordings and as the choice for their videos.${(c.lang && c.lang !== "en" && speechLangs()[c.lang]?.state !== "ready") ? " Its speech model isn't added yet: see Settings → Speech models." : ""}</small></label></div></div>
@@ -2919,6 +3089,7 @@ function drawCreatorForm() {
       <button class="btn danger" data-act="delcreator">${ic("trash")}Delete creator</button></div>
     <div class="savebar" id="savebar"><span>${ic("warn")}You have unsaved changes</span><button class="btn ghost" data-act="cdiscard">Discard</button><button class="btn primary" data-act="csave">${ic("check")}Save changes</button></div>`;
   updateCreatorLayoutPreview();
+  renderCreatorCalendarCard(c, $("#setup_creator_calendar_card"), true);
 }
 const creatorForm = () => { const d = {}; $$("#cform [data-k]").forEach(i => { if (i.type === "radio") { if (i.checked) d[i.dataset.k] = i.value; } else d[i.dataset.k] = i.type === "checkbox" ? i.checked : i.value; }); d.accounts = $$("#cform [data-acc]:checked").map(i => i.value); return d; };
 const dirty = on => $("#savebar")?.classList.toggle("on", on);
@@ -6449,6 +6620,31 @@ document.addEventListener("click", async e => {
         const cid = (ytAcc.id || "").replace(/^yt_/, "");
         const url = cid ? `https://www.youtube.com/channel/${cid}/community` : "https://www.youtube.com";
         window.open(url, "_blank", "noopener");
+      }
+      return;
+    }
+    if (a === "copy_post_comm") {
+      const pid = d.pid || t.dataset.pid;
+      let text = "";
+      if (pid) {
+        const p = (S.overview?.posts || []).find(x => x.id === pid);
+        text = p?.formatted_text || "";
+      }
+      if (!text && D.cid) {
+        const c = jobOf(D.jid)?.clips?.find(x => x.id === D.cid);
+        text = c?.community_text || "";
+      }
+      if (text) {
+        await navigator.clipboard.writeText(text);
+        toast("📢 YouTube Community Post copied to clipboard!", "ok");
+        const ytAcc = S.accounts?.find(acc => acc.platform === "youtube");
+        if (ytAcc) {
+          const cid = (ytAcc.id || "").replace(/^yt_/, "");
+          const url = cid ? `https://www.youtube.com/channel/${cid}/community` : "https://www.youtube.com";
+          window.open(url, "_blank", "noopener");
+        }
+      } else {
+        toast("Community post text is being formatted. Open the clip to view it.", "warn");
       }
       return;
     }

@@ -128,6 +128,36 @@ class TestUSAPublishingCalendar(unittest.TestCase):
         self.assertEqual(s_info["video_us_east_str"], "09:00 AM EDT")
         self.assertEqual(s_info["video_us_west_str"], "06:00 AM PDT")
 
+    def test_creator_calendar_endpoint(self):
+        """Verify GET /api/creators/{cid}/calendar endpoint structure and responses."""
+        from fastapi.testclient import TestClient
+        from studio.server import app
+        from studio import auth, db
+
+        db.init()
+        client = TestClient(app, base_url="http://127.0.0.1:8765")
+        tok = auth.start_session("u_local")
+        res = client.get("/api/creators/ishowspeed/calendar", cookies={"s": tok}, headers={"Host": "127.0.0.1:8765"})
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+        self.assertIn("creator", data)
+        self.assertEqual(data["creator"]["name"], "IShowSpeed")
+        self.assertIn("scheduled", data)
+        self.assertIn("upcoming_slots", data)
+        self.assertEqual(data["max_per_day"], 3)
+        self.assertEqual(data["min_gap_hours"], 6)
+
+    def test_frontend_creator_calendar_markup(self):
+        """Verify web/index.html has Publishing Calendar tab and setup calendar card."""
+        from pathlib import Path
+        html = Path("web/index.html").read_text(encoding="utf-8")
+        self.assertIn("Publishing Calendar", html)
+        self.assertIn("renderCreatorCalendarCard", html)
+        self.assertIn("setup_creator_calendar_card", html)
+        self.assertIn("creator_calendar_view", html)
+        self.assertIn("copy_post_comm", html)
+
 
 if __name__ == "__main__":
     unittest.main()
+

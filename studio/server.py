@@ -2496,6 +2496,50 @@ def get_calendar_slots(account_id: str = None, count: int = 6):
     }
 
 
+@app.get("/api/creators/{cid}/calendar")
+def get_creator_calendar(cid: str):
+    """Returns the full publishing calendar schedule, slots, and queued videos for a specific creator."""
+    _throttle("creatorcal:" + ctx.uid(), 60, 60)
+    c = creators.get(cid)
+    if not c:
+        raise HTTPException(404, "Creator not found")
+
+    all_mine = posting._mine()
+    c_posts = [p for p in all_mine if p.get("creator") == cid]
+
+    scheduled_posts = [p for p in c_posts if p.get("status") in posting.OPEN]
+    scheduled_posts.sort(key=lambda p: float(p.get("scheduled_at") or p.get("due_at") or 0))
+
+    recent_posted = [p for p in c_posts if p.get("status") == "posted"]
+    recent_posted.sort(key=lambda p: -float(p.get("posted_at") or p.get("due_at") or 0))
+    recent_posted = recent_posted[:10]
+
+    all_jobs = {j["id"]: j for j in jobs.list_jobs() if j.get("creator") == cid}
+    for p in scheduled_posts + recent_posted:
+        j = all_jobs.get(p.get("job"))
+        if j:
+            clip = next((k for k in j.get("clips", []) if k.get("id") == p.get("clip")), None)
+            if clip:
+                p["cover"] = clip.get("cover") or f"{clip['id']}.jpg"
+                p["file"] = clip.get("file") or ""
+                p["hook"] = clip.get("hook") or ""
+                p["reason"] = clip.get("reason") or ""
+                p["clip_status"] = clip.get("status") or "done"
+
+    primary_acc = c["accounts"][0] if c.get("accounts") else None
+    upcoming_slots = calendar.assign_slots_to_videos(primary_acc, all_mine, count=9)
+
+    return {
+        "creator": {"id": c["id"], "name": c["name"], "accounts": c.get("accounts", [])},
+        "scheduled": scheduled_posts,
+        "recent_posted": recent_posted,
+        "upcoming_slots": upcoming_slots,
+        "max_per_day": calendar.MAX_VIDEOS_PER_DAY,
+        "preferred_times_pkt": ["06:00 PM", "12:00 AM", "06:00 AM"],
+        "min_gap_hours": 6
+    }
+
+
 @app.get("/api/jobs/{jid}/clips/{cid}/community")
 def get_clip_community_post(jid: str, cid: str):
     """Returns the pre-formatted community post text, Short URL, and schedule information."""
