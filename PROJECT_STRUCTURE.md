@@ -43,6 +43,7 @@ F:\Games\GTA 6 CLIPPING\
 │   │   ├── asr.py                          # Speech recognition & word-level timing (sherpa-onnx)
 │   │   ├── audio.py                        # Audio engine: background music, viral meme sounds library, path security & safe uploads
 │   │   ├── brain.py                        # Universal grounding (anti-hallucination), multimodal scene analysis, dual AI judges & SEO
+│   │   ├── calendar.py                     # USA-focused automatic publishing calendar engine (6PM, 12AM, 6AM PKT; max 3/day; auto next-day roll; +30m Community Post pairing; US DST aware)
 │   │   ├── config.py                       # App configuration & environment parsing
 │   │   ├── creators.py                     # Creator workspace profiles, trigger words & settings
 │   │   ├── db.py                           # SQLite / SQLAlchemy persistence
@@ -73,7 +74,8 @@ F:\Games\GTA 6 CLIPPING\
 │   │   ├── test_speech.py                  # Multi-language speech model tests
 │   │   ├── test_upload_parts.py            # Large chunked upload validation
 │   │   ├── test_seo.py                     # YouTube Shorts SEO validation test suite
-│   │   └── test_sync.py                    # Audio/video latency, PTS normalization, and layout tests
+│   │   ├── test_sync.py                    # Audio/video latency, PTS normalization, and layout tests
+│   │   └── test_usa_publishing_calendar.py # USA-focused automatic publishing calendar & community post test suite
 │   ├── web\                                # Static frontend web dashboard
 │   │   ├── brand\                          # Brand assets & layout visual previews (540x960 crisp JPGs)
 │   │   │   ├── layout-split_half.jpg       # Classic Split 50/50 ⭐ (Top Cam 1080x960, Bottom Game 1080x960)
@@ -92,6 +94,7 @@ F:\Games\GTA 6 CLIPPING\
 │   │   └── index.html                      # UI dashboard with visual layout previews, multi-key pool & live player
 │   ├── tests/                              # Automated test suites
 │   │   ├── test_stream_chat_and_scroll.py  # Unit tests for stream card live chat elevation, compact stats & scroll auto-stick/preservation
+│   │   ├── test_ai_verdicts_clean_ui.py    # Unit tests for clean single-line AI decisions, removal of what was just said & compact height
 │   │   ├── test_bgm_and_meme_sounds.py     # Unit tests for viral background music, meme sounds & zero-latency sync preview
 │   │   ├── test_origins_chat_teaser.py     # Unit tests for clip origin badges, Twitch chat streaming & teaser cold open
 │   │   ├── test_trigger_timeline.py        # Unit tests for 12s pre-roll hook and 28s post-roll reaction

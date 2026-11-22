@@ -24,7 +24,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Redirect
 
 from . import admin as admins
 from . import account, load
-from . import (accounts, ai, alerts, auth, brain, config, creators, ctx, db, jobs, live, media, posting,
+from . import (accounts, ai, alerts, auth, brain, calendar, config, creators, ctx, db, jobs, live, media, posting,
                profiles, render, safe, transcribe, usage)
 
 from . import tools as _tools  # noqa: E402
@@ -2479,6 +2479,55 @@ def bulk_unschedule(body: dict = Body(...)):
             if jid and cid:
                 total_cancelled += posting.cancel_clip(jid, cid)
     return {"ok": True, "cancelled": total_cancelled}
+
+
+@app.get("/api/calendar/slots")
+def get_calendar_slots(account_id: str = None, count: int = 6):
+    """Returns the upcoming available publishing slots according to the USA-focused calendar."""
+    _throttle("calslots:" + ctx.uid(), 60, 60)
+    slots = calendar.assign_slots_to_videos(account_id, posting._mine(), count=min(max(count, 1), 30))
+    return {
+        "slots": slots,
+        "max_per_day": calendar.MAX_VIDEOS_PER_DAY,
+        "min_gap_hours": 6,
+        "tz_pkt": "UTC+5 (Pakistan Standard Time)",
+        "tz_us_east": "US Eastern Time",
+        "tz_us_west": "US Pacific Time"
+    }
+
+
+@app.get("/api/jobs/{jid}/clips/{cid}/community")
+def get_clip_community_post(jid: str, cid: str):
+    """Returns the pre-formatted community post text, Short URL, and schedule information."""
+    job = _job_or_404(jid)
+    clip = next((c for c in job["clips"] if c["id"] == cid), None)
+    if not clip:
+        raise HTTPException(404, "Clip not found")
+
+    vpost = next((p for p in posting._mine() if p.get("job") == jid and p.get("clip") == cid and p.get("kind") != "community"), None)
+    short_url = (vpost.get("url") or "") if vpost else ""
+    if not short_url and vpost and vpost.get("remote_id"):
+        short_url = f"https://www.youtube.com/shorts/{vpost['remote_id']}"
+    if not short_url and clip.get("posts"):
+        for pdata in clip["posts"].values():
+            if pdata.get("url") and "youtu" in pdata.get("url", ""):
+                short_url = pdata["url"]
+                break
+
+    title = clip.get("seo_title") or clip.get("title") or clip.get("hook") or "Clip"
+    desc = clip.get("description") or ""
+    comment = str(clip.get("pinned_comment") or "").strip()
+    tags = list(clip.get("seo_tags") or []) + list(clip.get("hashtags") or [])
+
+    comm_text = calendar.build_community_post_text(title, desc, short_url, comment, tags)
+
+    return {
+        "title": title,
+        "text": comm_text,
+        "short_url": short_url,
+        "video_post": vpost,
+        "community_scheduled_at": clip.get("community_scheduled_at")
+    }
 
 
 @app.post("/api/jobs/{jid}/clips/{cid}/dismiss-cleanup")

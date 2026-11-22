@@ -6,7 +6,7 @@ from pathlib import Path
 
 import json
 
-from . import accounts, alerts, config, creators, ctx, jobs, live
+from . import accounts, alerts, calendar, config, creators, ctx, jobs, live, media
 
 _lock = threading.RLock()
 _FILE = config.DATA_DIR / "posts.json"
@@ -48,27 +48,90 @@ def _mirror(p):
     job = jobs.get(p["job"])
     clip = next((c for c in job["clips"] if c["id"] == p["clip"]), None) if job else None
     if clip is not None:
-        clip.setdefault("posts", {})[p["id"]] = {k: p.get(k) for k in ("account_name", "platform", "status", "url", "due_at", "scheduled_at", "error")}
+        clip.setdefault("posts", {})[p["id"]] = {
+            k: p.get(k) for k in ("account_name", "platform", "status", "url", "due_at",
+                                  "scheduled_at", "error", "kind", "title", "formatted_text",
+                                  "calendar_slot")
+        }
         jobs.save(job)
 
 
-def _next_slot(account_id, gap_min, cap):
-    """Earliest time that respects the gap between posts and the daily cap for this account."""
-    gap_sec = (gap_min or 60) * 60
-    now = time.time()
-    mine = [p for p in _mine() if p["account"] == account_id and p["status"] in OPEN + ("posted",)]
-    future_posts = [p.get("scheduled_at") or p.get("due_at") for p in mine if (p.get("scheduled_at") or p.get("due_at") or 0) > now]
-    if future_posts:
-        t = max(future_posts) + gap_sec
-    else:
-        latest_past = max((p.get("posted_at") or p.get("due_at") or 0 for p in mine), default=0)
-        t = max(now + gap_sec, latest_past + gap_sec)
-    for _ in range(30):
-        if sum(1 for p in mine if _day(p.get("posted_at") or p.get("scheduled_at") or p["due_at"]) == _day(t)) < cap:
-            break
-        lt = time.localtime(t + 86400)
-        t = time.mktime((lt.tm_year, lt.tm_mon, lt.tm_mday, 9, 0, 0, 0, 0, -1))  # 9:00 next day
-    return t
+def _next_slot(account_id, gap_min=None, cap=None):
+    """USA-Focused Automatic Publishing Calendar slot engine.
+    Finds the earliest valid slot (18:00 PKT / 00:00 PKT / 06:00 PKT)
+    satisfying max 3 videos/day limit and 5-6 hour spacing."""
+    try:
+        slot = calendar.find_next_available_slot(account_id, _mine())
+        return slot["video_ts"]
+    except Exception:
+        gap_sec = (gap_min or 60) * 60
+        now = time.time()
+        mine = [p for p in _mine() if p["account"] == account_id and p["status"] in OPEN + ("posted",)]
+        future_posts = [p.get("scheduled_at") or p.get("due_at") for p in mine if (p.get("scheduled_at") or p.get("due_at") or 0) > now]
+        if future_posts:
+            t = max(future_posts) + gap_sec
+        else:
+            latest_past = max((p.get("posted_at") or p.get("due_at") or 0 for p in mine), default=0)
+            t = max(now + gap_sec, latest_past + gap_sec)
+        return t
+
+
+def next_calendar_slot(account_id: str = None) -> dict:
+    """Returns the full metadata dictionary for the next available publishing slot."""
+    return calendar.find_next_available_slot(account_id, _mine())
+
+
+def _post_community(p):
+    """Executes or finalizes a YouTube Community Post 30 minutes after its video."""
+    job = jobs.get(p["job"])
+    clip = next((c for c in job["clips"] if c["id"] == p["clip"]), None) if job else None
+    acc = accounts.get(p["account"])
+    try:
+        if not clip:
+            raise RuntimeError("The clip no longer exists.")
+        if not acc:
+            raise RuntimeError("That account was disconnected.")
+
+        video_url = p.get("video_url", "")
+        if not video_url:
+            vpost = next((op for op in _mine() if op.get("job") == p["job"] and op.get("clip") == p["clip"] and op.get("kind") != "community"), None)
+            if vpost:
+                video_url = vpost.get("url") or ""
+                if not video_url and vpost.get("remote_id"):
+                    video_url = f"https://www.youtube.com/shorts/{vpost['remote_id']}"
+
+        title = clip.get("seo_title") or clip.get("title") or clip.get("hook") or "Clip"
+        desc = clip.get("description") or ""
+        pinned_comment = clip.get("pinned_comment") or ""
+        tags = list(clip.get("seo_tags") or []) + list(clip.get("hashtags") or [])
+
+        formatted_text = calendar.build_community_post_text(
+            title=title,
+            description=desc,
+            video_url=video_url,
+            pinned_comment=pinned_comment,
+            hashtags=tags
+        )
+        p["formatted_text"] = formatted_text
+        clip["community_text"] = formatted_text
+        clip["community_posted"] = True
+
+        res = accounts.youtube_post_community(acc, formatted_text, video_id=p.get("video_post_id"))
+        p["remote_id"] = res.get("remote_id", "")
+        p["url"] = res.get("url", "")
+        p.update(status="posted", posted_at=time.time(), error=None)
+        creators.log(p["creator"], f"📢 YouTube Community Post ready (+30m) for {acc['name']}: {title}")
+        jobs.save(job)
+    except Exception as e:
+        p["tries"] += 1
+        p["error"] = str(e)[-300:]
+        if p["tries"] < 3 and clip and acc:
+            p.update(status="scheduled", due_at=time.time() + 300)
+        else:
+            p["status"] = "failed"
+            creators.log(p["creator"], f"Community post notice on {p['account_name']}: {p['error']}")
+    _save()
+    _mirror(p)
 
 
 def _upload_worker(p):
@@ -78,18 +141,22 @@ def _upload_worker(p):
         p["status"] = "posting"
     _save()
     _mirror(p)
-    _post(p)
+    if p.get("kind") == "community":
+        _post_community(p)
+    else:
+        _post(p)
 
 
 def enqueue(job, clip, account_ids, now=False, force=False) -> list:
     c = creators.get(job["creator"]) or creators.DEFAULTS
     made = []
     with _lock:
+        existing_mine = list(_mine())
         for aid in account_ids:
             acc = accounts.get(aid)
             if not acc:
                 continue
-            open_posts = [p for p in _mine() if p["job"] == job["id"] and p["clip"] == clip["id"] and p["account"] == aid and p["status"] in OPEN]
+            open_posts = [p for p in existing_mine if p["job"] == job["id"] and p["clip"] == clip["id"] and p["account"] == aid and p["status"] in OPEN]
             if open_posts:
                 if now or force:
                     # User clicked "Post now": advance the existing open post to post immediately!
@@ -105,22 +172,53 @@ def enqueue(job, clip, account_ids, now=False, force=False) -> list:
                 else:
                     continue  # already in the queue waiting to be posted
 
-            already_posted = any(p["job"] == job["id"] and p["clip"] == clip["id"] and p["account"] == aid and p["status"] == "posted" for p in _mine())
+            already_posted = any(p["job"] == job["id"] and p["clip"] == clip["id"] and p["account"] == aid and p["status"] == "posted" for p in existing_mine)
             if already_posted and not (now or force):
                 continue  # automatic autopost won't duplicate, but manual "Post now" / force will post directly
 
-            due = time.time() if now else _next_slot(aid, c.get("post_gap_min", 60) or 60, c.get("daily_cap", 6))
+            # Compute slot using USA-Focused Automatic Publishing Calendar
+            all_current = existing_mine + made
+            slot_info = calendar.find_next_available_slot(aid, all_current)
+            due = time.time() if now else slot_info["video_ts"]
+
             p = {"id": secrets.token_hex(8), "user": ctx.uid(), "job": job["id"], "clip": clip["id"], "creator": job["creator"],
                  "account": aid, "account_name": acc["name"], "platform": acc["platform"], "status": "scheduled",
-                 "due_at": due, "now": now, "created": time.time(), "title": clip.get("title") or clip.get("hook") or "Clip",
+                 "due_at": due, "scheduled_at": due, "calendar_slot": slot_info, "kind": "video",
+                 "now": now, "created": time.time(), "title": clip.get("title") or clip.get("hook") or "Clip",
                  "score": clip.get("score", 0), "tries": 0, "url": "", "remote_id": "", "error": None, "views": None}
             _posts.append(p)
             made.append(p)
+
+            # Rule 6: AUTOMATIC COMMUNITY POST FOR YOUTUBE
+            # Automatically schedule paired Community Post for exactly 30 minutes after video goes live
+            if acc["platform"] == "youtube":
+                comm_due = (time.time() + 30) if now else (due + calendar.COMMUNITY_OFFSET_SECONDS)
+                comm_text = calendar.build_community_post_text(
+                    title=clip.get("seo_title") or clip.get("title") or clip.get("hook") or "",
+                    description=clip.get("description") or "",
+                    video_url="",
+                    pinned_comment=str(clip.get("pinned_comment") or ""),
+                    hashtags=list(clip.get("seo_tags") or []) + list(clip.get("hashtags") or [])
+                )
+                comm_p = {
+                    "id": secrets.token_hex(8), "user": ctx.uid(), "job": job["id"], "clip": clip["id"], "creator": job["creator"],
+                    "account": aid, "account_name": acc["name"], "platform": acc["platform"], "status": "scheduled",
+                    "due_at": comm_due, "scheduled_at": comm_due, "calendar_slot": slot_info,
+                    "kind": "community", "is_community": True, "video_post_id": p["id"],
+                    "now": now, "created": time.time(),
+                    "title": f"📢 Community: {clip.get('title') or clip.get('hook') or 'Short'}",
+                    "formatted_text": comm_text,
+                    "score": clip.get("score", 0), "tries": 0, "url": "", "remote_id": "", "error": None, "views": None
+                }
+                _posts.append(comm_p)
+                made.append(comm_p)
+                clip["community_text"] = comm_text
+                clip["community_scheduled_at"] = comm_due
         _save()
     for p in made:
         _mirror(p)
-        # Directly upload to YouTube cloud with native schedule (no local waiting required):
-        if p.get("platform") == "youtube":
+        # Directly upload video to YouTube cloud with native schedule (no local waiting required):
+        if p.get("platform") == "youtube" and p.get("kind") != "community":
             threading.Thread(target=ctx.bind(lambda post=p: _upload_worker(post)), daemon=True).start()
     return made
 
@@ -227,11 +325,26 @@ def _post(p):
         else:
             creators.log(p["creator"], f"Posted to {acc['name']}: {title}")
 
-        # Single-channel exclusivity: once uploaded to one channel, cancel any pending posts for this clip on other channels
+        # Single-channel exclusivity: once uploaded to one channel, cancel any pending video posts for this clip on other channels
         with _lock:
             for op in list(_posts):
                 if op.get("job") == p["job"] and op.get("clip") == p["clip"] and op.get("id") != p["id"] and op.get("status") in OPEN:
-                    op["status"] = "cancelled"
+                    if op.get("kind") != "community":
+                        op["status"] = "cancelled"
+                        _mirror(op)
+
+        # Update paired community post with the real video URL and updated text
+        with _lock:
+            for op in list(_posts):
+                if op.get("job") == p["job"] and op.get("clip") == p["clip"] and op.get("kind") == "community":
+                    op["video_url"] = url
+                    op["formatted_text"] = calendar.build_community_post_text(
+                        title=title,
+                        description=clip.get("description", ""),
+                        video_url=url,
+                        pinned_comment=str(clip.get("pinned_comment") or ""),
+                        hashtags=yt_tags
+                    )
                     _mirror(op)
 
         cleanup_mode = str(creator.get("post_cleanup", "ask")).lower()
@@ -278,7 +391,10 @@ def _run():
                         if p["status"] != "scheduled":
                             continue
                         p["status"] = "posting"
-                    _post(p)
+                    if p.get("kind") == "community":
+                        _post_community(p)
+                    else:
+                        _post(p)
             except Exception:  # noqa: BLE001
                 pass
 

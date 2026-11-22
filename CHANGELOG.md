@@ -1,6 +1,114 @@
 ﻿# Changelog
 All notable project changes are documented here.
 
+## [2026-11-23] — Automatic USA-Focused Publishing Calendar & Community Post Scheduling Engine
+
+### Added
+- **USA-Focused Automatic Publishing Calendar Engine (`studio/calendar.py`)**:
+  - Engineered timezone-aware publishing calendar using Python standard library `zoneinfo` supporting `Asia/Karachi` (PKT, UTC+5), `America/New_York` (US Eastern), and `America/Los_Angeles` (US Pacific).
+  - Enforces strict daily video limit: **maximum 3 videos per PKT calendar day cycle**. If 3 videos are already scheduled or slots have passed, subsequent clips automatically roll forward to tomorrow and future days without manual date picking.
+  - Implemented preferred USA-optimized publishing slots per PKT calendar day:
+    - **Slot 1: 6:00 PM PKT** (08:00 AM US Eastern / 05:00 AM US Pacific)
+    - **Slot 2: 12:00 AM PKT midnight** (02:00 PM US Eastern / 11:00 AM US Pacific)
+    - **Slot 3: 06:00 AM PKT morning** (08:00 PM US Eastern / 05:00 PM US Pacific)
+  - Preferred slot order: `6:00 PM -> 12:00 AM -> 6:00 AM`.
+  - Maintained minimum **5–6 hours gap** between consecutive video publications (6h and 12h default spacing).
+  - Multi-day auto-roll queue tested and verified across 8 ready videos:
+    - Day 1: Video 1 (6:00 PM), Video 2 (12:00 AM), Video 3 (6:00 AM)
+    - Day 2: Video 4 (6:00 PM), Video 5 (12:00 AM), Video 6 (6:00 AM)
+    - Day 3: Video 7 (6:00 PM), Video 8 (12:00 AM)
+  - Timezone and US Daylight Saving Time (DST) dynamically resolved for both summer (EDT) and winter (EST).
+
+- **Paired YouTube Community Post (+30m) Automation (`studio/posting.py`, `studio/accounts.py`)**:
+  - For every video scheduled on YouTube, automatically creates and schedules a paired Community Post set for **exactly 30 minutes after the video goes live** (+30m offset).
+  - Community Posts do NOT count toward the 3-video daily publishing limit.
+  - Generates high-CTR formatted text payload matching video SEO:
+    - Viral title with fire emoji (`🔥 [Title]`)
+    - Clean description (duplicate `#Shorts` stripped)
+    - Direct Short link (`▶️ Watch the full Short here: https://youtube.com/shorts/...`)
+    - Discussion prompt (`💬 Community Discussion: [Pinned Comment]`)
+    - Viral hashtags
+  - Automatically updates paired Community Post with the real Short URL upon YouTube upload completion.
+  - Implemented `accounts.youtube_post_community` with InnerTube backstage integration and staging fallback.
+  - Updated single-channel exclusivity logic so video uploads do NOT cancel their paired community posts.
+
+- **REST API Endpoints (`studio/server.py`)**:
+  - `GET /api/calendar/slots`: Returns upcoming available slots with PKT and US Eastern/Pacific timestamps.
+  - `GET /api/jobs/{jid}/clips/{cid}/community`: Returns pre-formatted community post text and Short link for instant access.
+
+- **Frontend Calendar & Community UI (`web/index.html`)**:
+  - Post pills in clip cards render distinct purple badges for community posts: `📢 Community · Scheduled for ... (+30m)` with cancel button.
+  - Clip cards feature quick-action `📢` button to copy community text and open the channel community tab.
+  - Clip editor modal (`#clipdlg`) features informational calendar banner: `📅 USA Auto-Calendar: 6:00 PM · 12:00 AM · 6:00 AM PKT (Max 3/day) · 📢 +30m Auto-Community Post`.
+  - Added dedicated `📢 Copy Community Post` button in Clip modal that copies formatted payload and opens channel community tab in browser.
+
+- **Automated Unit Test Suite (`tests/test_usa_publishing_calendar.py`)**:
+  - 6 comprehensive tests covering: daily limit enforcement, multi-day 8-video auto-roll scenario, slot order, 5-6h minimum spacing, community post +30m pairing & formatting, and US DST timezone awareness. 100% passed.
+
+### Tests and Verification
+- `tests/test_usa_publishing_calendar.py`: 6/6 tests PASSED in 0.001s.
+- `tests/test_stream_chat_and_scroll.py`: 3/3 tests PASSED in 0.045s.
+- `tests/test_ai_verdicts_clean_ui.py`: 5/5 tests PASSED in 0.028s.
+- Node.js AST parser: `web/index.html syntax 100% clean!`.
+- Server daemon verified live on port 8765 with `/healthz` returning 200 OK and `/api/calendar/slots` returning 200 OK.
+
+
+## [2026-11-23] — Stream Card Dead Space Elimination & Popout Chat Removal
+
+### Removed
+- **Redundant 'Popout Chat ↗' Button (`web/index.html`)**:
+  - Removed Popout Chat button from stream card `.cta` per user feedback (`media_1795386289444_45c636ab.jpg`).
+  - Removed duplicate popout button from chat header.
+
+### Changed
+- **Compacted Stream Info Panel & Zero Video Void Space (`web/index.html`)**:
+  - Restructured `.cta` action buttons into a tight 2-column grid (`display: grid; grid-template-columns: 1fr 1fr; gap: 6px; height: 34px`).
+  - Reduced `.sinfo-chat-box` height to `min-height: 115px; max-height: 165px; padding: 6px 8px;`.
+  - Aligned `.stream` container with `align-items: start;` and `.player` with `aspect-ratio: 16/9; width: 100%`, perfectly aligning video player and `.sinfo` side-by-side with zero black void below.
+
+
+## [2026-11-23] — Streamlined Live Meters: Removal of 'What was just said' & Compact AI Decisions Height Alignment
+
+### Removed
+- **'What was just said' Raw Transcript Column (`web/index.html`)**:
+  - Completely removed the 4th meter column (`What was just said`), eliminating raw Whisper speech fragments ("Okay.", "These Ubers are scanning hard!") that created visual clutter.
+  - Liberated ~300px horizontal real estate, expanding remaining meters into a clean, balanced 2-3 column layout.
+
+### Added / Changed
+- **Compact Single-Line AI Decisions Row Architecture (`web/index.html`)**:
+  - Replaced bulky 2-line cards (55px height) with sleek, high-density single-line rows (`min-height: 24px`, `padding: 4px 8px`).
+  - Integrated 12-hour AM/PM time (`⏱️ 3:25 AM`), status badge (`🔍 LISTENING`, `✂️ CLIPPED`, `⚡ HIGH PRIORITY`), `⚡ LATEST` cyan glow pill, bold headline (`💬 Chat Spike Surge (+63%)`), and concise reason snippet into a single horizontal row with full text preserved in hover tooltips.
+  - Reduced container downward `max-height` from `190px` to **`86px`**, perfectly matching the ~95px-100px height of adjacent sparkline meters ("Loudness, last minute" and "Chat messages per second") and preventing the meter from stretching downward.
+- **Uncluttered Header**:
+  - Simplified meter header to a clean single line: `<span>🧠</span> Latest AI Decisions` with `● LIVE MONITOR` pill.
+  - Removed duplicate model badge from header (reliably displayed in the stats bar right above as `Active AI Model: gemini-3.5-flash-lite`).
+- **Automated Test Suite Expansion (`tests/test_ai_verdicts_clean_ui.py`)**:
+  - Added test cases verifying elimination of 'What was just said', compact single-line row formatting, 86px max-height constraint, clean header, and Node.js JavaScript syntax compilation.
+
+
+## [2026-11-23] — Clean AI Decisions Card Architecture & Elimination of Redundant Model Badges
+
+### Added
+- **2-Line High-Contrast Dark Card Design (`web/index.html`)**:
+  - Transformed squashed single-line verdict items in `Latest AI Decisions & Moment Activity` into structured 2-line cards with comfortable padding (`padding: 8px 10px`), rounded corners (`border-radius: 8px`), and left accent borders (`border-left: 3px solid`).
+  - **Line 1 (Status & Metadata)**: Features 12-hour AM/PM formatted timestamp (`⏱️ 3:12 AM`), distinct status badge (`⚡ HIGH PRIORITY`, `✂️ CLIPPED`, `🔍 LISTENING`, `🔊 LOUDNESS`, `💬 CHAT SPIKE`, `⏭️ SKIPPED`), prominent `⚡ LATEST` cyan glow pill on newest decision, and optional AI numeric score (`Score 70`).
+  - **Line 2 (Action Headline & Plain-English Reason)**: Full width second line featuring icon + bold headline (e.g. `🎯 Viral Highlight Clipped:`, `🗣️ Routine Conversation:`) followed by an uncompressed, human-friendly explanation explaining why AI decided to clip or skip.
+- **Automated UI Unit Test Suite (`tests/test_ai_verdicts_clean_ui.py`)**:
+  - Validates zero duplicate model pills in individual decision rows.
+  - Verifies presence of single active model badge in meter header (`🤖 gemini-3.5-flash-lite`).
+  - Verifies 2-line card DOM structure, AM/PM formatting, and JavaScript AST syntax validity.
+
+### Changed
+- **Eliminated Repetitive Model Badge Clutter (`web/index.html`)**:
+  - Removed redundant `gemini-3.5-flash-lite` badge that was repeated on every single row inside `#live_ai_verdicts_list`, freeing 140px width per row.
+  - Kept a single authoritative AI model indicator in the card top header (`🤖 gemini-3.5-flash-lite`).
+
+### Tests and Verification
+- Executed `tests/test_ai_verdicts_clean_ui.py`: 4/4 passed in 0.060s.
+- Node.js full AST validation of `web/index.html`: `ALL_SCRIPTS_SYNTAX_VALID`.
+- Server daemon verified running on port 8765 with `/api/status` returning HTTP 200 OK.
+
+
 ## [2026-11-23] — Twitch Live Chat Elevation, Compact Stats Bar & Polling Scroll Auto-Stick/Preservation
 
 ### Added

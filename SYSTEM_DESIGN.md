@@ -445,4 +445,58 @@ Integrated directly in `studio/brain.py` and `studio/posting.py`:
 4. **Extended Verdicts Buffer (`studio/live.py`)**:
    - Live session verdicts buffer extended from 6 to 30 items (`del self.verdicts[:-30]`) with accurate `wall_t` epoch timestamps.
 
+---
 
+## 27. Streamlined Live Meters Architecture & Compact AI Decisions Feed
+1. **Removal of 'What was just said' Transcript Column**:
+   - The 4th meter ('What was just said') previously rendered raw Whisper speech fragments ('Okay.', 'These Ubers are scanning hard!') in a 76px column.
+   - Identified as visual clutter that wasted ~300px horizontal screen space.
+   - Removed completely from the live meters grid, allowing the remaining 2-3 meters ('Loudness, last minute', 'Chat messages per second', 'Latest AI Decisions') to breathe and distribute evenly.
+2. **Compact Single-Line Row Architecture**:
+   - Replaced bulky 2-line cards (55px height) with sleek, single-line high-density rows (24px height, padding 4px 8px).
+   - In a single horizontal line, each row displays:
+     - 12-hour AM/PM timestamp (e.g. ⏱️ 3:25 AM).
+     - Compact status pill (✂️ CLIPPED in emerald green, 🔍 LISTENING in sky blue, ⚡ HIGH PRIORITY in neon cyan/green, ⏭️ SKIPPED in slate).
+     - ⚡ LATEST cyan badge on the freshest decision.
+     - Action icon + bold headline (e.g. 💬 Chat Spike (+63%)) followed by concise explanation snippet, with full reasoning available in hover tooltips.
+     - Numeric AI score (e.g. Score 70) if present.
+3. **Downward Vertical Height Alignment**:
+   - Capped #live_ai_verdicts_list max-height to 86px (down from 190px).
+   - The total meter height (~115px) now cleanly matches the adjacent ~95px-100px sparkline meters, eliminating the large void beneath the audio and chat graphs.
+4. **Clean Single-Line Header**:
+   - Header is formatted as a single crisp line: <span>🧠</span> Latest AI Decisions accompanied by a subtle ● LIVE MONITOR cyan pill.
+   - Avoids text wrapping onto two lines by keeping the authoritative model name in the stats bar above (Active AI Model: gemini-3.5-flash-lite).
+
+---
+
+## 28. Automatic USA-Focused Publishing Calendar & Paired Community Post (+30m) Engine
+1. **Core Scheduling Rules & Hierarchy**:
+   - **Priority 1: Maximum 3 Videos per PKT Calendar Day**: A strict daily ceiling of 3 video publications per PKT calendar day cycle. If 3 videos are already scheduled or slots have passed, subsequent clips automatically roll forward to tomorrow and future days without manual date selection.
+   - **Priority 2: Minimum 5–6 Hour Spacing**: Never schedules two videos close together; maintains at least 5-6 hours between consecutive publications (default slots are 6h and 12h apart).
+   - **Priority 3: USA-Optimized Publishing Windows (PKT / UTC+5)**:
+     - **Slot 1: 6:00 PM PKT** (08:00 AM US Eastern / 05:00 AM US Pacific)
+     - **Slot 2: 12:00 AM PKT** (02:00 PM US Eastern / 11:00 AM US Pacific)
+     - **Slot 3: 06:00 AM PKT** (08:00 PM US Eastern / 05:00 PM US Pacific)
+     - Preferred slot order: `6:00 PM -> 12:00 AM -> 6:00 AM`.
+   - **Priority 4: Automatic Multi-Day Rolling Queue**: When $N$ videos are ready (e.g. 8 videos scenario), slots are filled sequentially across days:
+     - Day 1: Video 1 (6:00 PM), Video 2 (12:00 AM), Video 3 (6:00 AM)
+     - Day 2: Video 4 (6:00 PM), Video 5 (12:00 AM), Video 6 (6:00 AM)
+     - Day 3: Video 7 (6:00 PM), Video 8 (12:00 AM)
+   - **Priority 5: Automatic Community Post (+30m)**: For every published video on YouTube, automatically schedules a paired Community Post for **exactly 30 minutes after the video goes live**. Community posts do NOT count toward the 3-video daily publishing limit.
+2. **Timezone & Daylight Saving Time (DST) Awareness**:
+   - Built using Python's standard `zoneinfo` (`Asia/Karachi`, `America/New_York`, `America/Los_Angeles`).
+   - Dynamically evaluates daylight saving transitions between EST (UTC-5) / EDT (UTC-4) and PST (UTC-8) / PDT (UTC-7) without hardcoded offsets.
+3. **High-CTR Community Post Payload**:
+   - Generates cohesive multi-part content matching video SEO:
+     - `🔥 [Title]`
+     - Clean description
+     - `▶️ Watch the full Short here: https://youtube.com/shorts/...`
+     - `💬 Community Discussion: [Pinned Comment]`
+     - Viral hashtags
+   - Real video URL is backfilled onto the paired Community Post immediately upon YouTube video upload completion.
+4. **Single-Channel Exclusivity & Community Safety**:
+   - When a video is uploaded to one channel, pending video posts on other channels are cancelled, but paired community posts (`kind: "community"`) are safely preserved.
+5. **Stream Card Dead Space Elimination**:
+   - Redundant Popout Chat button removed from `.cta` and chat header.
+   - `.cta` buttons compacted into a 2-column grid (`height: 34px`).
+   - `.sinfo-chat-box` height reduced to `min-height: 115px; max-height: 165px;` and `.stream` aligned to `align-items: start;`, ensuring `.player` (16:9) and `.sinfo` match height with zero void space below.
