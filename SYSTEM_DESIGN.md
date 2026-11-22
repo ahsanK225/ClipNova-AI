@@ -61,6 +61,20 @@ flowchart TD
   4. **Multi-Source Alignment**:
      - Applied across OhnePixel Continuous Discovery (`studio/live.py`), Custom Creator Phrases (`studio/live.py`), AI Judge Candidate Alignment (`studio/live.py` `_ai_check`), Prompt Rules (`studio/brain.py`), and Category Profiles (`studio/ohnepixel.py`).
 
+### 3.2 Unified Sleek Folded Stream Cards & Video Thumbnail Pipeline
+- **Problem Solved**:
+  - Previously, folded stream jobs rendered a secondary, redundant dashed bar below the stream header (`📁 X clips folded... Open Folder 📂`), creating visual clutter and double rows per project.
+  - Jobs without a static downloaded cover thumbnail displayed a blank dark 16:9 box with an uninformative chain-link icon (`🔗`).
+- **Solution & Architecture**:
+  1. **Unified Single-Row Folder Card**:
+     - Collapsing a stream removes all secondary containers. The stream header itself transforms into a sleek, compact, self-contained card (`.job.is-collapsed .job-head`) with `border-radius: 12px`, subtle cyan border highlight, and hover elevation.
+     - Inline badge: `📁 <N> Clips` pill next to title, with a dedicated `📁 Open Folder ▶` action button.
+     - Entire card header is click-interactive to toggle between folded and expanded states.
+  2. **Smart Video Preview Discovery**:
+     - Frontend checks `j.thumb`, then falls back to `j.clips[0].id` (`/media/{jid}/clip001.jpg`), displaying the actual facecam/gameplay frame with the duration tag.
+     - Backend `/media/{jid}/thumb.jpg` route automatically returns the first available clip thumbnail if the stream cover was not downloaded directly.
+     - Zero-clip placeholder is upgraded from a link icon to a modern cyber-dark stream badge (`🔴 LIVE STREAM` or `🎬 VIDEO`).
+
 ---
 
 ## 4. Hardware & Audio/Video Sync Architecture

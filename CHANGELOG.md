@@ -1,6 +1,24 @@
 ﻿# Changelog
 All notable project changes are documented here.
 
+## [2026-11-23] — Unified Sleek Folded Stream Cards & Real Video Preview Fallback
+
+### Changed & Improved
+- **Unified Sleek Folder Rows (`web/index.html`)**:
+  - Completely removed the redundant and noisy second dashed box (`📁 X clips folded... Open Folder 📂`) on collapsed projects.
+  - The stream row itself is now a single, unified, cyber-dark card with smooth rounded borders (`border-radius: 12px`), subtle cyan border glow, and interactive hover effects.
+  - Added an inline `📁 <N> Clips` badge directly next to the stream title and an upgraded `📁 Open Folder ▶` / `📂 Fold ▼` toggle button.
+  - Clicking anywhere on the stream header smoothly expands or collapses the clip grid without layout jumping.
+- **Authentic Video Thumbnail Fallback (`web/index.html`, `studio/server.py`)**:
+  - Resolved the blank/dead chain link icon box on streams without a dedicated cover thumbnail.
+  - Frontend and backend now automatically discover the first available clip thumbnail (`clip001.jpg` in `clips/`) and display a crisp, real gameplay/facecam frame with the overlay duration tag.
+  - If a job has 0 clips yet, it displays a sleek cyber gaming badge (`🔴 LIVE STREAM` or `🎬 VIDEO`) with glowing neon gradients instead of an empty dark box.
+
+### Tests and Verification
+- Node.js AST syntax validation: `JavaScript Syntax: VALID (Code 0)`.
+- HTTP endpoint `/media/{jid}/thumb.jpg`: verified 200 OK with JPEG image data.
+- Browser subagent visual inspection: verified clean single-row folder layout, absence of dashed box, and real video preview frames. Screenshot captured: `browser_evidence/4c38de25-4432-4b5a-af8e-1feda53dc462/final_step_12.png`.
+
 ## [2026-11-22] — Golden Retention Timeline Calibration (12s Pre-Roll Hook & 28s Post-Roll Reaction)
 
 ### Added

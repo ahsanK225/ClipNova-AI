@@ -595,13 +595,15 @@ img.av{object-fit:cover}
 .allset{display:flex;gap:12px;align-items:center;padding:14px;border-radius:var(--r);background:var(--good-soft);color:var(--good);font-weight:600}
 
 /* ---------- jobs + clips */
-.job{margin-bottom:36px}
+.job{margin-bottom:36px;transition:margin-bottom .2s ease}
+.job.is-collapsed{margin-bottom:8px}
+.job.is-collapsed .job-head:hover{background:rgba(24,34,54,0.92)!important;border-color:rgba(0,240,255,0.35)!important;box-shadow:0 4px 18px rgba(0,0,0,0.35)!important}
 .job-head{display:flex;gap:12px;align-items:flex-start;justify-content:space-between;margin-bottom:14px}
 .jt{display:flex;gap:14px;align-items:center;min-width:0}
-.jthumb{position:relative;flex:none;width:128px;aspect-ratio:16/9;border-radius:10px;overflow:hidden;background:var(--muted);display:grid;place-items:center;color:var(--faint)}
+.jthumb{position:relative;flex:none;width:120px;aspect-ratio:16/9;border-radius:10px;overflow:hidden;background:#0d1117;display:grid;place-items:center;color:var(--faint);box-shadow:0 2px 8px rgba(0,0,0,0.3)}
 .jthumb img{width:100%;height:100%;object-fit:cover;display:block}
 .jthumb>svg{width:22px;height:22px}
-.jthumb .du{position:absolute;right:5px;bottom:5px;background:rgba(20,12,8,.82);color:#fff;font-size:11px;font-weight:600;padding:1px 6px;border-radius:6px}
+.jthumb .du{position:absolute;right:4px;bottom:4px;background:rgba(0,0,0,0.85);color:#fff;font-size:10px;font-weight:700;padding:1px 6px;border-radius:4px;backdrop-filter:blur(4px);letter-spacing:0.02em}
 @media (max-width:560px){.jthumb{width:92px}}
 .job-head h3{font-size:15px;font-weight:600;overflow-wrap:anywhere;color:var(--brand-ink);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .bar{height:6px;background:var(--muted);border-radius:999px;overflow:hidden;margin:6px 0}
@@ -2247,8 +2249,7 @@ function liveHtml(j) {
       </div>
       <div class="meter"><h4>What was just said</h4><div class="said">${L.lines.length ? L.lines.map(t => `<div>${esc(t)}</div>`).join("") : "<div>Listening…</div>"}</div></div>
     </div>${j.error ? `<div class="err">${esc(j.error)}</div>` : ""}</div>
-    ${(j.clips.length && !isCollapsed) ? `<div class="grid" style="margin-bottom:28px">${[...j.clips].reverse().map(c => clipHtml(j, c)).join("")}</div>` : ""}
-    ${(j.clips.length && isCollapsed) ? `<div style="margin:4px 0 24px 0;padding:10px 14px;background:var(--bg-2);border:1px dashed var(--line);border-radius:10px;display:flex;align-items:center;justify-content:space-between;cursor:pointer" data-act="toggle_job_collapse" data-j="${j.id}"><span style="font-size:12px;color:var(--text-sub);display:inline-flex;align-items:center;gap:6px">📁 <b>${j.clips.length} clips</b> folded in this stream. Click to open folder.</span><span class="btn sm" style="font-size:11px;pointer-events:none">Open Folder 📂</span></div>` : ""}`;
+    ${(j.clips.length && !isCollapsed) ? `<div class="grid" style="margin-bottom:28px">${[...j.clips].reverse().map(c => clipHtml(j, c)).join("")}</div>` : ""}`;
 }
 function jobHtml(j) {
   if (j.status === "live") return liveHtml(j);
@@ -2256,19 +2257,50 @@ function jobHtml(j) {
   const who = !creatorId() && j.creator ? S.creators.find(c => c.id === j.creator)?.name : "";
   const meta = [who, j.uploader, j.duration ? fmt(j.duration) + " long" : "", j.clips.length ? j.clips.length + (j.clips.length === 1 ? " clip" : " clips") : "",
                 j.took ? "made in " + fmt(j.took) : "", j.kind === "live" ? "recording, " + j.stage.toLowerCase() : ""].filter(Boolean).map(esc).join(" · ");
-  const pic = j.thumb ? `<img src="/media/${esc(j.id)}/thumb.jpg" alt="" loading="lazy">` : ic(j.source?.type === "file" ? "film" : "link");
   const isCollapsed = S.collapsedJobs?.has(j.id);
-  return `<div class="job-head"><div class="jt"><span class="jthumb">${pic}${j.duration ? `<span class="du">${fmt(j.duration)}</span>` : ""}</span><div style="min-width:0"><h3>${esc(j.title || j.source.name)}</h3><p class="sub">${meta}</p></div></div>
-      <div class="row" style="flex-wrap:nowrap;gap:6px;align-items:center">${busy ? "" : `
-        ${j.clips.length ? `<button type="button" class="btn sm" data-act="toggle_job_collapse" data-j="${j.id}" title="${isCollapsed ? 'Expand clips folder' : 'Fold clips'}" style="background:var(--bg-2);border:1px solid var(--line);font-size:11px;font-weight:700;display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:8px;cursor:pointer"><span>${isCollapsed ? '📁' : '📂'}</span><span>${isCollapsed ? `${j.clips.length} Clips` : 'Fold'}</span><span style="font-size:8px;transform:${isCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)'};transition:transform .2s">▼</span></button>` : ""}
-        ${j.clips.some(c => c.status === "done") ? `<button class="btn sm icon ghost" data-act="dlall" data-j="${j.id}" title="Download all clips of this video" aria-label="Download all clips of this video">${ic("down")}</button>` : ""}
-        <button class="btn sm icon ghost" data-act="deljob" data-j="${j.id}" title="Delete" aria-label="Delete this video and its clips">${ic("trash")}</button>
-        <label class="selck" title="Select this video and its clips"><input type="checkbox" data-sel="j:${j.id}" ${sel().has("j:" + j.id) ? "checked" : ""} aria-label="Select this video"></label>`}</div></div>
+  const firstClip = j.clips?.find(c => c.status === "done") || j.clips?.[0];
+  const thumbUrl = j.thumb ? `/media/${esc(j.id)}/thumb.jpg` : (firstClip ? `/media/${esc(j.id)}/${esc(firstClip.id)}.jpg` : null);
+  const pic = thumbUrl
+    ? `<img src="${thumbUrl}" alt="" loading="lazy" style="width:100%;height:100%;object-fit:cover;display:block">`
+    : `<div class="jthumb-empty" style="width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;background:linear-gradient(135deg,rgba(0,240,255,0.06),rgba(20,24,38,0.95));border:1px solid rgba(255,255,255,0.06);color:var(--accent,#00F0FF);gap:3px">
+        <span style="font-size:16px">${j.kind === "live" ? "🔴" : "🎬"}</span>
+        <span style="font-size:9.5px;font-weight:700;letter-spacing:0.04em;color:var(--text-sub)">${j.kind === "live" ? "STREAM" : "VIDEO"}</span>
+       </div>`;
+  const thumbW = isCollapsed ? "width:88px;height:50px;border-radius:8px;" : "width:120px;height:68px;border-radius:10px;";
+  const thumbBox = `<span class="jthumb" style="${thumbW}position:relative;flex:none;overflow:hidden;background:#0d1117;display:grid;place-items:center;box-shadow:0 2px 8px rgba(0,0,0,0.3)">
+    ${pic}${j.duration ? `<span class="du" style="position:absolute;right:4px;bottom:4px;background:rgba(0,0,0,0.85);color:#fff;font-size:10px;font-weight:700;padding:1px 5px;border-radius:4px;letter-spacing:0.02em">${fmt(j.duration)}</span>` : ""}
+  </span>`;
+  const headStyle = isCollapsed
+    ? `background:rgba(18,24,38,0.82);border:1px solid rgba(255,255,255,0.09);border-radius:12px;padding:8px 14px;margin-bottom:0;align-items:center;transition:all .2s ease;box-shadow:0 2px 8px rgba(0,0,0,0.25)`
+    : `margin-bottom:14px;align-items:flex-start`;
+  return `<div class="job-head" style="${headStyle}">
+      <div class="jt" style="align-items:center;cursor:${isCollapsed ? 'pointer' : 'default'}" ${isCollapsed ? `data-act="toggle_job_collapse" data-j="${j.id}" title="Click to expand folder"` : ''}>
+        ${thumbBox}
+        <div style="min-width:0">
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+            <h3 style="margin:0;font-size:${isCollapsed ? '13.5px' : '15px'};font-weight:600;color:var(--brand-ink);white-space:${isCollapsed ? 'nowrap' : 'normal'};overflow:hidden;text-overflow:ellipsis;max-width:${isCollapsed ? '520px' : '100%'}">${esc(j.title || j.source.name)}</h3>
+            ${isCollapsed && j.clips.length ? `<span class="pill" style="font-size:10.5px;padding:2px 8px;border-radius:10px;background:rgba(0,240,255,0.12);color:var(--accent,#00F0FF);border:1px solid rgba(0,240,255,0.28);font-weight:700">📁 ${j.clips.length} Clips</span>` : ''}
+          </div>
+          <p class="sub" style="${isCollapsed ? 'margin:2px 0 0 0;font-size:12px' : ''}">${meta}</p>
+        </div>
+      </div>
+      <div class="row" style="flex-wrap:nowrap;gap:6px;align-items:center">
+        ${busy ? "" : `
+          ${j.clips.length ? `<button type="button" class="btn sm" data-act="toggle_job_collapse" data-j="${j.id}" title="${isCollapsed ? 'Expand folder' : 'Fold folder'}" style="${isCollapsed ? 'background:linear-gradient(135deg,rgba(0,240,255,0.16),rgba(0,136,255,0.08));border:1px solid rgba(0,240,255,0.35);color:var(--accent,#00F0FF);font-weight:700' : 'background:var(--bg-2);border:1px solid var(--line)'};font-size:11px;display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:8px;cursor:pointer">
+            <span>${isCollapsed ? '📁' : '📂'}</span>
+            <span>${isCollapsed ? 'Open Folder' : 'Fold'}</span>
+            <span style="font-size:8px;transform:${isCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)'};transition:transform .2s">▼</span>
+          </button>` : ""}
+          ${j.clips.some(c => c.status === "done") ? `<button class="btn sm icon ghost" data-act="dlall" data-j="${j.id}" title="Download all clips of this video" aria-label="Download all clips of this video">${ic("down")}</button>` : ""}
+          <button class="btn sm icon ghost" data-act="deljob" data-j="${j.id}" title="Delete" aria-label="Delete this video and its clips">${ic("trash")}</button>
+          <label class="selck" title="Select this video and its clips"><input type="checkbox" data-sel="j:${j.id}" ${sel().has("j:" + j.id) ? "checked" : ""} aria-label="Select this video"></label>
+        `}
+      </div>
+    </div>
     ${busy ? `<div class="bar"><i style="width:${Math.round(j.progress * 100)}%"></i></div><p class="sub">${esc(j.stage)} · ${Math.round(j.progress * 100)}%</p>` : ""}
     ${j.status === "done" && !j.clips.length ? `<p class="sub">${esc(j.stage)}</p>` : ""}
     ${j.error ? `<div class="err">${esc(j.error)}<button class="rep" data-act="report" data-ctx="${esc("Video failed: " + (j.title || j.source.name || "") + " | " + j.error)}">Report this</button></div>` : ""}${j.ai?.note ? `<p class="sub">${esc(j.ai.note)}</p>` : ""}
-    ${(j.clips.length && !isCollapsed) ? `<div class="grid">${j.clips.map(c => clipHtml(j, c)).join("")}</div>` : ""}
-    ${(j.clips.length && isCollapsed) ? `<div style="margin:6px 0 20px 0;padding:10px 14px;background:var(--bg-2);border:1px dashed var(--line);border-radius:10px;display:flex;align-items:center;justify-content:space-between;cursor:pointer" data-act="toggle_job_collapse" data-j="${j.id}"><span style="font-size:12px;color:var(--text-sub);display:inline-flex;align-items:center;gap:6px">📁 <b>${j.clips.length} clips</b> folded in this project. Click to expand folder.</span><span class="btn sm" style="font-size:11px;pointer-events:none">Open Folder 📂</span></div>` : ""}`;
+    ${(j.clips.length && !isCollapsed) ? `<div class="grid" style="margin-top:12px">${j.clips.map(c => clipHtml(j, c)).join("")}</div>` : ""}`;
 }
 /* ---- selecting several videos and clips: delete or download them together */
 const sel = () => (S.sel = S.sel || new Set());
@@ -2340,7 +2372,10 @@ function drawJobs() {
   $$("section[data-job]", root).forEach(el => { if (!ids.has(el.dataset.job)) el.remove(); });
   list.forEach((j, i) => {
     let el = $(`section[data-job="${j.id}"]`, root);
-    if (!el) { el = document.createElement("section"); el.className = "job"; el.dataset.job = j.id; }
+    const isCollapsed = S.collapsedJobs?.has(j.id);
+    if (!el) { el = document.createElement("section"); el.dataset.job = j.id; }
+    el.className = isCollapsed ? "job is-collapsed" : "job";
+    el.style.marginBottom = isCollapsed ? "8px" : "";
     if (root.children[i] !== el) root.insertBefore(el, root.children[i] || null);
     put(el, jobHtml(j));
   });

@@ -7,7 +7,7 @@ It includes:
 - **Direct YouTube Live Ingestion**: Paste any live stream link directly or monitor creator channels.
 - **Automated Shor & Mazaq Intelligence**: Detects sudden loudness (screaming, shouting, laughter) and comedic jokes/fails across English and Roman Urdu.
 - **Native YouTube Shorts SEO Optimization Engine**: High-CTR titles with `#Shorts`, targeted YouTube Studio tags, pinned comments, and automatic YouTube Data API custom cover thumbnail upload (`POST /upload/youtube/v3/thumbnails/set`).
-- **Collapsible Stream Folders & Visual AI Feed**: 1-click folder accordion collapsing massive clip lists into compact summary cards; modern visual AI decision feed with real-time badges (`⚡ HIGH PRIORITY`, `✂️ CLIPPED`, `🔍 LISTENING`, `⏭️ EVALUATED`).
+- **Unified Collapsible Stream Folders & Real Video Preview Fallback**: 1-click folder accordion collapsing stream clip grids into single compact, cyber-dark cards with inline clip badges; smart video preview discovering real clip frames (`clip001.jpg`) instead of blank link icons; modern visual AI decision feed with real-time badges (`⚡ HIGH PRIORITY`, `✂️ CLIPPED`, `🔍 LISTENING`, `⏭️ EVALUATED`).
 - **Sticky Clip Editor Preview**: Pinned 9:16 phone video preview that stays locked in viewport while editing options and SEO on the right side.
 - **Single Yellow Punch Focus**: Canary Yellow (`\c&H00E5FF&`) highlight limited to exactly 1 punch action keyword per viral hook banner, with streamer names strictly demoted.
 - **Golden Retention Timeline Calibration**: 12s pre-roll hook window (trigger occurs in first 10-15s before viewers swipe) + 28s post-roll reaction (continuous reaction, laughter, chat banter, and gameplay without abrupt cutoffs), totaling ~40-42s natural clip length.

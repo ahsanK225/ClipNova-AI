@@ -1443,6 +1443,13 @@ def media_file(jid: str, name: str, download: int = 0):
     job = _job_or_404(jid)
     f = Path(job["dir"]) / "clips" / name
     if not f.is_file():
+        if name == "thumb.jpg":
+            # Smart thumbnail fallback: if thumb.jpg does not exist, serve first available clip thumbnail
+            clips_dir = Path(job["dir"]) / "clips"
+            if clips_dir.is_dir():
+                first_clip_jpg = next((p for p in sorted(clips_dir.glob("clip*.jpg")) if p.is_file()), None)
+                if first_clip_jpg:
+                    return FileResponse(first_clip_jpg, headers={"Cache-Control": "private, max-age=300"})
         raise HTTPException(404)
     save_as = name
     if download and name.endswith(".mp4"):
