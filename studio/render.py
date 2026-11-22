@@ -664,9 +664,18 @@ def _render_in(work: Path, src: Path, out_dir: Path, name: str, start, end, layo
             base += ["-metadata", f"{k}={v}"]
     base += ["-shortest", "-movflags", "+faststart", "-pix_fmt"]
     encoders = []
+    # Ultra-clear 1080p60 broadcast profile: CRF 15, 16M average bitrate, 24M peak burst, Rec.709 color fidelity
+    encoders.append(("x264", [
+        "yuv420p", "-c:v", "libx264", "-crf", "15", "-preset", "medium",
+        "-b:v", "16M", "-maxrate", "24M", "-bufsize", "32M",
+        "-profile:v", "high", "-level", "4.2",
+        "-color_primaries", "bt709", "-color_trc", "bt709", "-colorspace", "bt709", "-color_range", "tv"
+    ]))
     if _qsv_ok is not False:
-        encoders.append(("qsv", ["nv12", "-c:v", "h264_qsv", "-global_quality", "20", "-preset", "medium", "-b:v", "8M", "-maxrate", "12M"]))
-    encoders.append(("x264", ["yuv420p", "-c:v", "libx264", "-crf", "18", "-preset", "fast", "-b:v", "8M", "-maxrate", "12M", "-bufsize", "16M"]))
+        encoders.append(("qsv", [
+            "nv12", "-c:v", "h264_qsv", "-global_quality", "18", "-preset", "medium",
+            "-b:v", "16M", "-maxrate", "24M"
+        ]))
     err = None
     for label, enc in encoders:
         p = subprocess.run(base + enc + [f"{name}.mp4"], cwd=work, capture_output=True, text=True,

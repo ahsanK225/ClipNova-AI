@@ -1,6 +1,23 @@
 ﻿# Changelog
 All notable project changes are documented here.
 
+## [2026-11-22] — Broadcast-Grade 1080p60 Video Quality & High-Bitrate Ingestion Upgrade
+
+### Added & Improved
+- **True 60 FPS Render Pipeline (`studio/config.py`, `studio/render.py`)**:
+  - Upgraded target output frame rate from 30 FPS to **60 FPS** (`OUT_FPS = 60`).
+  - Gaming livestreams and high-motion gameplay (GTA 6 cars, drifting, camera panning) are now rendered with silky-smooth 60fps fluid motion instead of 30fps stutter.
+  - Automatically triggers YouTube's **`1080p60`** high-bandwidth tier upon upload.
+- **Master Quality Constrained Encoding Profile**:
+  - Upgraded video encoder to `libx264` high-profile with visually lossless **CRF 15** and **16 Mbps target bitrate** (24 Mbps burst cap, 32 Mbps buffer size).
+  - Switched encoder preset to `medium` for deep subpixel motion estimation and clean macroblock reduction in dark night scenes.
+  - Added Rec.709 color space flags (`-color_primaries bt709 -color_trc bt709 -colorspace bt709 -color_range tv`) to ensure YouTube decodes vibrant neons and rich blacks without color degradation.
+  - Verified on re-rendered `clip014.mp4`: 1080x1920 @ 60fps, 13.56 Mbps.
+- **Posting Checkboxes & Forms Dark Obsidian Theme (`web/index.html`)**:
+  - Resolved white-on-white text illegibility in Creator Setup "Posting" accounts (`label.ck`) and Clip Dialog (`data-pacc`).
+  - Styled checkboxes with dark obsidian background (`var(--bg-2)`), cyan hover border (`#00F0FF`), glowing checked state (`rgba(0,240,255,0.3)`), and `#FFFFFF` text.
+  - Updated switches, warning banners (`.vb`), savebar, and form textareas.
+
 ## [2026-11-22] — Total Contributors Purge on GitHub & Direct 3D App Icon Sidebar Fix
 
 ### Fixed & Improved

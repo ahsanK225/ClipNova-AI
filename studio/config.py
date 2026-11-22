@@ -258,4 +258,4 @@ def _read_google_client() -> tuple:
 
 # ---------------------------------------------------------------- video
 MAX_SOURCE_HEIGHT = 1080
-OUT_W, OUT_H, OUT_FPS = 1080, 1920, 30
+OUT_W, OUT_H, OUT_FPS = 1080, 1920, 60
