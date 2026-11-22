@@ -70,7 +70,13 @@ dialog{background:var(--bg-2)!important;border:1px solid var(--line-2)!important
 .nav-item.on{background:var(--brand-gradient)!important;color:#FFFFFF!important;box-shadow:0 4px 14px rgba(99,102,241,0.3)!important}
 .nav-item.on svg{color:#FFFFFF!important}
 .nav-item:hover:not(.on){background:var(--frame-2)!important;color:#FFFFFF!important}
-.badge{background:var(--bg-2)!important;color:#FFFFFF!important;border:1px solid var(--line)!important}
+.badge{background:rgba(15,23,42,0.85);color:#E2E8F0;border:1px solid rgba(255,255,255,0.18);display:inline-flex;align-items:center;gap:4px;letter-spacing:-0.01em;z-index:2;box-shadow:0 2px 6px rgba(0,0,0,0.5);backdrop-filter:blur(6px);white-space:nowrap}
+.badge.l{left:10px}.badge.r{right:10px}
+.badge.s-ai{background:linear-gradient(135deg, rgba(79,70,229,0.5), rgba(6,182,212,0.4))!important;color:#FFFFFF!important;border:1px solid #00F0FF!important;box-shadow:0 0 12px rgba(0,240,255,0.35)!important;text-shadow:0 1px 3px rgba(0,0,0,0.7)}
+.badge.s-ai.s-hi{background:linear-gradient(135deg, #4F46E5, #00D2FF)!important;color:#FFFFFF!important;border:1px solid #00F0FF!important;box-shadow:0 0 16px rgba(0,240,255,0.55)!important;font-weight:700}
+.badge.s-ai.s-mid{background:linear-gradient(135deg, rgba(147,51,234,0.5), rgba(79,70,229,0.45))!important;color:#FFFFFF!important;border:1px solid #A855F7!important;box-shadow:0 0 10px rgba(168,85,247,0.4)!important}
+.badge.s-trigger{background:linear-gradient(135deg, #D97706, #B45309)!important;color:#FFFFFF!important;border:1px solid #FDE68A!important;box-shadow:0 0 14px rgba(245,158,11,0.55)!important;font-weight:700;text-shadow:0 1px 3px rgba(0,0,0,0.6)}
+.badge.s-manual{background:rgba(30,41,59,0.92)!important;color:#94A3B8!important;border:1px solid #475569!important;font-weight:600}
 dialog::backdrop{background:rgba(5,7,12,0.82)!important;backdrop-filter:blur(10px)!important}
 ::-webkit-scrollbar{width:8px;height:8px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.18);border-radius:999px}::-webkit-scrollbar-thumb:hover{background:rgba(99,102,241,0.5)}
 *{box-sizing:border-box}
@@ -2085,6 +2091,55 @@ async function makeClips() {
 
 /* ============================================================ clips + jobs */
 function scoreCls(s) { return s >= 80 ? "s-hi" : s >= 60 ? "s-mid" : ""; }
+
+function clipBadgeInfo(c) {
+  const reason = String(c.reason || "").trim();
+  // Check if triggered by speech/chat keywords (e.g. Someone said "..." or trigger phrase)
+  const matchSaid = reason.match(/Someone said\s*["“']([^"”']+)["”']/i);
+  const matchTrigger = reason.match(/Triggered by\s*["“']([^"”']+)["”']/i);
+  const matchedWord = matchSaid ? matchSaid[1] : (matchTrigger ? matchTrigger[1] : null);
+  const isTrigger = Boolean(matchedWord || c.trigger || c.trigger_phrase || /trigger/i.test(reason) || reason.toLowerCase().startsWith("someone said"));
+
+  if (isTrigger) {
+    const word = matchedWord || c.trigger_phrase || "Keyword";
+    const shortWord = word.length > 13 ? word.slice(0, 11) + "…" : word;
+    return {
+      type: "trigger",
+      cls: "s-trigger",
+      icon: "🎯",
+      label: `Trigger: "${word}"`,
+      cardBadge: `<span class="badge l s-trigger" title="Triggered by speech/chat keyword: &quot;${esc(word)}&quot;">🎯 &quot;${esc(shortWord)}&quot;</span>`,
+      dialogBadge: `<span class="badge s-trigger" style="position:static" title="Triggered by speech/chat keyword: &quot;${esc(word)}&quot;">🎯 Triggered by &quot;${esc(word)}&quot;</span>`,
+      desc: `Triggered by speech/chat keyword "${word}"`
+    };
+  }
+
+  const s = Number(c.score);
+  const isAi = !isNaN(s) && s > 0;
+  if (isAi) {
+    const hiCls = s >= 80 ? "s-hi" : s >= 60 ? "s-mid" : "";
+    const judgeDetail = c.judges ? ` (Words: ${c.judges.words || 0}${c.judges.reaction ? `, Reaction: ${c.judges.reaction}` : ""})` : "";
+    return {
+      type: "ai",
+      cls: `s-ai ${hiCls}`.trim(),
+      icon: "⚡",
+      label: `AI ${s}`,
+      cardBadge: `<span class="badge l s-ai ${hiCls}" title="AI Highlight Score: ${s}/100${esc(judgeDetail)}">⚡ AI ${s}</span>`,
+      dialogBadge: `<span class="badge s-ai ${hiCls}" style="position:static" title="AI Highlight Score: ${s}/100${esc(judgeDetail)}">⚡ AI Score ${s}${esc(judgeDetail)}</span>`,
+      desc: c.reason || `AI highlight detection (${s}/100)`
+    };
+  }
+
+  return {
+    type: "manual",
+    cls: "s-manual",
+    icon: "👆",
+    label: "Manual",
+    cardBadge: `<span class="badge l s-manual" title="Manually clipped by user">👆 Manual</span>`,
+    dialogBadge: `<span class="badge s-manual" style="position:static" title="Manually clipped by user">👆 Clipped by hand</span>`,
+    desc: c.reason || "Clipped manually by user"
+  };
+}
 function postPills(c) {
   return Object.entries(c.posts || {}).filter(([pid, p]) => p.status !== "cancelled").map(([pid, p]) => {
     const cls = p.status === "posted" ? "ok" : p.status === "failed" ? "bad" : "warn";
@@ -2114,9 +2169,10 @@ function clipHtml(j, c) {
     : `<span class="making">${c.status === "rendering" ? "Making this clip…" : "Waiting its turn…"}</span>`;
   const key = `c:${j.id}:${c.id}`, busyClip = c.status === "queued" || c.status === "rendering";
   const hasSched = Object.values(c.posts || {}).some(p => p.status === "scheduled");
+  const bInfo = clipBadgeInfo(c);
   return `<article class="clip ${sel().has(key) ? "picked" : ""}">
     <button class="shot" data-act="openclip" ${a} aria-label="Open clip: ${esc(c.title || c.hook)}">${body}
-      <span class="badge l ${scoreCls(c.score)}" title="AI score">${c.score || "Hand"}</span><span class="badge r">${fmt(c.end - c.start)}</span></button>
+      ${bInfo.cardBadge}<span class="badge r">${fmt(c.end - c.start)}</span></button>
     <div class="clip-body">
       <div class="hook">${esc(c.hook || "Untitled clip")}</div>
       <div class="ttl">${esc(c.title)}</div>
@@ -3154,10 +3210,11 @@ function drawClipDlg(full) {
     : c.status === "error" ? `<div class="err" style="padding:20px;text-align:center">${esc(c.error || "Could not make this clip.")}</div>`
     : `<span class="making">${c.status === "rendering" ? "Making this clip…" : "Waiting its turn…"}</span>`;
   if (full) {
+    const bInfo = clipBadgeInfo(c);
     dlg.innerHTML = `<div class="editor"><div class="stage" id="stage">${stage}</div>
       <div class="panel">
-        <div class="job-head" style="margin:0"><div><span class="badge ${scoreCls(c.score)}" style="position:static">${c.judges ? "Words " + c.judges.words + (c.judges.reaction ? " · Reaction " + c.judges.reaction : "") : c.score ? "Score " + c.score : "Clipped by hand"}</span>
-          <p class="sub" style="margin-top:8px">${esc(c.reason || "")}</p></div><button class="btn icon ghost" data-act="closedlg" aria-label="Close">${ic("x")}</button></div>
+        <div class="job-head" style="margin:0"><div>${bInfo.dialogBadge}
+          <p class="sub" style="margin-top:8px">${esc(c.reason || bInfo.desc)}</p></div><button class="btn icon ghost" data-act="closedlg" aria-label="Close">${ic("x")}</button></div>
         <h3>On the video</h3>
         <label class="f">Big text (Hook banner on video)<input data-f="hook" value="${esc(c.hook)}"></label>
         <div id="dlg_hook_pills" style="display:flex;flex-wrap:wrap;gap:6px;margin:-6px 0 10px 0">

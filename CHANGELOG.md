@@ -1,6 +1,25 @@
 ﻿# Changelog
 All notable project changes are documented here.
 
+## [2026-11-22] — Smart Clip Badges (AI vs Keyword Trigger vs Manual) & Explorer File Highlight Fix
+
+### Added & Improved
+- **Smart Origin Badges for Clips (`web/index.html`)**:
+  - Implemented `clipBadgeInfo(c)` helper to dynamically classify clips into 3 distinct, high-contrast visual categories:
+    - 🎯 **Speech / Chat Trigger Clips**: When clips are generated from creator chat triggers ("Always clip when someone says..."), extracts the exact keyword/phrase (e.g., `"oh my god"`, `"what the fuck"`, `"no way"`) and displays a radiant Amber / Gold badge (`🎯 "phrase"`) with detailed tooltip and hover glow (`#D97706` to `#B45309`, border `#FDE68A`).
+    - ⚡ **AI Highlights**: Displays an unmistakable Neon Cyan / Indigo badge (`⚡ AI 85`) with score-tiered styling (`s-hi` for 80+, `s-mid` for 60+) and tooltips detailing AI judges' verbal and reaction scores.
+    - 👆 **Manual Clips**: Displays a sleek slate grey badge (`👆 Manual`) with neutral dark styling (`#1E293B`, border `#475569`).
+  - Replaced the confusing legacy `"Hand"` text badge that mistakenly showed on all chat trigger clips due to `c.score || "Hand"`.
+  - Updated Clip Editor modal dialog (`drawClipDlg`) to display corresponding rich status badges and trigger origin reasons.
+  - Removed aggressive global `!important` overriding badge backgrounds in dark theme.
+
+### Fixed
+- **Show Clip Video File Explorer Opener (`studio/server.py`)**:
+  - Fixed `HTTP 500: name 'subprocess' is not defined` bug by adding missing `import subprocess` import at top of `studio/server.py`.
+  - Fixed Windows Explorer command execution where spaces in folder paths (e.g. `GTA 6 CLIPPING`) caused Python's `subprocess.list2cmdline` to erroneously quote `/select` flag, preventing Explorer from selecting the video.
+  - Refactored `open_clip_folder` to check `clip.get("file")` and `clip.get("src")`, execute `explorer.exe /select,"<path>"` directly, and fall back to `os.startfile(target.parent)` on any error.
+  - Verified endpoint `/api/jobs/{jid}/clips/{cid}/open-folder` returning HTTP 200 OK with exact clip file path.
+
 ## [2026-11-22] — Broadcast-Grade 1080p60 Video Quality & High-Bitrate Ingestion Upgrade
 
 ### Added & Improved

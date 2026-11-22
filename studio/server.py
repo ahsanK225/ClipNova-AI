@@ -10,6 +10,7 @@ import json
 import os
 import re
 import shutil
+import subprocess
 import threading
 import time
 from pathlib import Path
@@ -1131,22 +1132,34 @@ def open_clip_folder(jid: str, cid: str):
     """Open folder in Windows Explorer and highlight the exact clip MP4 file for 1-click ChatGPT upload."""
     job, clip = _clip_or_404(jid, cid)
     d = Path(job["dir"])
-    candidates = [
+    candidates = []
+    clip_file = clip.get("file")
+    if clip_file:
+        candidates.append(d / "clips" / clip_file)
+        candidates.append(d / clip_file)
+    if clip.get("src"):
+        candidates.append(Path(clip["src"]))
+    candidates.extend([
         d / "clips" / f"{cid}.mp4",
         d / "clips" / f"{cid}_vertical.mp4",
         d / f"{cid}.mp4",
         d / "clips" / f"{cid}.jpg",
         d / "clips",
         d
-    ]
+    ])
     target = next((p for p in candidates if p.exists()), d)
     target_str = str(target.resolve())
     try:
         if os.name == "nt":
             if target.is_file():
-                subprocess.Popen(["explorer.exe", f"/select,{target_str}"])
+                try:
+                    subprocess.Popen(f'explorer.exe /select,"{target_str}"')
+                except Exception:
+                    os.startfile(str(target.parent.resolve()))
             else:
                 os.startfile(target_str)
+        elif sys.platform == "darwin":
+            subprocess.Popen(["open", "-R", target_str] if target.is_file() else ["open", target_str])
         else:
             subprocess.Popen(["xdg-open", str(target.parent if target.is_file() else target)])
         return {"ok": True, "path": target_str, "filename": target.name}
