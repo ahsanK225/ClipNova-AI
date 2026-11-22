@@ -47,9 +47,9 @@ class TestTriggerTimeline(unittest.TestCase):
     def test_02_session_triggers_level1_phrase(self):
         """Simulate Session._triggers with 'what the fuck' at t=60.0."""
         s = live.Session(
-            {"title": "GTA 6 stream", "uploader": "ohnePixel", "dir": "", "creator": "", "ai": {},
+            {"title": "CS2 stream", "uploader": "ohnePixel", "dir": "", "creator": "ohnepixel", "ai": {},
              "clips": [], "source": {"url": "", "name": "stream"}},
-            {"trigger_words": "", "style": "bounce", "layout": "split_half"}
+            {"trigger_words": "clip that", "style": "bounce", "layout": "split_half"}
         )
         s.last_trigger = -999.0
         words = [
@@ -106,9 +106,9 @@ class TestTriggerTimeline(unittest.TestCase):
     def test_04_overlapping_triggers_merged_with_post_roll(self):
         """Two triggers 8s apart: T1=100.0, T2=108.0 -> smooth extension with full post-roll."""
         s = live.Session(
-            {"title": "GTA 6 stream", "uploader": "ohnePixel", "dir": "", "creator": "", "ai": {},
+            {"title": "CS2 stream", "uploader": "ohnePixel", "dir": "", "creator": "ohnepixel", "ai": {},
              "clips": [], "source": {"url": "", "name": "stream"}},
-            {"trigger_words": "", "style": "bounce", "layout": "split_half"}
+            {"trigger_words": "clip that", "style": "bounce", "layout": "split_half"}
         )
         s.last_trigger = -999.0
         words1 = [

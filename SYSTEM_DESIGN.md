@@ -524,3 +524,17 @@ Integrated directly in `studio/brain.py` and `studio/posting.py`:
    - Supports 3 view modes: `📅 Day Timeline` (grouped calendar), `⚡ USA Slots` (sequential windows list), and `🎬 Queued Videos` (active video cards), switchable with zero page reload.
 5. **Segmented Daily Quota Gauge**:
    - Segmented 3-dot visual meter in the header tracking today's 3-video ceiling with real-time status.
+
+---
+
+## 30. Strict Live Pure AI Mode Bypass & Reaction Phrase Scoping
+1. **Strict Pure AI Bypass on Empty Trigger Words (`studio/live.py`)**:
+   - In `Session._triggers(new_words)`, if `trigger_words` in settings is empty (`""`), the method returns immediately.
+   - Bypasses all phrase recognition (`CLIP_WORDS`, `ohnepixel.classify_transcript`, Level 1 reaction phrases, and custom phrases).
+   - In pure AI mode, clips are created strictly via `Session._ai_check()` based on multimodal Gemini scoring, audio loudness spikes, and chat velocity bursts, with badge `🤖 AI AUTO Score`.
+2. **Creator Scoping for OhnePixel Reaction Phrases (`studio/live.py`)**:
+   - `ohnepixel.classify_transcript()` Level 1 reaction phrase triggers are strictly scoped to OhnePixel channels (`is_ohnepixel`).
+   - Streams from other creators (e.g. xQc, GTA 6 streamers) never execute OhnePixel's hardcoded CS2 reaction phrase triggers, obeying only the creator's configured settings.
+3. **Removal of Casual Conversational Fillers (`studio/ohnepixel.py`)**:
+   - Removed casual conversational words (`"huh"`, `"come on bro"`, `"why bro"`, `"wait wait wait"`, `"hold on"`, `"no no no"`) from `STRONG_REACTION_PHRASES`.
+   - These common phrases no longer trigger auto-clips directly without multimodal AI evidence.

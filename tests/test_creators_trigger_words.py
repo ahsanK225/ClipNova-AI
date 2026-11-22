@@ -128,6 +128,41 @@ class TestCreatorTriggerWords(unittest.TestCase):
         self.assertTrue(s_active.said is not None or len(s_active.manual) > 0,
                         "Trigger words should trigger when configured")
 
+    def test_06_pure_ai_mode_ignores_reaction_phrases_and_filler(self):
+        """Pure AI mode (empty trigger_words) must never create keyword clips on filler or reaction phrases."""
+        # 1. xQc with empty trigger_words
+        s_xqc = live.Session(
+            {"title": "GTA 6 stream", "uploader": "xQc", "dir": "", "creator": "xqc", "ai": {},
+             "clips": [], "source": {"url": "", "name": "stream"}},
+            {"trigger_words": "", "style": "bounce", "layout": "split_half"}
+        )
+        s_xqc.last_said = -999.0
+        s_xqc.last_trigger = -999.0
+
+        phrases = [
+            [{"w": "come", "s": 10.0, "e": 10.3}, {"w": "on", "s": 10.3, "e": 10.6}, {"w": "bro", "s": 10.6, "e": 11.0}],
+            [{"w": "huh", "s": 15.0, "e": 15.4}],
+            [{"w": "wait", "s": 20.0, "e": 20.2}, {"w": "wait", "s": 20.2, "e": 20.4}, {"w": "wait", "s": 20.4, "e": 20.6}],
+            [{"w": "holy", "s": 30.0, "e": 30.3}, {"w": "shit", "s": 30.3, "e": 30.6}],
+        ]
+        for p in phrases:
+            s_xqc.words = list(p)
+            s_xqc._triggers(p)
+        self.assertEqual(len(s_xqc.manual), 0, "No keyword trigger clips should be created in Pure AI mode")
+
+        # 2. OhnePixel with empty trigger_words must also produce 0 keyword triggers
+        s_ohne = live.Session(
+            {"title": "CS2 stream", "uploader": "ohnePixel", "dir": "", "creator": "ohnepixel", "ai": {},
+             "clips": [], "source": {"url": "", "name": "stream"}},
+            {"trigger_words": "", "style": "bounce", "layout": "split_half"}
+        )
+        s_ohne.last_said = -999.0
+        s_ohne.last_trigger = -999.0
+        for p in phrases:
+            s_ohne.words = list(p)
+            s_ohne._triggers(p)
+        self.assertEqual(len(s_ohne.manual), 0, "OhnePixel with empty trigger_words must produce 0 keyword clips")
+
 
 if __name__ == "__main__":
     unittest.main()

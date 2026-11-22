@@ -1,6 +1,25 @@
 ﻿# Changelog
 All notable project changes are documented here.
 
+## [2026-11-23] — Strict Live Pure AI Mode Bypass & Reaction Phrase Scoping
+
+### Fixed
+- **Bypassed Unintended Level 1 Reaction Phrase Triggers when Trigger Words Cleared (`studio/live.py`)**:
+  - Fixed bug where `Session._triggers()` executed `ohnepixel.classify_transcript()` outside of `has_triggers` check. Even when a user deleted all trigger words (`"trigger_words": ""`), speaking any phrase in `STRONG_REACTION_PHRASES` automatically created a clip with `source: "trigger"`.
+  - Added strict guard at the entry of `Session._triggers()`: if `trigger_words` is empty or whitespace, the method returns immediately, completely bypassing all keyword triggers, phrase matchers, and built-in "clip that" commands.
+- **Creator-Scoped OhnePixel Level 1 Auto-Triggers (`studio/live.py`)**:
+  - Scoped `ohnepixel.classify_transcript()` Level 1 reaction phrases exclusively to OhnePixel channels (`is_ohnepixel`). Streams from other creators (such as xQc, Speed, or custom streamers) no longer falsely trigger on CS2 reaction phrases.
+- **Removed Casual Conversational Fillers from Level 1 Strong Reaction Phrases (`studio/ohnepixel.py`)**:
+  - Removed `"huh"`, `"come on bro"`, `"why bro"`, `"wait wait wait"`, `"hold on"`, and `"no no no"` from `STRONG_REACTION_PHRASES`. These casual phrases are common in normal dialogue and no longer trigger auto-clips directly without multimodal AI evidence.
+- **Shared Timeline Roll Variables (`studio/live.py`)**:
+  - Positioned `pre_roll, post_roll = 12.0, 28.0` before creator branch so creator custom trigger phrases have access to timeline variables without `UnboundLocalError`.
+
+### Tests and Verification
+- Python test script executed reproducing the exact issue with `"come on bro"` and `"huh"` on xQc with empty `trigger_words` (1 manual item created before fix, 0 manual items created after fix).
+- All 32 automated tests in `tests/test_creators_trigger_words.py`, `tests/test_trigger_timeline.py`, `tests/test_ohnepixel_engine.py`, and `tests/test_usa_publishing_calendar.py` passed (100% OK in 1.48s).
+- Additional regression tests in `test_live.py`, `test_games.py`, `test_delete.py`, and `test_post_text.py` passed.
+- Server daemon restarted on port 8765; health check `http://127.0.0.1:8765/healthz` returned `HTTP 200 {"ok":true}`.
+
 ## [2026-11-23] — Cyber-Glass USA Content Calendar, Day Timeline & Micro-Animations
 
 ### Added

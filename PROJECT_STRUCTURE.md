@@ -52,14 +52,14 @@ F:\Games\GTA 6 CLIPPING\
 │   │   ├── games.py                        # GTA VI & gaming stream detection engine
 │   │   ├── hashtags.py                     # Non-AI fast hashtags engine (derives 3-5 tags without burning tokens)
 │   │   ├── jobs.py                         # Video processing queue, facecam resolution, multimodal SEO & Windows retry save
-│   │   ├── live.py                         # Live stream buffer, 720p lock, loudness spikes & trigger clips
+│   │   ├── live.py                         # Live stream buffer, 720p lock, loudness spikes, Pure AI Mode bypass on empty triggers, and creator-scoped triggers
 │   │   ├── load.py                         # System load, memory, and queue worker throttle
 │   │   ├── capcut\                         # Native CapCut Desktop Draft project generator (pyJianYingDraft & template)
 │   │   │   ├── export.py                   # Multi-track CapCut draft exporter (video, hook title, subtitle tracks)
 │   │   │   ├── pyJianYingDraft\            # Pure Python CapCut desktop draft AST builder & track manager
 │   │   │   └── template\                   # Base CapCut project template (draft_info.json, draft_meta_info.json)
 │   │   ├── media.py                        # Long-video stream inspector, format resolver & Netscape cookie manager
-│   │   ├── ohnepixel.py                    # OhnePixel intelligent detection database, tiered phrases, German/English slang, false-positive protection & Mode B fallback
+│   │   ├── ohnepixel.py                    # OhnePixel intelligent detection database, tiered phrases without casual fillers, German/English slang, false-positive protection & Mode B fallback
 │   │   ├── posting.py                      # YouTube Shorts cloud scheduling, IG, TikTok & channel exclusivity
 │   │   ├── render.py                       # FFmpeg 9:16 vertical render, split layouts, Bouncy/Hormozi/MrBeast subtitles, Hook styles (Purple Whip, etc.)
 │   │   ├── server.py                       # FastAPI application & HTTP routes (CapCut export endpoints, multi-key pool, presets)

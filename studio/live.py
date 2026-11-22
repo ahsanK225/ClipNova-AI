@@ -741,6 +741,12 @@ class Session:
         phrases from Setup, which clip straight away with no AI check."""
         if not new_words:
             return
+
+        # STRICT PURE-AI BYPASS: If creator has empty trigger_words, bypass ALL keyword/phrase triggers!
+        has_triggers = bool(str(self.settings.get("trigger_words", "")).strip())
+        if not has_triggers:
+            return
+
         # Use a rolling window of recent words to eliminate chunk boundary splits
         window_words = self.words[-50:] if len(self.words) >= 50 else list(self.words)
         if not window_words:
@@ -748,9 +754,8 @@ class Session:
 
         earliest_new = new_words[0]["s"]
 
-        # 1. Built-in "clip" trigger detection across rolling window (only if keyword triggers enabled)
-        has_triggers = bool(str(self.settings.get("trigger_words", "")).strip())
-        if has_triggers and not self.said and (window_words[-1]["s"] - self.last_said > self.SAID_GAP):
+        # 1. Built-in "clip" trigger detection across rolling window
+        if not self.said and (window_words[-1]["s"] - self.last_said > self.SAID_GAP):
             norm_tokens = [self._normalize_trigger_text(w.get("w", "")) for w in window_words]
             for i, w in enumerate(window_words):
                 if w["s"] < earliest_new - 5.0:
@@ -767,47 +772,54 @@ class Session:
                 if self.said:
                     break
 
-        # 2. OhnePixel Intelligent Detection & Creator's custom trigger phrases
-        g = self._game()
-        c_class = ohnepixel.classify_transcript(window_words, game=g)
+        # 2. OhnePixel Intelligent Detection (Only for OhnePixel channels!)
+        creator_val = str(self.job.get("creator") or "").lower()
+        uploader_val = str(self.job.get("uploader") or "").lower()
+        channel_val = str(getattr(self, "channel", "") or "").lower()
+        is_ohnepixel = "ohnepixel" in creator_val or "ohnepixel" in uploader_val or "ohnepixel" in channel_val
+
         # Golden Retention Timeline: trigger occurs within first 10-15s (target 12s), followed by 25-30s reaction
         pre_roll, post_roll = 12.0, 28.0
 
-        # Level 1 strong reaction phrase detection (Continuous Moment Discovery)
-        if c_class.get("tier") == 1 and c_class.get("level1_matches"):
-            matched_p = c_class["level1_matches"][0]
-            match_t = window_words[-1]["s"]
-            norm_pat = ohnepixel.normalize_text(matched_p).split()
-            plen = len(norm_pat)
-            words_n = [self._normalize_trigger_text(w.get("w", "")) for w in window_words]
-            for idx in range(len(words_n) - plen + 1):
-                if words_n[idx:idx + plen] == norm_pat:
-                    match_t = window_words[idx]["s"]
-                    break
+        if is_ohnepixel:
+            g = self._game()
+            c_class = ohnepixel.classify_transcript(window_words, game=g)
 
-            if match_t >= earliest_new - 8.0:
-                # Merge overlapping triggers within 15 seconds
-                if match_t - self.last_trigger <= 15.0 and self.manual:
-                    self.manual[-1]["end"] = max(self.manual[-1]["end"], match_t + post_roll)
-                    if self.manual[-1]["end"] - self.manual[-1]["start"] > 60.0:
-                        self.manual[-1]["start"] = max(0.0, self.manual[-1]["end"] - 60.0)
-                    self.last_trigger = match_t
-                elif match_t - self.last_trigger > 15.0:
-                    self.last_trigger = match_t
-                    s = max(0.0, match_t - pre_roll)
-                    e = match_t + post_roll
-                    self.manual.append({
-                        "start": s, "end": e,
-                        "why": f'"{matched_p}"',
-                        "tier": 1,
-                        "trigger_type": "reaction_phrase",
-                        "source": "trigger",
-                        "trigger_word": matched_p,
-                        "trigger_t": match_t,
-                    })
-                return
+            # Level 1 strong reaction phrase detection (Continuous Moment Discovery)
+            if c_class.get("tier") == 1 and c_class.get("level1_matches"):
+                matched_p = c_class["level1_matches"][0]
+                match_t = window_words[-1]["s"]
+                norm_pat = ohnepixel.normalize_text(matched_p).split()
+                plen = len(norm_pat)
+                words_n = [self._normalize_trigger_text(w.get("w", "")) for w in window_words]
+                for idx in range(len(words_n) - plen + 1):
+                    if words_n[idx:idx + plen] == norm_pat:
+                        match_t = window_words[idx]["s"]
+                        break
 
-        # Creator's custom trigger phrases
+                if match_t >= earliest_new - 8.0:
+                    # Merge overlapping triggers within 15 seconds
+                    if match_t - self.last_trigger <= 15.0 and self.manual:
+                        self.manual[-1]["end"] = max(self.manual[-1]["end"], match_t + post_roll)
+                        if self.manual[-1]["end"] - self.manual[-1]["start"] > 60.0:
+                            self.manual[-1]["start"] = max(0.0, self.manual[-1]["end"] - 60.0)
+                        self.last_trigger = match_t
+                    elif match_t - self.last_trigger > 15.0:
+                        self.last_trigger = match_t
+                        s = max(0.0, match_t - pre_roll)
+                        e = match_t + post_roll
+                        self.manual.append({
+                            "start": s, "end": e,
+                            "why": f'"{matched_p}"',
+                            "tier": 1,
+                            "trigger_type": "reaction_phrase",
+                            "source": "trigger",
+                            "trigger_word": matched_p,
+                            "trigger_t": match_t,
+                        })
+                    return
+
+        # 3. Creator's custom trigger phrases
         raw_phrases = [p.strip() for p in self.settings.get("trigger_words", "").split(",") if p.strip()]
         if not raw_phrases:
             return
