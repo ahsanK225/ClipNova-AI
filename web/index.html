@@ -5593,8 +5593,8 @@ document.addEventListener("click", async e => {
       await navigator.clipboard.writeText([c.title, c.description, tags].filter(Boolean).join("\n\n")); return toast("Post text copied", "ok");
     }
     if (a === "ai_generate_hooks") {
-      const btn = e.target.closest("[data-act='ai_generate_hooks']");
-      const jid = D.jid;
+      const btn = b;
+      const jid = D.jid || (jobOf(D.jid)?.id);
       const cid = D.cid;
       if (!jid || !cid) return toast("No clip selected", "bad");
       const origHtml = btn.innerHTML;
@@ -5602,15 +5602,18 @@ document.addEventListener("click", async e => {
       btn.innerHTML = `<span>⏳</span> Generating…`;
       toast("AI is creating 5 viral hook variations…", "ok");
       try {
-        const res = await api(`/api/jobs/${jid}/clips/${cid}/hooks`, {}, "POST");
+        const res = await send(`/api/jobs/${encodeURIComponent(jid)}/clips/${encodeURIComponent(cid)}/hooks`, {});
         if (res && res.hooks && res.hooks.length) {
           const j = jobOf(jid);
           const c = j?.clips.find(x => x.id === cid);
-          if (c) c.hooks = res.hooks;
+          if (c) {
+            c.hooks = res.hooks;
+            if (res.hook) c.hook = res.hook;
+          }
           const pills = $("#dlg_hook_pills");
           if (pills) {
             pills.innerHTML = res.hooks.map((h, i) => `
-              <button type="button" class="btn sm hook-pill-btn" data-act="pick_hook" data-hook="${esc(h)}" title="Click to use this hook" style="font-size:10px;padding:2px 8px;font-weight:700;background:var(--bg-1,#120e0c);border:1px solid ${i === 0 ? 'var(--accent, #00f0ff)' : 'var(--line)'};border-radius:12px;color:${i === 0 ? 'var(--accent, #00f0ff)' : 'var(--text)'};cursor:pointer">
+              <button type="button" class="btn sm hook-pill-btn" data-act="pick_hook" data-hook="${esc(h)}" title="Click to use this hook" style="font-size:10px;padding:3px 10px;font-weight:700;background:var(--bg-1,#120e0c);border:1px solid ${i === 0 ? 'var(--accent, #00f0ff)' : 'var(--line)'};border-radius:12px;color:${i === 0 ? 'var(--accent, #00f0ff)' : 'var(--text)'};cursor:pointer">
                 #${i+1}: ${esc(h)}
               </button>
             `).join("");

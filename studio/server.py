@@ -1163,6 +1163,7 @@ def clip_write(jid: str, cid: str):
         raise HTTPException(503, str(e))
 
 
+@app.get("/api/jobs/{jid}/clips/{cid}/hooks")
 @app.post("/api/jobs/{jid}/clips/{cid}/hooks")
 def clip_generate_hooks(jid: str, cid: str):
     """Generate 5 viral hook banner variations for this clip using AI."""
@@ -1175,7 +1176,11 @@ def clip_generate_hooks(jid: str, cid: str):
         uploader = job.get("uploader") or ""
         game = job.get("game") or None
         hooks = brain.generate_viral_hooks(text, title, uploader, game=game)
-        return {"hooks": hooks}
+        clip["hooks"] = hooks
+        if hooks and not clip.get("hook"):
+            clip["hook"] = hooks[0]
+        jobs.save(job)
+        return {"ok": True, "hooks": hooks, "hook": clip.get("hook")}
     except Exception as e:
         raise HTTPException(500, f"Failed to generate viral hooks: {e}")
 

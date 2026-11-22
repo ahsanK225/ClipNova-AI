@@ -1,7 +1,15 @@
 ﻿# Changelog
 All notable project changes are documented here.
 
-## [2026-11-22] — Master Upgrade: OhnePixel Intelligent Livestream Clipping Engine
+## [2026-11-22] — Fix: AI Viral Hooks Button 405 Method Not Allowed Bug
+
+### Fixed
+- **AI Viral Hooks Button Handler (`web/index.html`, `studio/server.py`)**:
+  - **Root Cause**: `ai_generate_hooks` in `web/index.html` was calling `api(path, {}, "POST")` where `api(path, opt)` only takes 2 arguments (`path` and `opt`). Because `opt` was empty `{}` without a method, `fetch()` defaulted to a `GET` request. FastAPI rejected it with `405 Method Not Allowed`, throwing an error and preventing hooks from generating.
+  - **Resolution**: Replaced with `await send('/api/jobs/${encodeURIComponent(jid)}/clips/${encodeURIComponent(cid)}/hooks', {})` which properly sends a JSON POST request.
+  - **Dual-Method Compatibility & Persistence**: Added `@app.get` alongside `@app.post` for `/api/jobs/{jid}/clips/{cid}/hooks` in `studio/server.py`, and automatically saved generated hooks into `clip["hooks"]` and `jobs.save(job)`.
+  - **Frontend UI Refresh**: Clicking `✨ AI Viral Hooks` generates 5 high-CTR headline pills with Canary Yellow punch tags (`*word*`), selects the top hook, and enables 1-click switching between variations.
+
 
 ### Added
 - **Dedicated OhnePixel Keyword & Reaction Database (`studio/ohnepixel.py`)**:
