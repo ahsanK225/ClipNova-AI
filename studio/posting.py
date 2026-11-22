@@ -169,6 +169,17 @@ def _post(p):
             publish_at = p.get("due_at") if (p.get("due_at", 0) > time.time() + 60 and not p.get("now")) else None
             privacy = "private" if publish_at else creator.get("privacy", "public")
             rid, url = accounts.youtube_upload(acc, path, title, desc, yt_tags, privacy, publish_at=publish_at)
+            # Automatically set high-CTR cover thumbnail with hook banner & facecam on YouTube
+            cover_file = clip.get("cover") or f"{clip['id']}.jpg"
+            cover_path = Path(job["dir"]) / "clips" / cover_file
+            if not cover_path.is_file():
+                cover_path = Path(job["dir"]) / cover_file
+            if cover_path.is_file():
+                try:
+                    if accounts.youtube_set_thumbnail(acc, rid, cover_path):
+                        creators.log(p["creator"], f"Uploaded viral cover thumbnail to YouTube: {cover_file}")
+                except Exception as te:
+                    creators.log(p["creator"], f"YouTube thumbnail notice: {te}")
             if pcomment:
                 try:
                     accounts.youtube_post_comment(acc, rid, pcomment)

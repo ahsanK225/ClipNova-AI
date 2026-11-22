@@ -24,7 +24,7 @@ MASTER_TRIGGER_WORDS = (
 )
 
 DEFAULTS = {"name": "", "channel": "", "style": "bounce", "layout": "split_half", "captions": True, "min_len": 15, "max_len": 60,
-            "max_clips": 6, "min_score": 80, "auto_watch": False, "buffer_min": 20, "live_per_hour": 4, "ai_every_min": 3, "ai_only_on_spike": True, "auto_jump_pct": 60,
+            "max_clips": 6, "min_score": 80, "auto_watch": False, "buffer_min": 20, "live_per_hour": 25, "ai_every_min": 3, "ai_only_on_spike": True, "auto_jump_pct": 60,
             "plan": "free", "decide_mode": "both", "must_clip_min": 0, "min_gap_min": 2,
             "game": "", "quality": 1080, "hook_text": "", "description_text": "",
             "trigger_words": MASTER_TRIGGER_WORDS,

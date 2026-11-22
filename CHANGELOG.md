@@ -1,6 +1,35 @@
 ﻿# Changelog
 All notable project changes are documented here.
 
+## [2026-11-22] — Livestream Clipping Engine & UI Suite Overhaul
+
+### Added
+- **Automatic YouTube Cover Thumbnail Upload (`studio/accounts.py`, `studio/posting.py`)**:
+  - Implemented `youtube_set_thumbnail` using the official YouTube Data API v3 `POST https://www.googleapis.com/upload/youtube/v3/thumbnails/set?videoId={video_id}` endpoint.
+  - When posting clips to YouTube, PeakCut now automatically pushes the high-CTR viral cover thumbnail (`clip0xx.jpg` with the hook banner, facecam, and gameplay scene). Creators no longer need to manually choose or upload a thumbnail in YouTube Studio.
+- **Collapsible Stream Project Folders (`web/index.html`)**:
+  - Added an accordion folder toggle (`📁 / 📂`) on all stream and video project cards.
+  - Clicking "Fold Clips" collapses the massive vertical cards grid into a clean, compact single-line summary (`📁 7 clips folded in this stream. Click to open folder`), saving massive vertical scroll space.
+  - Folding preference is saved into `localStorage` across page refreshes.
+- **Upgraded Visual AI Decision Feed (`web/index.html`)**:
+  - Overhauled "Latest AI decisions" into a modern, spacious visual activity feed.
+  - Added real-time decision badges (`⚡ HIGH PRIORITY`, `✂️ CLIPPED`, `🔍 LISTENING`, `⏭️ EVALUATED`), timestamps (`⏱️ 9:24`), bold trigger reasons, and active AI model tag (`gemini-3.5-flash-lite`).
+
+### Changed & Fixed
+- **Single Yellow Punch Keyword per Viral Hook Banner (`studio/render.py`, `tests/test_hook_single_yellow.py`)**:
+  - Solved the bug where multi-line hooks had 2 yellow words across lines.
+  - Formats at the whole-banner level before line splitting so exactly ONE punch keyword across all lines is highlighted in Canary Yellow (`\c&H00E5FF&`).
+  - Streamer names (`ohnepixel`, `speed`, `kai`, etc.) and stopwords are strictly demoted, while action/punch verbs (`heists`, `roasts`, `arrested`, `glitch`) receive priority.
+- **Natural Gameplay Clip Duration Matching (~42–45s) (`studio/live.py`)**:
+  - Expanded candidate clip boundaries to capture full 42–45s natural gameplay moments (matching continuous discovery 18s pre-roll + 25s post-roll), preventing clips from being cut down to 26s when 45s of action is available.
+  - Re-rendered `clip016` from 26.0s to 43.02s, matching `clip016.src.mp4`.
+- **Hourly Clip Throttle Removal (`studio/creators.py`, `studio/live.py`)**:
+  - Raised default `live_per_hour` from 4 to 25.
+  - High-priority moments and phrase triggers now bypass hourly limits completely, eliminating the frustrating "Skipped: 4 clips this hour already" blocker during active gaming streams.
+- **Pinned / Sticky Video Preview in Clip Editor (`web/index.html`)**:
+  - Updated `#clipdlg`, `.editor`, `.stage`, and `.panel` layout with `position: sticky; overflow-y: auto; height: 100%`.
+  - When scrolling through settings, caption styles, sync, SEO, or publishing buttons on the right, the left phone video preview remains securely locked and pinned in the center of the screen without scrolling away.
+
 ## [2026-11-22] — Fix: AI Viral Hooks Button 405 Method Not Allowed Bug
 
 ### Fixed

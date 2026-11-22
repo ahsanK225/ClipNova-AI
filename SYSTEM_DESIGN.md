@@ -337,6 +337,20 @@ Integrated directly in `studio/brain.py` and `studio/posting.py`:
    - Real-time sliders in Visual Layout Studio for vertical placement (`hook_y`), width (`hook_w`), font size, and badge theme.
    - Real-time 9:16 phone mockup canvas renders the exact Hook Banner pill with drop shadow, border, and title text, alongside live sample bouncy subtitles.
 
+## 8. YouTube Cover Thumbnail Automation, Viewport Sticky Preview & Stream Folder Hierarchy
+1. **YouTube Data API Cover Thumbnail Automation (`studio/accounts.py`, `studio/posting.py`)**:
+   - Automated `thumbnails.set` integration pushing high-CTR viral cover JPEG (`clip.jpg` containing the hook banner, facecam, and gameplay action) directly to YouTube on publish.
+   - Eliminates manual thumbnail setting in YouTube Studio for uploaded Shorts.
+2. **Sticky Video Preview & Decoupled Scroll Engine (`web/index.html`)**:
+   - Two-column viewport-locked editor modal (`#clipdlg`, `.editor` at `height: calc(100vh - 36px); overflow: hidden;`).
+   - Sticky phone stage (`.editor .stage` with `position: sticky; top: 0; overflow: hidden;`) stays centered and pinned in view while user scrolls the settings panel.
+3. **Whole-Banner Single Punch Word Focus (`studio/render.py`)**:
+   - Banned streamer names and stopwords from receiving viral canary yellow highlight.
+   - Evaluates whole banner before line-break splitting, guaranteeing exactly 1 punch word highlighted in yellow across all lines.
+4. **Collapsible Stream Project Folders (`web/index.html`)**:
+   - 1-click fold/expand toggle for stream cards with localStorage state persistence.
+   - Compact folded summary cards (`📁 N clips inside this project`) saving massive vertical scrolling.
+
 
 
 

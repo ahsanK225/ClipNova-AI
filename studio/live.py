@@ -543,9 +543,10 @@ class Session:
         if len(win) < 8:
             self.skipped += 1
             return self._verdict(verdict, "Skipped: nobody talking")
-        if len(recent) >= st["live_per_hour"] and not must:
+        hourly_cap = st.get("live_per_hour", 25)
+        if hourly_cap > 0 and len(recent) >= hourly_cap and not must and not why:
             self.skipped += 1
-            return self._verdict(verdict, f"Skipped: {st['live_per_hour']} clips this hour already")
+            return self._verdict(verdict, f"Hourly target reached ({len(recent)}/{hourly_cap} clips)")
         usage.set_context(self.job["creator"], self.job["title"] or "Live stream")
         title, up = self.job["title"], self.job["uploader"]
         try:
@@ -654,6 +655,12 @@ class Session:
                 "model": ai.last_active_model(),
             }
             c["reason"] = f"{c['reason']} [{mm['mode']}: {mm['breakdown']}]"
+            # Ensure clip duration captures full natural gameplay moment (target ~42-45s like continuous discovery)
+            c_dur = c["end"] - c["start"]
+            if c_dur < 38.0:
+                expand = min(43.0 - c_dur, 16.0)
+                c["start"] = max(ws, round(c["start"] - expand * 0.4, 2))
+                c["end"] = min(now, round(c["end"] + expand * 0.6, 2))
             self._add_clip(c)
             self._verdict(verdict, f"Clipped ({mm['priority']}): " + why[:40])
             added += 1

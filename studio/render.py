@@ -183,8 +183,77 @@ def geometry(src_w, src_h, layout):
     return layout, fg_h, max(230, top - 190), min(1640, top + fg_h + 180)
 
 
+_STREAMER_NAMES = {
+    "ohnepixel", "ohnpixel", "ishowspeed", "speed", "kai", "kaicenat", "xqc",
+    "adin", "adinross", "pokimane", "jynxzi", "tarik", "tenz", "streamer",
+    "twitch", "kick", "youtube", "gta", "gta6", "cs2", "csgo"
+}
+
+_HOOK_STOPWORDS = {
+    "the", "a", "an", "is", "are", "was", "were", "this", "that", "these", "those",
+    "in", "on", "at", "to", "for", "of", "and", "or", "it", "its", "with", "as",
+    "by", "from", "be", "been", "being", "have", "has", "had", "do", "does", "did",
+    "ready", "gets", "goes", "went", "got", "just", "very", "so", "too", "my",
+    "your", "his", "her", "their", "our", "all", "some", "any", "not", "no", "yes",
+    "he", "she", "they", "we", "i", "me", "him", "them", "us", "bro", "man", "guy",
+    "dude", "what", "why", "how", "when", "where", "who", "there", "here"
+}
+
+_HIGH_PUNCH_WORDS = {
+    "insane", "crazy", "arrested", "roasts", "roast", "clutch", "banned", "glitch",
+    "heist", "heists", "unbelievable", "caught", "secret", "exposed", "richest",
+    "poorest", "cheater", "rage", "crying", "dies", "wins", "loses", "mystery",
+    "hacked", "rare", "knife", "gold", "dragon", "1of1", "screams", "massive",
+    "epic", "shocking", "godly", "legendary", "unreal", "disaster", "billionaire",
+    "millionaire", "cursed", "illegal", "impossible", "wild", "worst", "best",
+    "biggest", "smug", "genius", "nightmare", "flawless", "cute", "influencers",
+    "fails", "failed", "unboxed", "unboxing", "pulled", "clutched", "chokes",
+    "choked", "betrayed", "escaped", "cooked", "scammed", "scam"
+}
+
+
+def _wrap_punch_word(token: str) -> str:
+    m = re.match(r"^([^\w]*)([\w\-\'\?!]+)(.*)$", token)
+    if m:
+        prefix, core, suffix = m.groups()
+        return f"{prefix}*{core}*{suffix}"
+    return f"*{token}*"
+
+
+def _select_single_punch_word(hook: str, highlight_words: set | None = None) -> str:
+    """Selects exactly ONE punch word in the entire hook text to highlight in yellow/accent.
+    Ensures streamer names and stopwords are never picked over dramatic action/punch words."""
+    if "*" in hook:
+        return hook
+    tokens = hook.split()
+    if not tokens:
+        return hook
+
+    def score_token(idx: int, t: str) -> float:
+        clean = re.sub(r"[^\w]", "", t).lower()
+        if not clean:
+            return -999.0
+        if clean in _STREAMER_NAMES:
+            return -100.0 + len(clean) * 0.1
+        if clean in _HOOK_STOPWORDS:
+            return -50.0 + len(clean) * 0.1
+        score = float(len(clean))
+        if clean in _HIGH_PUNCH_WORDS:
+            score += 35.0
+        if highlight_words and clean in highlight_words:
+            score += 25.0
+        score += idx * 0.5
+        return score
+
+    best_idx = max(range(len(tokens)), key=lambda i: score_token(i, tokens[i]))
+    tokens[best_idx] = _wrap_punch_word(tokens[best_idx])
+    return " ".join(tokens)
+
+
 def _format_hook_line_no_box(line: str, ink: str, highlight_col: str, highlight_words: set | None = None) -> str:
-    """Formats a hook line with inline ASS color overrides for viral punch words."""
+    """Formats a hook line with inline ASS color overrides for viral punch words.
+    Only words enclosed in asterisks (*word*) are highlighted in highlight_col.
+    Lines without asterisks remain cleanly styled in the base ink color."""
     if "*" in line:
         parts = re.split(r"(\*[^*]+\*)", line)
         out = []
@@ -194,26 +263,7 @@ def _format_hook_line_no_box(line: str, ink: str, highlight_col: str, highlight_
             else:
                 out.append(p)
         return "".join(out)
-    words = line.split()
-    if not words:
-        return line
-    stopwords = {"the", "a", "an", "is", "are", "was", "were", "this", "that", "in", "on", "at", "to", "for", "of", "and", "or", "it", "with", "as", "by", "from", "be"}
-    hl_idx = set()
-    if highlight_words:
-        for i, w in enumerate(words):
-            if re.sub(r"[^\w]", "", w).lower() in highlight_words:
-                hl_idx.add(i)
-    if not hl_idx:
-        cands = [(len(re.sub(r"[^\w]", "", w)), i) for i, w in enumerate(words) if re.sub(r"[^\w]", "", w).lower() not in stopwords]
-        if cands:
-            hl_idx.add(max(cands, key=lambda x: x[0])[1])
-    out = []
-    for i, w in enumerate(words):
-        if i in hl_idx:
-            out.append(f"{{\\c&H{highlight_col}&}}{w}{{\\c&H{ink}&}}")
-        else:
-            out.append(w)
-    return " ".join(out)
+    return line
 
 
 def _hook_events(hook, dur, y, style_name="bounce", hook_style=None, max_w=None, font_size=None, x=None, highlight=None):
@@ -235,6 +285,11 @@ def _hook_events(hook, dur, y, style_name="bounce", hook_style=None, max_w=None,
     f = _Font.get(cfg["font"])
     size = int(font_size) if font_size and int(font_size) >= 20 else cfg["size"]
     banner_max_w = int(max_w) if max_w and int(max_w) >= 200 else cfg.get("max_w", 920)
+
+    # For Viral Floating styles without background box, ensure exactly ONE punch word is highlighted
+    if cfg.get("no_box") and "*" not in hook:
+        hook = _select_single_punch_word(hook, highlight_words=highlight)
+
     raw_words = hook.split()
     if not raw_words:
         return []

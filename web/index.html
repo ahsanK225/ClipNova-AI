@@ -693,10 +693,11 @@ dialog::backdrop{background:rgba(14,12,11,.42);animation:fadein .16s ease}
 .dlg{padding:24px;width:450px;max-width:100%;display:flex;flex-direction:column;gap:14px}
 .dlg h2{font-size:18px;font-weight:600;color:var(--brand-ink)}
 .dlg-foot{display:flex;justify-content:flex-end;gap:8px;margin-top:4px}
-.editor{display:grid;grid-template-columns:minmax(240px,340px) minmax(300px,450px);max-height:calc(100vh - 48px)}
-.editor .stage{background:#17110E;display:grid;place-items:center;position:relative;min-height:320px}
-.editor video,.editor .stage img{width:100%;max-height:calc(100vh - 48px);aspect-ratio:9/16;object-fit:contain;display:block}
-.editor .panel{padding:22px;overflow:auto;display:flex;flex-direction:column;gap:14px}
+#clipdlg{width:920px;max-width:calc(100vw - 32px);max-height:calc(100vh - 36px);overflow:hidden;border-radius:var(--r-lg)}
+.editor{display:grid;grid-template-columns:360px 1fr;height:calc(100vh - 36px);max-height:calc(100vh - 36px);overflow:hidden;align-items:stretch}
+.editor .stage{background:#0A0D14;display:flex;align-items:center;justify-content:center;position:sticky;top:0;height:100%;max-height:calc(100vh - 36px);overflow:hidden;border-right:1px solid var(--line)}
+.editor video,.editor .stage img{width:100%;max-height:calc(100vh - 40px);aspect-ratio:9/16;object-fit:contain;display:block}
+.editor .panel{padding:20px 24px;overflow-y:auto;height:100%;max-height:calc(100vh - 36px);display:flex;flex-direction:column;gap:12px}
 .editor h3{font-size:13px;font-weight:600;color:var(--dim);margin-top:6px}
 .two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 #toasts{position:fixed;right:20px;bottom:20px;display:flex;flex-direction:column;gap:8px;z-index:50}
@@ -1182,7 +1183,8 @@ function startTour() {
 
 /* ============================================================ state */
 const S = {status:{styles:{}, layouts:{}}, jobs:[], creators:[], accounts:[], overview:null, settings:null,
-           view:"overview", ctab:"clips"};
+           view:"overview", ctab:"clips",
+           collapsedJobs: (() => { try { return new Set(JSON.parse(localStorage.getItem("peakcut_collapsed_jobs") || "[]")); } catch { return new Set(); } })()};
 const D = {jid:null, cid:null, sig:""};
 const creatorId = () => S.view.startsWith("c:") ? S.view.slice(2) : null;
 const creator = () => S.creators.find(c => c.id === creatorId());
@@ -2197,10 +2199,13 @@ function everyPick(cid, v) {
 }
 function liveHtml(j) {
   const L = j.live || {elapsed:0, lines:[], level:[], chat:null, checks:0, buffer_sec:0, pending_clips:0};
+  const isCollapsed = S.collapsedJobs?.has(j.id);
   return `<div class="livecard">
     <div class="lc-head"><div class="lc-title"><div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><span class="pill live"><span class="dot"></span>Live</span><span class="pill" style="font-size:11px;padding:2px 8px;border-radius:12px;background:rgba(0,240,255,0.12);color:var(--accent,#00F0FF);border:1px solid rgba(0,240,255,0.3);font-weight:700">⚡ ${esc(L.detection_mode || (S.status?.ai?.model ? 'MODE A (AI INTELLIGENT SCORING)' : 'MODE B (KEYWORD FALLBACK)'))}</span></div>
         <h3>${esc(j.title || j.source.name)}</h3><p class="sub">${esc(j.uploader)}${j.uploader ? " · " : ""}${esc(j.stage)}</p></div>
-      <div class="lc-acts"><button class="btn primary" data-act="clipnow" data-j="${j.id}" data-s="30">${ic("scissors")}Clip last 30s</button>
+      <div class="lc-acts">
+        ${j.clips.length ? `<button type="button" class="btn sm" data-act="toggle_job_collapse" data-j="${j.id}" title="${isCollapsed ? 'Expand clips folder' : 'Fold clips'}" style="background:var(--bg-2);border:1px solid var(--line);font-size:11px;font-weight:700;display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:8px;cursor:pointer"><span>${isCollapsed ? '📁' : '📂'}</span><span>${isCollapsed ? `${j.clips.length} Clips (Open)` : 'Fold Clips'}</span><span style="font-size:9px;transform:${isCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)'};transition:transform .2s">▼</span></button>` : ""}
+        <button class="btn primary" data-act="clipnow" data-j="${j.id}" data-s="30">${ic("scissors")}Clip last 30s</button>
         <button class="btn" data-act="clipnow" data-j="${j.id}" data-s="60">Last 60s</button>
         <button class="btn danger" data-act="stoplive" data-j="${j.id}">${ic("stop")}Stop</button></div></div>
     <div class="stats"><div class="stat"><b>${fmt(L.elapsed)}</b><span>Recorded</span></div><div class="stat"><b>${Math.round(L.buffer_sec / 60)} min</b><span>Kept in buffer</span></div>
@@ -2208,13 +2213,42 @@ function liveHtml(j) {
       <div class="stat"><b>${L.checks}</b><span>AI calls${L.skipped ? ` · ${L.skipped} skipped` : ""}${L.rejected ? ` · ${L.rejected} turned down` : ""}</span></div><div class="stat"><b>${j.clips.length}</b><span>Clips so far</span></div>
       <div class="stat"><b style="color:var(--accent,#00F0FF);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;font-weight:700">${esc(S.status?.ai?.model || 'gemini-3.5-flash-lite')}</b><span>Active AI Model</span></div>
       ${L.pending_clips ? `<div class="stat"><b>${L.pending_clips}</b><span>Hand clip being prepared</span></div>` : ""}</div>
-    <div class="meters">
+    <div class="meters" style="grid-template-columns: repeat(auto-fit, minmax(260px, 1fr))">
       <div class="meter"><h4>Loudness, last minute</h4>${spark(L.level, "", -55, -8)}</div>
       ${L.chat ? `<div class="meter"><h4>Chat messages per second</h4>${spark(L.chat, "chat", 0, Math.max(4, ...L.chat))}</div>` : ""}
-      <div class="meter"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px"><h4 style="margin:0">Latest AI decisions</h4><span class="pill" style="font-size:10px;padding:2px 8px;border-radius:12px;background:rgba(0,240,255,0.12);color:var(--accent,#00F0FF);border:1px solid rgba(0,240,255,0.3);font-weight:600">🤖 ${esc(S.status?.ai?.model || 'gemini-3.5-flash-lite')}</span></div><div class="said" style="justify-content:flex-start;color:var(--text)">${(L.verdicts || []).length ? L.verdicts.slice(0, 4).map(v => `<div>${fmt(v.t)} · ${v.transcript != null ? "words " + v.transcript : ""}${v.reaction != null ? " · reaction " + v.reaction : ""}${v.model ? ` · <span style="font-family:monospace;font-size:10px;color:var(--accent,#00F0FF)">${esc(v.model)}</span>` : ""} · <span class="sub">${esc(v.result)}</span></div>`).join("") : "<div class='sub'>First check soon…</div>"}</div></div>
+      <div class="meter" style="grid-column: span 2; min-width: 0">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+          <h4 style="margin:0;display:flex;align-items:center;gap:6px"><span>🧠</span> Latest AI Decisions &amp; Moment Activity</h4>
+          <span class="pill" style="font-size:10px;padding:2px 8px;border-radius:12px;background:rgba(0,240,255,0.12);color:var(--accent,#00F0FF);border:1px solid rgba(0,240,255,0.3);font-weight:600">🤖 ${esc(S.status?.ai?.model || 'gemini-3.5-flash-lite')}</span>
+        </div>
+        <div style="max-height:165px;overflow-y:auto;display:flex;flex-direction:column;gap:5px;padding-right:4px">
+          ${(L.verdicts || []).length ? L.verdicts.slice(0, 8).map(v => {
+            const res = v.result || "";
+            const isClipped = res.startsWith("Clipped");
+            const isHigh = isClipped && res.includes("HIGH PRIORITY");
+            const isMonitoring = res.includes("nobody talking") || res.includes("nothing clip-worthy");
+            const badgeBg = isHigh ? "rgba(0,255,136,0.18)" : isClipped ? "rgba(0,240,255,0.18)" : isMonitoring ? "rgba(100,116,139,0.15)" : "rgba(255,170,0,0.15)";
+            const badgeCol = isHigh ? "#00FF88" : isClipped ? "#00F0FF" : isMonitoring ? "#94A3B8" : "#FFAA00";
+            const badgeBorder = isHigh ? "rgba(0,255,136,0.35)" : isClipped ? "rgba(0,240,255,0.35)" : isMonitoring ? "rgba(100,116,139,0.3)" : "rgba(255,170,0,0.3)";
+            const badgeText = isHigh ? "⚡ HIGH PRIORITY" : isClipped ? "✂️ CLIPPED" : isMonitoring ? "🔍 LISTENING" : "⏭️ EVALUATED";
+            return `
+              <div style="display:flex;align-items:center;gap:8px;padding:5px 9px;background:var(--bg-2,#141210);border:1px solid var(--line);border-radius:7px;font-size:11px;justify-content:space-between">
+                <div style="display:flex;align-items:center;gap:8px;min-width:0;overflow:hidden">
+                  <span style="font-family:monospace;font-size:10px;color:var(--text-sub);white-space:nowrap">⏱️ ${fmt(v.t)}</span>
+                  <span class="pill" style="font-size:9px;padding:1px 6px;border-radius:5px;background:${badgeBg};color:${badgeCol};border:1px solid ${badgeBorder};font-weight:800;white-space:nowrap">${badgeText}</span>
+                  ${v.trigger ? `<span style="font-weight:700;color:var(--brand-ink);white-space:nowrap;font-size:10px">${esc(v.trigger)}</span>` : ""}
+                  <span style="color:var(--text-sub);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px">${esc(res)}</span>
+                </div>
+                ${v.model ? `<span style="font-family:monospace;font-size:9px;color:var(--accent,#00F0FF);white-space:nowrap;margin-left:6px">${esc(v.model)}</span>` : ""}
+              </div>
+            `;
+          }).join("") : "<div class='sub' style='padding:8px 0'>Listening and analyzing stream moments…</div>"}
+        </div>
+      </div>
       <div class="meter"><h4>What was just said</h4><div class="said">${L.lines.length ? L.lines.map(t => `<div>${esc(t)}</div>`).join("") : "<div>Listening…</div>"}</div></div>
     </div>${j.error ? `<div class="err">${esc(j.error)}</div>` : ""}</div>
-    ${j.clips.length ? `<div class="grid" style="margin-bottom:28px">${[...j.clips].reverse().map(c => clipHtml(j, c)).join("")}</div>` : ""}`;
+    ${(j.clips.length && !isCollapsed) ? `<div class="grid" style="margin-bottom:28px">${[...j.clips].reverse().map(c => clipHtml(j, c)).join("")}</div>` : ""}
+    ${(j.clips.length && isCollapsed) ? `<div style="margin:4px 0 24px 0;padding:10px 14px;background:var(--bg-2);border:1px dashed var(--line);border-radius:10px;display:flex;align-items:center;justify-content:space-between;cursor:pointer" data-act="toggle_job_collapse" data-j="${j.id}"><span style="font-size:12px;color:var(--text-sub);display:inline-flex;align-items:center;gap:6px">📁 <b>${j.clips.length} clips</b> folded in this stream. Click to open folder.</span><span class="btn sm" style="font-size:11px;pointer-events:none">Open Folder 📂</span></div>` : ""}`;
 }
 function jobHtml(j) {
   if (j.status === "live") return liveHtml(j);
@@ -2223,15 +2257,18 @@ function jobHtml(j) {
   const meta = [who, j.uploader, j.duration ? fmt(j.duration) + " long" : "", j.clips.length ? j.clips.length + (j.clips.length === 1 ? " clip" : " clips") : "",
                 j.took ? "made in " + fmt(j.took) : "", j.kind === "live" ? "recording, " + j.stage.toLowerCase() : ""].filter(Boolean).map(esc).join(" · ");
   const pic = j.thumb ? `<img src="/media/${esc(j.id)}/thumb.jpg" alt="" loading="lazy">` : ic(j.source?.type === "file" ? "film" : "link");
+  const isCollapsed = S.collapsedJobs?.has(j.id);
   return `<div class="job-head"><div class="jt"><span class="jthumb">${pic}${j.duration ? `<span class="du">${fmt(j.duration)}</span>` : ""}</span><div style="min-width:0"><h3>${esc(j.title || j.source.name)}</h3><p class="sub">${meta}</p></div></div>
-      <div class="row" style="flex-wrap:nowrap;gap:4px">${busy ? "" : `
+      <div class="row" style="flex-wrap:nowrap;gap:6px;align-items:center">${busy ? "" : `
+        ${j.clips.length ? `<button type="button" class="btn sm" data-act="toggle_job_collapse" data-j="${j.id}" title="${isCollapsed ? 'Expand clips folder' : 'Fold clips'}" style="background:var(--bg-2);border:1px solid var(--line);font-size:11px;font-weight:700;display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:8px;cursor:pointer"><span>${isCollapsed ? '📁' : '📂'}</span><span>${isCollapsed ? `${j.clips.length} Clips` : 'Fold'}</span><span style="font-size:8px;transform:${isCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)'};transition:transform .2s">▼</span></button>` : ""}
         ${j.clips.some(c => c.status === "done") ? `<button class="btn sm icon ghost" data-act="dlall" data-j="${j.id}" title="Download all clips of this video" aria-label="Download all clips of this video">${ic("down")}</button>` : ""}
         <button class="btn sm icon ghost" data-act="deljob" data-j="${j.id}" title="Delete" aria-label="Delete this video and its clips">${ic("trash")}</button>
         <label class="selck" title="Select this video and its clips"><input type="checkbox" data-sel="j:${j.id}" ${sel().has("j:" + j.id) ? "checked" : ""} aria-label="Select this video"></label>`}</div></div>
     ${busy ? `<div class="bar"><i style="width:${Math.round(j.progress * 100)}%"></i></div><p class="sub">${esc(j.stage)} · ${Math.round(j.progress * 100)}%</p>` : ""}
     ${j.status === "done" && !j.clips.length ? `<p class="sub">${esc(j.stage)}</p>` : ""}
     ${j.error ? `<div class="err">${esc(j.error)}<button class="rep" data-act="report" data-ctx="${esc("Video failed: " + (j.title || j.source.name || "") + " | " + j.error)}">Report this</button></div>` : ""}${j.ai?.note ? `<p class="sub">${esc(j.ai.note)}</p>` : ""}
-    ${j.clips.length ? `<div class="grid">${j.clips.map(c => clipHtml(j, c)).join("")}</div>` : ""}`;
+    ${(j.clips.length && !isCollapsed) ? `<div class="grid">${j.clips.map(c => clipHtml(j, c)).join("")}</div>` : ""}
+    ${(j.clips.length && isCollapsed) ? `<div style="margin:6px 0 20px 0;padding:10px 14px;background:var(--bg-2);border:1px dashed var(--line);border-radius:10px;display:flex;align-items:center;justify-content:space-between;cursor:pointer" data-act="toggle_job_collapse" data-j="${j.id}"><span style="font-size:12px;color:var(--text-sub);display:inline-flex;align-items:center;gap:6px">📁 <b>${j.clips.length} clips</b> folded in this project. Click to expand folder.</span><span class="btn sm" style="font-size:11px;pointer-events:none">Open Folder 📂</span></div>` : ""}`;
 }
 /* ---- selecting several videos and clips: delete or download them together */
 const sel = () => (S.sel = S.sel || new Set());
@@ -6011,6 +6048,15 @@ HOOKS:
     if (a === "deljob") {
       if (!await ask("Delete this video?", "The video and all of its clips are permanently deleted. This cannot be undone.", "Delete", true)) return;
       await api(`/api/jobs/${d.j}`, {method:"DELETE"}); toast("Deleted"); return tick();
+    }
+    if (a === "toggle_job_collapse") {
+      const jid = d.j;
+      if (!jid) return;
+      S.collapsedJobs = S.collapsedJobs || new Set();
+      if (S.collapsedJobs.has(jid)) S.collapsedJobs.delete(jid);
+      else S.collapsedJobs.add(jid);
+      try { localStorage.setItem("peakcut_collapsed_jobs", JSON.stringify([...S.collapsedJobs])); } catch {}
+      return render();
     }
     if (a === "chadd") {
       const k = d.p, v = $("#chan_" + k)?.value.trim();

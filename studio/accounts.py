@@ -408,6 +408,28 @@ def youtube_upload(acc, path: Path, title: str, description: str, tags: list, pr
     return done["id"], f"https://www.youtube.com/shorts/{done['id']}"
 
 
+def youtube_set_thumbnail(acc, video_id: str, cover_path: Path) -> bool:
+    """Uploads the custom video cover/thumbnail directly to YouTube using YouTube Data API v3 thumbnails.set."""
+    if not cover_path or not cover_path.is_file():
+        return False
+    try:
+        token = _yt_token(acc)
+        with cover_path.open("rb") as f:
+            img_bytes = f.read()
+        url = f"https://www.googleapis.com/upload/youtube/v3/thumbnails/set?videoId={video_id}"
+        r = httpx.post(url, content=img_bytes, headers={
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "image/jpeg",
+            "Content-Length": str(len(img_bytes))
+        }, timeout=45)
+        if r.status_code == 200:
+            return True
+        print(f"[youtube] Thumbnail upload response status {r.status_code}: {r.text[:200]}")
+    except Exception as e:
+        print(f"[youtube] Thumbnail upload notice: {e}")
+    return False
+
+
 def youtube_post_comment(acc, video_id: str, text: str) -> dict:
     token = _yt_token(acc)
     payload = {
