@@ -43,6 +43,24 @@ flowchart TD
    - `resolve(url)` invokes `normalize(url)` on all stream ingestion requests to ensure `yt-dlp` queries active broadcast manifests rather than channel video tab listings.
    - Dual-tier cookie ingestion loads fresh Netscape cookies (`PeakCut/data/cookies.txt`) with automatic Netscape format conversion from browser JSON exports.
 
+### 3.1 Golden Retention Timeline Calibration (12s Pre-Roll Hook & 28s Post-Roll Reaction)
+- **Problem Solved**:
+  - Previously, pre-roll was set to 18–20s, causing the trigger word or punchline to occur too late in the clip (at 18s+), leading to viewer drop-off within the first 5 seconds.
+  - Furthermore, clips were often restricted to 26 seconds, cutting off the streamer's reaction, laughter, chat banter, and continuous gameplay abruptly.
+- **Golden Retention Architecture**:
+  1. **Pre-roll Window (10–14s, Target: 12.0s)**:
+     - When a trigger word or viral moment occurs at timestamp $T$, the clip begins at $\max(0.0, T - 12.0)$.
+     - In the resulting 9:16 vertical clip, the trigger word / climax occurs at exactly second 12 (strictly within the golden 10–15s hook window).
+     - Viewers receive 10–12 seconds of buildup/context, hear/see the viral event, and stay hooked.
+  2. **Post-roll Reaction (25–30s, Target: 28.0s)**:
+     - The clip continues until $T + 28.0$, capturing 28 seconds of reaction, laughter, screaming, chat spam, and continuing gameplay action.
+     - The video never ends prematurely or abruptly cuts off after the punchline.
+  3. **Total Target Duration**:
+     - Standard clip duration: $12.0s + 28.0s = 40.0s$ (sweet spot: 38–43s).
+     - Overlapping triggers within 15 seconds merge dynamically with smooth reaction extension, capped at 60.0s maximum.
+  4. **Multi-Source Alignment**:
+     - Applied across OhnePixel Continuous Discovery (`studio/live.py`), Custom Creator Phrases (`studio/live.py`), AI Judge Candidate Alignment (`studio/live.py` `_ai_check`), Prompt Rules (`studio/brain.py`), and Category Profiles (`studio/ohnepixel.py`).
+
 ---
 
 ## 4. Hardware & Audio/Video Sync Architecture

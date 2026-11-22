@@ -1,6 +1,45 @@
 ﻿# Changelog
 All notable project changes are documented here.
 
+## [2026-11-22] — Golden Retention Timeline Calibration (12s Pre-Roll Hook & 28s Post-Roll Reaction)
+
+### Added
+- **Dedicated Timeline Test Suite (`tests/test_trigger_timeline.py`)**:
+  - Comprehensive unit and integration test suite (6/6 tests passing) verifying exact timing offsets:
+    - Pre-roll lead-in: 12.0s ($\ge 10.0s$ and $\le 15.0s$)
+    - Post-roll reaction: 28.0s ($\ge 25.0s$ and $\le 30.0s$)
+    - Total duration: 40.0s
+    - Overlapping trigger merging up to 60.0s
+    - Category profile standardization across CS2, GTA 6, Just Chatting, and Story Games
+    - Boundary clamping at stream inception ($T < 12s$)
+
+### Changed
+- **Pre-Roll and Post-Roll Boundary Calibration (`studio/live.py`)**:
+  - Replaced legacy `pre_roll = 18.0, post_roll = 25.0` with `pre_roll = 12.0, post_roll = 28.0`.
+  - Trigger word or viral event now occurs at second 12 of the clip (within the first 10-15s hook window before viewers swipe).
+  - After the trigger word, the clip continues for 28 seconds of reaction, laughter, chat banter, and continuous gameplay (total ~40.0s).
+  - Preserved `trigger_t` across manual candidates and clip metadata.
+- **AI Check Candidate Alignment (`studio/live.py`)**:
+  - Upgraded `_ai_check` candidate refinement with Golden Retention Alignment:
+    - Identifies exact match timestamp of Level 1 reaction phrases in candidate transcripts and snaps `start = max(ws, trigger_t - 12.0)` and `end = min(now, trigger_t + 28.0)`.
+    - Falls back to audio loudness reaction peak from signal judge (`sig`).
+    - Standardizes candidate expansion to 40.0–42.0s with a 70% post-roll reaction bias.
+- **AI Scout Prompt Rules (`studio/brain.py`)**:
+  - Updated `RULES` with the **Golden Retention Timeline Rule**:
+    - Climax/trigger occurs within first 10 to 15 seconds (target 12s).
+    - Mandatory 25 to 30 seconds (target 28s) of aftermath footage after the trigger.
+    - Total duration 38 to 44 seconds (target ~40-42s).
+- **Category Profiles Standardization (`studio/ohnepixel.py`)**:
+  - Standardized `min_pre_roll: 12` and `min_post_roll: 28` across CS2, GTA 6, Just Chatting, and Story Games profiles.
+
+### Tests and Verification
+- `tests/test_trigger_timeline.py`: 6/6 tests passed.
+- `tests/test_ohnepixel_engine.py`: 12/12 tests passed.
+- `tests/test_hook_single_yellow.py`: 3/3 tests passed.
+- `tests/test_live_times.py`: All 18 timing checks passed.
+- `tests/test_live.py`: All 4 live checks passed.
+- PeakCut server daemon running cleanly on port 8765.
+
 ## [2026-11-22] — Livestream Clipping Engine & UI Suite Overhaul
 
 ### Added

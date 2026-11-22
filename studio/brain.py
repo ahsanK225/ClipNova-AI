@@ -57,11 +57,11 @@ Most checks should return []. Only return a moment you would stop scrolling for.
 RULES = """
 Rules:
 - Each clip is {min_len} to {max_len} seconds. Use the [seconds] values for start and end.
-- CRITICAL CLIMAX & PAYOFF TIMING RULE (NEVER CUT OFF EARLY):
-  * The climax/reveal/trigger (e.g. "we found the golden gun!", finding rare loot, screaming, headshot, crazy dialogue) MUST NEVER be at the very end of the clip!
-  * NEVER terminate a clip right after the key phrase is spoken. A clip ending immediately after "golden gun" or "look at this" misses the entire payoff!
-  * LEAD-IN / SETUP: Start 10 to 14 seconds before the climax. Do NOT include 25-30 seconds of boring wandering before the action.
-  * PAYOFF / AFTERMATH (MANDATORY): Always include at least 8 to 14 seconds of footage AFTER the climax/reveal sentence. The viewer MUST see the reaction, laughter, weapon inspection/firing, scream, or chat reaction! The climax should happen at ~50-65% into the clip, followed by full payoff.
+- GOLDEN RETENTION TIMELINE RULE (TRIGGER IN FIRST 10-15s, FULL 25-30s REACTION):
+  * The trigger phrase, viral climax, or punchline MUST occur within the FIRST 10 to 15 seconds of the clip (target ~12s)! Never let the viewer wait 20+ seconds for the hook—they will swipe away.
+  * LEAD-IN / SETUP: Start 10 to 14 seconds (ideal 12s) before the trigger/climax so the trigger occurs within the first 10-15s of the clip.
+  * POST-TRIGGER REACTION & AFTERMATH (MANDATORY 25-30s): Always include 25 to 30 seconds (target 28s) of footage AFTER the trigger/climax. The viewer MUST see the full reaction, laughter, screaming, chat spam, and continuing gameplay aftermath!
+  * Total clip duration should be 38 to 44 seconds (target ~40-42s), capturing the complete viral narrative without cutting off early.
 - Start on the setup line, not mid-sentence. End right after the full payoff or reaction, on the last word of a
   complete sentence: never in the middle of a sentence or a thought. The clip must make sense on its own.
 - Do not pick intros, sponsor reads, "like and subscribe", or dead air.

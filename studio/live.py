@@ -655,12 +655,34 @@ class Session:
                 "model": ai.last_active_model(),
             }
             c["reason"] = f"{c['reason']} [{mm['mode']}: {mm['breakdown']}]"
-            # Ensure clip duration captures full natural gameplay moment (target ~42-45s like continuous discovery)
-            c_dur = c["end"] - c["start"]
-            if c_dur < 38.0:
-                expand = min(43.0 - c_dur, 16.0)
-                c["start"] = max(ws, round(c["start"] - expand * 0.4, 2))
-                c["end"] = min(now, round(c["end"] + expand * 0.6, 2))
+            # Golden Retention Alignment (Trigger in first 10-15s, 25-30s reaction afterwards, total ~40-42s)
+            c_words = [w for w in win if c["start"] - 5.0 <= w["s"] <= c["end"] + 15.0]
+            c_class = ohnepixel.classify_transcript(c_words, game=self._game()) if c_words else {}
+            trigger_t = None
+            if c_class.get("level1_matches"):
+                m_pat = ohnepixel.normalize_text(c_class["level1_matches"][0]).split()
+                w_norm = [self._normalize_trigger_text(w.get("w", "")) for w in c_words]
+                for idx in range(len(w_norm) - len(m_pat) + 1):
+                    if w_norm[idx:idx + len(m_pat)] == m_pat:
+                        trigger_t = c_words[idx]["s"]
+                        break
+
+            if trigger_t is None and match:
+                # Use reaction loudness peak from judge 2 (sig)
+                trigger_t = float(match[0].get("start", c["start"] + 12.0))
+
+            if trigger_t is not None:
+                # Golden timeline: trigger at ~12s into clip, followed by 28s post-roll reaction
+                c["start"] = max(ws, round(trigger_t - 12.0, 2))
+                c["end"] = min(now, round(trigger_t + 28.0, 2))
+                c["trigger_t"] = trigger_t
+            else:
+                # Fallback expansion preserving golden duration (~40-42s) with post-roll reaction bias
+                c_dur = c["end"] - c["start"]
+                if c_dur < 38.0:
+                    expand = min(42.0 - c_dur, 20.0)
+                    c["start"] = max(ws, round(c["start"] - expand * 0.3, 2))
+                    c["end"] = min(now, round(c["end"] + expand * 0.7, 2))
             self._add_clip(c)
             self._verdict(verdict, f"Clipped ({mm['priority']}): " + why[:40])
             added += 1
@@ -728,7 +750,8 @@ class Session:
         # 2. OhnePixel Intelligent Detection & Creator's custom trigger phrases
         g = self._game()
         c_class = ohnepixel.classify_transcript(window_words, game=g)
-        pre_roll, post_roll = 18.0, 25.0
+        # Golden Retention Timeline: trigger occurs within first 10-15s (target 12s), followed by 25-30s reaction
+        pre_roll, post_roll = 12.0, 28.0
 
         # Level 1 strong reaction phrase detection (Continuous Moment Discovery)
         if c_class.get("tier") == 1 and c_class.get("level1_matches"):
@@ -757,7 +780,8 @@ class Session:
                         "start": s, "end": e,
                         "why": f'"{matched_p}"',
                         "tier": 1,
-                        "trigger_type": "reaction_phrase"
+                        "trigger_type": "reaction_phrase",
+                        "trigger_t": match_t,
                     })
                 return
 
@@ -806,7 +830,8 @@ class Session:
                                 "end": t + post_roll,
                                 "why": f'"{orig_p}"',
                                 "tier": 2,
-                                "trigger_type": "custom_phrase"
+                                "trigger_type": "custom_phrase",
+                                "trigger_t": t,
                             })
 
     def _manual_step(self):
@@ -884,6 +909,9 @@ class Session:
                 c["reason"] = f"{req['why']} — {mm['reason']}"
             else:
                 c["reason"] = mm["reason"]
+
+            if "trigger_t" in req:
+                c["trigger_t"] = req["trigger_t"]
 
             self._add_clip(c)
 

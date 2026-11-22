@@ -235,39 +235,39 @@ LAUGHTER_PATTERNS: tuple[str, ...] = (
     "can't breathe",
 )
 
-# Category adaptation profiles
+# Category adaptation profiles (Golden Retention Timeline: 12s pre-roll, 28s post-roll)
 CATEGORY_PROFILES: dict[str, dict[str, Any]] = {
     "cs2": {
         "name": "Counter-Strike 2",
         "keywords": CS2_SKIN_KEYWORDS,
         "clutch_terms": ("clutch", "1v3", "1v4", "1v5", "ace", "defuse", "headshot", "ninja defuse"),
         "visual_hints": ("case opening", "unboxed", "rare skin banner", "kill feed", "round victory"),
-        "min_pre_roll": 15,
-        "min_post_roll": 25,
+        "min_pre_roll": 12,
+        "min_post_roll": 28,
     },
     "gta 6": {
         "name": "Grand Theft Auto VI",
         "keywords": GTA6_KEYWORDS,
         "clutch_terms": ("escape", "chase", "mission pass", "crazy physics", "stunt"),
         "visual_hints": ("police sirens", "car crash", "npc interaction", "cutscene", "wanted stars"),
-        "min_pre_roll": 18,
-        "min_post_roll": 22,
+        "min_pre_roll": 12,
+        "min_post_roll": 28,
     },
     "just chatting": {
         "name": "Just Chatting",
         "keywords": COMMUNITY_EXPRESSIONS,
         "clutch_terms": ("storytime", "debate", "reaction", "drama", "unhinged take"),
         "visual_hints": ("streamer face full screen", "discord call", "reddit reaction", "video watch"),
-        "min_pre_roll": 20,
-        "min_post_roll": 30,
+        "min_pre_roll": 12,
+        "min_post_roll": 28,
     },
     "story games": {
         "name": "Story & Single Player Games",
         "keywords": ("cutscene", "plot twist", "boss fight", "ending", "jumpscare", "died"),
         "clutch_terms": ("boss defeated", "scary", "emotional", "climax"),
         "visual_hints": ("cinematic cutscene", "boss health bar", "game over screen"),
-        "min_pre_roll": 20,
-        "min_post_roll": 25,
+        "min_pre_roll": 12,
+        "min_post_roll": 28,
     },
 }
 

@@ -10,6 +10,7 @@ It includes:
 - **Collapsible Stream Folders & Visual AI Feed**: 1-click folder accordion collapsing massive clip lists into compact summary cards; modern visual AI decision feed with real-time badges (`⚡ HIGH PRIORITY`, `✂️ CLIPPED`, `🔍 LISTENING`, `⏭️ EVALUATED`).
 - **Sticky Clip Editor Preview**: Pinned 9:16 phone video preview that stays locked in viewport while editing options and SEO on the right side.
 - **Single Yellow Punch Focus**: Canary Yellow (`\c&H00E5FF&`) highlight limited to exactly 1 punch action keyword per viral hook banner, with streamer names strictly demoted.
+- **Golden Retention Timeline Calibration**: 12s pre-roll hook window (trigger occurs in first 10-15s before viewers swipe) + 28s post-roll reaction (continuous reaction, laughter, chat banter, and gameplay without abrupt cutoffs), totaling ~40-42s natural clip length.
 - **Rock-Solid Hardware & Audio/Video Sync**: Millisecond PTS normalization, acoustic onset caption alignment (`CAPTION_LEAD = 0.00`), independent webcam/lip delay calibration, and corner placement.
 
 ---
