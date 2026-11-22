@@ -1460,12 +1460,10 @@ async function renderGlobalAiBar() {
 
   const FALLBACK_MODELS = {
     gemini: [
-      {id: "gemini-3.5-flash-lite", name: "Gemini 3.5 Flash Lite", is_free: true},
-      {id: "gemini-2.5-flash", name: "Gemini 2.5 Flash", is_free: true},
-      {id: "gemini-2.5-flash-lite", name: "Gemini 2.5 Flash Lite", is_free: true},
-      {id: "gemini-2.0-flash", name: "Gemini 2.0 Flash", is_free: true},
-      {id: "gemini-3.1-flash-lite", name: "Gemini 3.1 Flash Lite", is_free: true},
-      {id: "gemini-flash-lite-latest", name: "Gemini Flash Lite (Latest)", is_free: true}
+      {id: "gemini-3.5-flash-lite", name: "Gemini 3.5 Flash Lite (Free · Fast)", is_free: true},
+      {id: "gemini-flash-lite-latest", name: "Gemini Flash Lite (Latest · Free)", is_free: true},
+      {id: "gemini-3-flash-preview", name: "Gemini 3 Flash Preview (Free)", is_free: true},
+      {id: "gemini-3.8-flash", name: "Gemini 3.8 Flash (Latest Flagship)", is_free: true}
     ],
     openrouter: [
       {id: "google/gemini-2.0-flash-exp:free", name: "Gemini 2.0 Flash Exp (Free)", is_free: true},
@@ -2208,11 +2206,12 @@ function liveHtml(j) {
     <div class="stats"><div class="stat"><b>${fmt(L.elapsed)}</b><span>Recorded</span></div><div class="stat"><b>${Math.round(L.buffer_sec / 60)} min</b><span>Kept in buffer</span></div>
       <div class="stat">${everyPick(j.creator, L.every_min ?? 3)}<span>${L.every_min === 0 ? (L.auto?.warming ? "AI checks: learning the stream" : L.auto?.waiting ? "AI checks: jump spotted, checking soon" : `AI checks on jumps · ${L.auto?.spikes || 0} so far`) : "AI checks every"}</span></div>
       <div class="stat"><b>${L.checks}</b><span>AI calls${L.skipped ? ` · ${L.skipped} skipped` : ""}${L.rejected ? ` · ${L.rejected} turned down` : ""}</span></div><div class="stat"><b>${j.clips.length}</b><span>Clips so far</span></div>
+      <div class="stat"><b style="color:var(--accent,#00F0FF);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;font-weight:700">${esc(S.status?.ai?.model || 'gemini-3.5-flash-lite')}</b><span>Active AI Model</span></div>
       ${L.pending_clips ? `<div class="stat"><b>${L.pending_clips}</b><span>Hand clip being prepared</span></div>` : ""}</div>
     <div class="meters">
       <div class="meter"><h4>Loudness, last minute</h4>${spark(L.level, "", -55, -8)}</div>
       ${L.chat ? `<div class="meter"><h4>Chat messages per second</h4>${spark(L.chat, "chat", 0, Math.max(4, ...L.chat))}</div>` : ""}
-      <div class="meter"><h4>Latest AI decisions</h4><div class="said" style="justify-content:flex-start;color:var(--text)">${(L.verdicts || []).length ? L.verdicts.slice(0, 4).map(v => `<div>${fmt(v.t)} · ${v.transcript != null ? "words " + v.transcript : ""}${v.reaction != null ? " · reaction " + v.reaction : ""} · <span class="sub">${esc(v.result)}</span></div>`).join("") : "<div class='sub'>First check soon…</div>"}</div></div>
+      <div class="meter"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px"><h4 style="margin:0">Latest AI decisions</h4><span class="pill" style="font-size:10px;padding:2px 8px;border-radius:12px;background:rgba(0,240,255,0.12);color:var(--accent,#00F0FF);border:1px solid rgba(0,240,255,0.3);font-weight:600">🤖 ${esc(S.status?.ai?.model || 'gemini-3.5-flash-lite')}</span></div><div class="said" style="justify-content:flex-start;color:var(--text)">${(L.verdicts || []).length ? L.verdicts.slice(0, 4).map(v => `<div>${fmt(v.t)} · ${v.transcript != null ? "words " + v.transcript : ""}${v.reaction != null ? " · reaction " + v.reaction : ""}${v.model ? ` · <span style="font-family:monospace;font-size:10px;color:var(--accent,#00F0FF)">${esc(v.model)}</span>` : ""} · <span class="sub">${esc(v.result)}</span></div>`).join("") : "<div class='sub'>First check soon…</div>"}</div></div>
       <div class="meter"><h4>What was just said</h4><div class="said">${L.lines.length ? L.lines.map(t => `<div>${esc(t)}</div>`).join("") : "<div>Listening…</div>"}</div></div>
     </div>${j.error ? `<div class="err">${esc(j.error)}</div>` : ""}</div>
     ${j.clips.length ? `<div class="grid" style="margin-bottom:28px">${[...j.clips].reverse().map(c => clipHtml(j, c)).join("")}</div>` : ""}`;
@@ -2498,12 +2497,14 @@ function drawCreatorForm() {
       <div class="fields"><label class="sw span"><input type="checkbox" data-k="captions" data-caption-toggle ${c.captions === false ? "" : "checked"}>Generate captions</label>
         <label class="f">Caption style<select data-k="style" data-caption-style ${c.captions === false ? "disabled" : ""}>${opts(S.status.styles, c.style)}</select></label>
         <label class="f">Hook banner style<select data-k="hook_style">
-          <option value="neon" ${(!c.hook_style || c.hook_style === "neon") ? "selected" : ""}>Neon Dark (Gaming)</option>
-          <option value="purple_whip" ${c.hook_style === "purple_whip" ? "selected" : ""}>Purple Whip (Glow)</option>
-          <option value="yellow" ${c.hook_style === "yellow" ? "selected" : ""}>Viral Yellow (High-CTR)</option>
+          <option value="viral_yellow" ${c.hook_style === "viral_yellow" ? "selected" : ""}>⚡ Viral Floating (Yellow Punch) [No Box]</option>
+          <option value="viral_cyan" ${c.hook_style === "viral_cyan" ? "selected" : ""}>💎 Viral Floating (Cyan Punch) [No Box]</option>
+          <option value="neon" ${(!c.hook_style || c.hook_style === "neon") ? "selected" : ""}>Neon Dark (Gaming Box)</option>
+          <option value="purple_whip" ${c.hook_style === "purple_whip" ? "selected" : ""}>Purple Whip (Glow Box)</option>
+          <option value="yellow" ${c.hook_style === "yellow" ? "selected" : ""}>Viral Yellow Box</option>
           <option value="pill" ${c.hook_style === "pill" ? "selected" : ""}>3D White Pill</option>
-          <option value="cyber_red" ${c.hook_style === "cyber_red" ? "selected" : ""}>Cyber Red</option>
-          <option value="gold_luxury" ${c.hook_style === "gold_luxury" ? "selected" : ""}>Gold Luxury</option>
+          <option value="cyber_red" ${c.hook_style === "cyber_red" ? "selected" : ""}>Cyber Red Box</option>
+          <option value="gold_luxury" ${c.hook_style === "gold_luxury" ? "selected" : ""}>Gold Luxury Box</option>
         </select></label>
         <label class="f">Layout<select data-k="layout">${opts(S.status.layouts, c.layout)}</select></label>
         <label class="f">Webcam position<select data-k="facecam_pos">
@@ -3215,127 +3216,131 @@ function drawClipDlg(full) {
       <div class="panel">
         <div class="job-head" style="margin:0"><div>${bInfo.dialogBadge}
           <p class="sub" style="margin-top:8px">${esc(c.reason || bInfo.desc)}</p></div><button class="btn icon ghost" data-act="closedlg" aria-label="Close">${ic("x")}</button></div>
-        <h3>On the video</h3>
-        <label class="f">Big text (Hook banner on video)<input data-f="hook" value="${esc(c.hook)}"></label>
-        <div id="dlg_hook_pills" style="display:flex;flex-wrap:wrap;gap:6px;margin:-6px 0 10px 0">
-          ${(c.hooks || []).map((h, i) => `
-            <button type="button" class="btn sm hook-pill-btn" data-act="pick_hook" data-hook="${esc(h)}" title="Click to use this hook" style="font-size:10px;padding:2px 8px;font-weight:700;background:var(--bg-2);border:1px solid ${c.hook === h ? 'var(--accent, #00f0ff)' : 'var(--line)'};border-radius:12px;color:${c.hook === h ? 'var(--accent, #00f0ff)' : 'var(--text)'};cursor:pointer">
-              #${i+1}: ${esc(h)}
+        <!-- Card 1: Viral Hook & Captions -->
+        <div class="card" style="margin:0 0 10px 0;background:var(--bg-2);border:1px solid var(--line);border-radius:10px;padding:12px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+            <h3 style="margin:0;font-size:13px;display:flex;align-items:center;gap:6px"><span>🎣</span> Viral Hook Banner</h3>
+            <button type="button" class="btn sm" data-act="ai_generate_hooks" id="btn_ai_hooks" style="background:linear-gradient(135deg,#F59E0B,#D97706);color:#000;border:none;font-weight:800;font-size:11px;padding:3px 10px;border-radius:14px;box-shadow:0 2px 8px rgba(245,158,11,0.25);cursor:pointer;display:inline-flex;align-items:center;gap:4px">
+              <span>✨</span> AI Viral Hooks
             </button>
-          `).join("")}
-        </div>
-        <div class="two">
-          <label class="f">Hook banner style<select data-f="hook_style">
-            <option value="neon" ${(!c.hook_style || c.hook_style === "neon") ? "selected" : ""}>Neon Dark (Gaming)</option>
-            <option value="purple_whip" ${c.hook_style === "purple_whip" ? "selected" : ""}>Purple Whip (Glow)</option>
-            <option value="yellow" ${c.hook_style === "yellow" ? "selected" : ""}>Viral Yellow (High-CTR)</option>
-            <option value="pill" ${c.hook_style === "pill" ? "selected" : ""}>3D White Pill</option>
-            <option value="cyber_red" ${c.hook_style === "cyber_red" ? "selected" : ""}>Cyber Red</option>
-            <option value="gold_luxury" ${c.hook_style === "gold_luxury" ? "selected" : ""}>Gold Luxury</option>
-          </select></label>
-          <label class="f">Caption style<select data-f="style" data-caption-style ${(c.captions === false || (!('captions' in c) && j.options?.captions === false)) ? "disabled" : ""}>${opts(S.status.styles, c.style)}</select></label>
-        </div>
-        <div class="two">
-          <label class="f">Layout<select data-f="layout">${opts(S.status.layouts, c.layout || "split_half")}</select></label>
-          <label class="f">Webcam Position<select data-f="facecam_pos">
-            <option value="top-right" ${(!c.facecam_pos || c.facecam_pos === "top-right") ? "selected" : ""}>Top / Split Screen (Default)</option>
-            <option value="top-left" ${c.facecam_pos === "top-left" ? "selected" : ""}>Top Left (Corner PIP)</option>
-            <option value="bottom-left" ${c.facecam_pos === "bottom-left" ? "selected" : ""}>Bottom Left (Above UI)</option>
-            <option value="bottom-right" ${c.facecam_pos === "bottom-right" ? "selected" : ""}>Bottom Right (Above UI)</option>
-          </select></label>
-        </div>
-        <div class="two">
-          <label class="f">Voice Sync (Audio Delay)<select data-f="audio_delay">${syncOpts(c.audio_delay ?? j.options?.audio_delay ?? 0.0, SYNC_AUDIO_OPTIONS)}</select></label>
-          <label class="f">Webcam Sync (Facecam Delay)<select data-f="facecam_delay">${syncOpts(c.facecam_delay ?? j.options?.facecam_delay ?? 0.0, SYNC_CAM_OPTIONS)}</select></label>
-        </div>
-        <div id="dlg_layout_preview_wrap" style="display:flex;align-items:center;gap:12px;background:var(--bg-2, #181513);padding:10px 12px;border-radius:10px;border:1px solid var(--line, #3a2c24);margin-bottom:12px">
-          <div style="position:relative;width:52px;height:92px;border-radius:10px;border:2px solid #2a221d;background:#000;overflow:hidden;flex-shrink:0;box-shadow:0 3px 10px rgba(0,0,0,0.3)">
-            <img id="dlg_layout_img" src="${getLayoutPreviewImg(c.layout || 'split_half', c.facecam_pos)}" style="width:100%;height:100%;object-fit:cover;display:block" alt="Preview">
           </div>
-          <div style="flex:1;min-width:0">
-            <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
-              <b id="dlg_layout_title" style="color:var(--brand-ink);font-size:12px">${esc(LAYOUT_PREVIEWS[c.layout || 'split_half']?.title || 'Classic Split 50/50 ⭐')}</b>
-              <button type="button" class="btn sm" data-act="open_layout_gallery" style="padding:2px 8px;font-size:11px;height:auto">🖼️ Compare</button>
-              <button type="button" class="btn sm" data-act="open_custom_layout_studio_clip" style="background:linear-gradient(135deg,#00F0FF,#0099FF);color:#050505;border:none;padding:2px 8px;font-size:11px;font-weight:700;border-radius:6px;height:auto;cursor:pointer">🎨 Custom Studio</button>
-            </div>
-            <span id="dlg_layout_desc" style="display:block;color:var(--dim);font-size:11px;line-height:1.3;margin-top:4px">${esc(LAYOUT_PREVIEWS[c.layout || 'split_half']?.desc || '')}</span>
+          <label class="f" style="margin-bottom:6px">
+            <input data-f="hook" value="${esc(c.hook)}" placeholder="e.g. GTA 6 *influencers* are insane 😳" style="font-weight:600">
+          </label>
+          <div id="dlg_hook_pills" style="display:flex;flex-wrap:wrap;gap:6px;margin:2px 0 10px 0">
+            ${(c.hooks || []).map((h, i) => `
+              <button type="button" class="btn sm hook-pill-btn" data-act="pick_hook" data-hook="${esc(h)}" title="Click to use this hook" style="font-size:10px;padding:2px 8px;font-weight:700;background:var(--bg-1,#120e0c);border:1px solid ${c.hook === h ? 'var(--accent, #00f0ff)' : 'var(--line)'};border-radius:12px;color:${c.hook === h ? 'var(--accent, #00f0ff)' : 'var(--text)'};cursor:pointer">
+                #${i+1}: ${esc(h)}
+              </button>
+            `).join("")}
+          </div>
+          <div class="two" style="margin-bottom:6px">
+            <label class="f">Hook banner style<select data-f="hook_style">
+              <option value="viral_yellow" ${c.hook_style === "viral_yellow" ? "selected" : ""}>⚡ Viral Floating (Yellow Punch) [No Box]</option>
+              <option value="viral_cyan" ${c.hook_style === "viral_cyan" ? "selected" : ""}>💎 Viral Floating (Cyan Punch) [No Box]</option>
+              <option value="neon" ${(!c.hook_style || c.hook_style === "neon") ? "selected" : ""}>Neon Dark (Gaming Box)</option>
+              <option value="purple_whip" ${c.hook_style === "purple_whip" ? "selected" : ""}>Purple Whip (Glow Box)</option>
+              <option value="yellow" ${c.hook_style === "yellow" ? "selected" : ""}>Viral Yellow Box</option>
+              <option value="pill" ${c.hook_style === "pill" ? "selected" : ""}>3D White Pill</option>
+              <option value="cyber_red" ${c.hook_style === "cyber_red" ? "selected" : ""}>Cyber Red Box</option>
+              <option value="gold_luxury" ${c.hook_style === "gold_luxury" ? "selected" : ""}>Gold Luxury Box</option>
+            </select></label>
+            <label class="f">Caption style<select data-f="style" data-caption-style ${(c.captions === false || (!('captions' in c) && j.options?.captions === false)) ? "disabled" : ""}>${opts(S.status.styles, c.style)}</select></label>
+          </div>
+          <div style="display:flex;align-items:center;gap:18px;margin-top:4px">
+            <label class="sw" style="margin:0;font-size:11px"><input type="checkbox" data-f="captions" data-caption-toggle ${(c.captions === false || (!('captions' in c) && j.options?.captions === false)) ? "" : "checked"}>Generate captions</label>
+            <label class="sw" style="margin:0;font-size:11px"><input type="checkbox" data-f="outro_cta" ${c.outro_cta === false ? "" : "checked"}>End support badge (Outro)</label>
           </div>
         </div>
 
-        <!-- Creator's Saved Presets Row for Clip Dialog -->
-        ${(() => {
-          const cr = creator() || (j.creator ? S.creators.find(x => x.id === j.creator) : null);
-          const presets = cr?.custom_presets || {};
-          const pnames = Object.keys(presets);
-          if (!pnames.length) return '';
-          return `
-            <div style="background:#161210;border:1px solid #3A2C24;border-radius:8px;padding:8px 10px;margin-bottom:10px">
-              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
-                <span style="font-size:11px;font-weight:700;color:#00F0FF;display:flex;align-items:center;gap:4px">
-                  <span>🎨</span> Creator's Custom Presets:
-                </span>
-                <span class="sub" style="font-size:10px">Click to apply &amp; re-render</span>
+        <!-- Card 2: Layout & Framing Studio -->
+        <div class="card" style="margin:0 0 10px 0;background:var(--bg-2);border:1px solid var(--line);border-radius:10px;padding:12px">
+          <div style="display:flex;gap:12px;align-items:center;margin-bottom:8px">
+            <div style="position:relative;width:52px;height:92px;border-radius:10px;border:2px solid var(--line,#2a221d);background:#000;overflow:hidden;flex-shrink:0;box-shadow:0 4px 12px rgba(0,0,0,0.4)">
+              <img id="dlg_layout_img" src="${getLayoutPreviewImg(c.layout || 'split_half', c.facecam_pos)}" style="width:100%;height:100%;object-fit:cover;display:block" alt="Preview">
+            </div>
+            <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:6px">
+              <div class="two" style="margin:0">
+                <label class="f" style="margin:0">Layout<select data-f="layout">${opts(S.status.layouts, c.layout || "split_half")}</select></label>
+                <label class="f" style="margin:0">Webcam Position<select data-f="facecam_pos">
+                  <option value="top-right" ${(!c.facecam_pos || c.facecam_pos === "top-right") ? "selected" : ""}>Top / Split Screen</option>
+                  <option value="top-left" ${c.facecam_pos === "top-left" ? "selected" : ""}>Top Left (PIP)</option>
+                  <option value="bottom-left" ${c.facecam_pos === "bottom-left" ? "selected" : ""}>Bottom Left (Above UI)</option>
+                  <option value="bottom-right" ${c.facecam_pos === "bottom-right" ? "selected" : ""}>Bottom Right (Above UI)</option>
+                </select></label>
               </div>
-              <div style="display:flex;flex-wrap:wrap;gap:8px">
-                ${pnames.map(pn => {
-                  const isSel = (c.active_preset === pn) || (c.layout === 'custom' && c.active_preset === pn);
-                  return `
-                    <div style="display:inline-flex;align-items:center;gap:4px;background:${isSel ? '#14282D' : '#221A15'};border:1px solid ${isSel ? '#00F0FF' : '#443226'};border-radius:6px;padding:3px 6px">
-                      <button type="button" onclick="applyPresetToClip('${esc(pn)}', true)" title="Apply '${esc(pn)}' and re-make this clip immediately" style="border:none;background:transparent;color:${isSel ? '#00F0FF' : '#F1F5F9'};font-size:11px;font-weight:700;cursor:pointer;padding:0;display:inline-flex;align-items:center;gap:4px">
-                        ${isSel ? '⭐' : '🏷️'} <b>${esc(pn)}</b>
-                      </button>
-                      <button type="button" onclick="applyPresetToAllClips('${esc(pn)}')" title="Apply '${esc(pn)}' to ALL clips in this stream and re-render all" style="background:#FF8C00;color:#000;border:none;border-radius:4px;font-size:10px;font-weight:800;padding:2px 6px;cursor:pointer">
-                        🚀 All Clips
-                      </button>
-                    </div>
-                  `;
-                }).join('')}
+              <div style="display:flex;gap:6px;align-items:center">
+                <button type="button" class="btn sm" data-act="open_custom_layout_studio_clip" style="background:linear-gradient(135deg,#00F0FF,#0099FF);color:#050505;border:none;padding:3px 10px;font-size:11px;font-weight:800;border-radius:6px;cursor:pointer;flex:1">🎨 Custom Studio</button>
+                <button type="button" class="btn sm" data-act="open_layout_gallery" style="padding:3px 10px;font-size:11px;height:auto">🖼️ Compare</button>
               </div>
             </div>
-          `;
-        })()}
+          </div>
+          <!-- Creator's Saved Presets Row -->
+          ${(() => {
+            const cr = creator() || (j.creator ? S.creators.find(x => x.id === j.creator) : null);
+            const presets = cr?.custom_presets || {};
+            const pnames = Object.keys(presets);
+            if (!pnames.length) return '';
+            return `
+              <div style="background:#161210;border:1px solid #3A2C24;border-radius:8px;padding:6px 10px;margin-top:6px">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+                  <span style="font-size:10px;font-weight:700;color:#00F0FF;display:flex;align-items:center;gap:4px">
+                    <span>🎨</span> Presets:
+                  </span>
+                  <span class="sub" style="font-size:9px">Click to apply</span>
+                </div>
+                <div style="display:flex;flex-wrap:wrap;gap:6px">
+                  ${pnames.map(pn => {
+                    const isSel = (c.active_preset === pn) || (c.layout === 'custom' && c.active_preset === pn);
+                    return `
+                      <div style="display:inline-flex;align-items:center;gap:3px;background:${isSel ? '#14282D' : '#221A15'};border:1px solid ${isSel ? '#00F0FF' : '#443226'};border-radius:6px;padding:2px 5px">
+                        <button type="button" onclick="applyPresetToClip('${esc(pn)}', true)" title="Apply '${esc(pn)}'" style="border:none;background:transparent;color:${isSel ? '#00F0FF' : '#F1F5F9'};font-size:10px;font-weight:700;cursor:pointer;padding:0;display:inline-flex;align-items:center;gap:3px">
+                          ${isSel ? '⭐' : '🏷️'} <b>${esc(pn)}</b>
+                        </button>
+                        <button type="button" onclick="applyPresetToAllClips('${esc(pn)}')" title="Apply to ALL clips" style="background:#FF8C00;color:#000;border:none;border-radius:3px;font-size:9px;font-weight:800;padding:1px 4px;cursor:pointer">
+                          🚀 All
+                        </button>
+                      </div>
+                    `;
+                  }).join('')}
+                </div>
+              </div>
+            `;
+          })()}
+        </div>
 
-        <!-- Interactive Visual Framing Controls -->
-        <details class="card" style="margin:8px 0 12px 0;background:var(--bg-2);border:1px solid var(--line);border-radius:10px;padding:10px 12px">
+        <!-- Card 3: Advanced Timing, Sync & Framing (Collapsible) -->
+        <details class="card" style="margin:0 0 10px 0;background:var(--bg-2);border:1px solid var(--line);border-radius:10px;padding:10px 12px">
           <summary style="cursor:pointer;font-size:12px;font-weight:700;color:var(--brand-ink);display:flex;align-items:center;gap:6px">
-            <span>📐 Visual Framing &amp; Crop Adjustments</span>
-            <span class="sub" style="font-size:11px;margin-left:auto">(Fine-tune facecam &amp; game boundaries)</span>
+            <span>⚙️ Advanced Timing, Sync &amp; Framing</span>
+            <span class="sub" style="font-size:10px;margin-left:auto">(Audio delay, cam offset, trim)</span>
           </summary>
-          <div style="display:flex;flex-direction:column;gap:10px;margin-top:10px">
-            <button type="button" class="btn sm" data-act="open_custom_layout_studio_clip" style="background:linear-gradient(135deg,#00F0FF,#0099FF);color:#050505;border:none;font-weight:800;font-size:12px;padding:7px 14px;border-radius:8px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;width:100%;justify-content:center;margin-bottom:6px;box-shadow:0 3px 10px rgba(0,240,255,0.25)">
-              🎨 Open Interactive Visual Layout &amp; Facecam Studio
-            </button>
-            <label class="f" style="margin:0">
-              <span style="display:flex;justify-content:space-between;font-size:11px">
-                <span>Facecam Vertical Shift (Trim sweater / move face higher)</span>
-                <b id="lbl_fc_offset">${c.facecam_offset_y || 0}px</b>
-              </span>
-              <input type="range" data-f="facecam_offset_y" min="-80" max="80" step="5" value="${c.facecam_offset_y || 0}" oninput="$('#lbl_fc_offset').textContent=this.value+'px'">
-            </label>
-            <label class="f" style="margin:0">
-              <span style="display:flex;justify-content:space-between;font-size:11px">
-                <span>Game Area Crop Shift (Avoid in-game cam leak / center subtitles)</span>
-                <b id="lbl_game_offset">${c.game_offset_x || 0}px</b>
-              </span>
-              <input type="range" data-f="game_offset_x" min="-120" max="120" step="5" value="${c.game_offset_x || 0}" oninput="$('#lbl_game_offset').textContent=this.value+'px'">
-            </label>
-            <label class="f" style="margin:0">
-              <span style="display:flex;justify-content:space-between;font-size:11px">
-                <span>Zoom Scale</span>
-                <b id="lbl_zoom">${c.zoom || 1.0}x</b>
-              </span>
-              <input type="range" data-f="zoom" min="1.0" max="1.4" step="0.05" value="${c.zoom || 1.0}" oninput="$('#lbl_zoom').textContent=this.value+'x'">
-            </label>
+          <div style="display:flex;flex-direction:column;gap:8px;margin-top:10px">
+            <div class="two">
+              <label class="f" style="margin:0">Voice Sync (Audio Delay)<select data-f="audio_delay">${syncOpts(c.audio_delay ?? j.options?.audio_delay ?? 0.0, SYNC_AUDIO_OPTIONS)}</select></label>
+              <label class="f" style="margin:0">Webcam Sync (Facecam Delay)<select data-f="facecam_delay">${syncOpts(c.facecam_delay ?? j.options?.facecam_delay ?? 0.0, SYNC_CAM_OPTIONS)}</select></label>
+            </div>
+            <div class="two">
+              <label class="f" style="margin:0">Start (seconds)<input data-f="start" type="number" step="0.5" value="${c.start}"></label>
+              <label class="f" style="margin:0">End (seconds)<input data-f="end" type="number" step="0.5" value="${c.end}"></label>
+            </div>
+            <label class="f" style="margin:0">Outro badge text (Last 3s)<input data-f="outro_text" value="${esc(c.outro_text || "")}"></label>
+            <div style="background:var(--bg-1,#120e0c);border:1px solid var(--line);border-radius:8px;padding:8px 10px;display:flex;flex-direction:column;gap:6px">
+              <label class="f" style="margin:0">
+                <span style="display:flex;justify-content:space-between;font-size:10px"><span>Facecam Vertical Shift (Trim sweater / move face higher)</span><b id="lbl_fc_offset">${c.facecam_offset_y || 0}px</b></span>
+                <input type="range" data-f="facecam_offset_y" min="-80" max="80" step="5" value="${c.facecam_offset_y || 0}" oninput="$('#lbl_fc_offset').textContent=this.value+'px'">
+              </label>
+              <label class="f" style="margin:0">
+                <span style="display:flex;justify-content:space-between;font-size:10px"><span>Game Area Crop Shift (Avoid in-game cam leak)</span><b id="lbl_game_offset">${c.game_offset_x || 0}px</b></span>
+                <input type="range" data-f="game_offset_x" min="-120" max="120" step="5" value="${c.game_offset_x || 0}" oninput="$('#lbl_game_offset').textContent=this.value+'px'">
+              </label>
+              <label class="f" style="margin:0">
+                <span style="display:flex;justify-content:space-between;font-size:10px"><span>Zoom Scale</span><b id="lbl_zoom">${c.zoom || 1.0}x</b></span>
+                <input type="range" data-f="zoom" min="1.0" max="1.4" step="0.05" value="${c.zoom || 1.0}" oninput="$('#lbl_zoom').textContent=this.value+'x'">
+              </label>
+            </div>
           </div>
         </details>
-
-        <div class="two">
-          <div style="display:flex;align-items:flex-end;margin-bottom:8px"><label class="sw" style="margin:0"><input type="checkbox" data-f="captions" data-caption-toggle ${(c.captions === false || (!('captions' in c) && j.options?.captions === false)) ? "" : "checked"}>Generate captions</label></div>
-          <div style="display:flex;align-items:flex-end;margin-bottom:8px"><label class="sw" style="margin:0"><input type="checkbox" data-f="outro_cta" ${c.outro_cta === false ? "" : "checked"}>End support badge (Outro)</label></div>
-        </div>
-        <label class="f">Outro badge text (Last 3s)<input data-f="outro_text" value="${esc(c.outro_text || "")}"></label>
-        <div class="two"><label class="f">Start (seconds)<input data-f="start" type="number" step="0.5" value="${c.start}"></label>
-          <label class="f">End (seconds)<input data-f="end" type="number" step="0.5" value="${c.end}"></label></div>
         <div class="row" style="justify-content:space-between;align-items:center"><h3>Post text</h3>
           <button type="button" class="btn sm" data-act="writetext">Write again with AI</button></div>
         ${(() => {
@@ -4338,34 +4343,52 @@ function clsDrawPhonePreview() {
     else if (hookStyle === "cyber_red") { boxBg = "#180A0A"; borderCol = "#FF003C"; textCol = "#FFFFFF"; }
     else if (hookStyle === "gold_luxury") { boxBg = "#0D0D0D"; borderCol = "#FFDF00"; textCol = "#FFDF00"; }
 
-    const bh = 34;
-    const bx = Math.round((W - hw) / 2);
-    const by = Math.round(hy - bh / 2);
-    const br = 8;
+    if (hookStyle === "viral_yellow" || hookStyle === "viral_cyan") {
+      ctx.save();
+      ctx.shadowColor = "rgba(0,0,0,0.95)";
+      ctx.shadowBlur = 8;
+      ctx.shadowOffsetY = 4;
+      ctx.font = "900 12px 'Archivo Black', Impact, Arial, sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.lineWidth = 4;
+      ctx.strokeStyle = "#000000";
+      const hTxt = String(hookText).replace(/\*/g, "").slice(0, 32);
+      ctx.strokeText(hTxt, W / 2, hy);
+      const hlCol = hookStyle === "viral_cyan" ? "#00F0FF" : "#FFE500";
+      ctx.fillStyle = hlCol;
+      ctx.fillText(hTxt, W / 2, hy);
+      ctx.restore();
+    } else {
+      const bh = 34;
+      const bx = Math.round((W - hw) / 2);
+      const by = Math.round(hy - bh / 2);
+      const br = 8;
 
-    ctx.save();
-    ctx.shadowColor = "rgba(0,0,0,0.85)";
-    ctx.shadowBlur = 10;
-    ctx.shadowOffsetY = 4;
-    ctx.fillStyle = boxBg;
-    ctx.beginPath();
-    if (ctx.roundRect) ctx.roundRect(bx, by, hw, bh, br); else ctx.rect(bx, by, hw, bh);
-    ctx.fill();
-    ctx.restore();
+      ctx.save();
+      ctx.shadowColor = "rgba(0,0,0,0.85)";
+      ctx.shadowBlur = 10;
+      ctx.shadowOffsetY = 4;
+      ctx.fillStyle = boxBg;
+      ctx.beginPath();
+      if (ctx.roundRect) ctx.roundRect(bx, by, hw, bh, br); else ctx.rect(bx, by, hw, bh);
+      ctx.fill();
+      ctx.restore();
 
-    ctx.save();
-    ctx.strokeStyle = borderCol;
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    if (ctx.roundRect) ctx.roundRect(bx, by, hw, bh, br); else ctx.rect(bx, by, hw, bh);
-    ctx.stroke();
+      ctx.save();
+      ctx.strokeStyle = borderCol;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      if (ctx.roundRect) ctx.roundRect(bx, by, hw, bh, br); else ctx.rect(bx, by, hw, bh);
+      ctx.stroke();
 
-    ctx.fillStyle = textCol;
-    ctx.font = "900 11px Anton, Impact, sans-serif";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText(String(hookText).toUpperCase().slice(0, 30), W / 2, by + bh / 2);
-    ctx.restore();
+      ctx.fillStyle = textCol;
+      ctx.font = "900 11px Anton, Impact, sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(String(hookText).toUpperCase().slice(0, 30), W / 2, by + bh / 2);
+      ctx.restore();
+    }
 
     // Real-time Bouncy Caption Subtitle Preview
     const capStyle = CLS.caption_style || "bounce";
@@ -4906,7 +4929,9 @@ function openCustomLayoutStudio(context) {
               <div>
                 <label style="font-size:10px;color:#94A3B8;display:block;margin-bottom:2px">Banner Style</label>
                 <select id="cls_hook_style_select" style="width:100%;padding:4px 6px;border-radius:6px;background:#221A15;border:1px solid #443226;color:#fff;font-size:11px" onchange="clsOnHookStyleChange(this.value)">
-                  <option value="neon" ${CLS.hook_style === 'neon' ? 'selected' : ''}>⚡ Neon Dark</option>
+                  <option value="viral_yellow" ${CLS.hook_style === 'viral_yellow' ? 'selected' : ''}>⚡ Viral Floating (Yellow Punch) [No Box]</option>
+                  <option value="viral_cyan" ${CLS.hook_style === 'viral_cyan' ? 'selected' : ''}>💎 Viral Floating (Cyan Punch) [No Box]</option>
+                  <option value="neon" ${(!CLS.hook_style || CLS.hook_style === 'neon') ? 'selected' : ''}>⚡ Neon Dark</option>
                   <option value="purple_whip" ${CLS.hook_style === 'purple_whip' ? 'selected' : ''}>🟣 Purple Whip (Glow)</option>
                   <option value="yellow" ${CLS.hook_style === 'yellow' ? 'selected' : ''}>🟡 Viral Yellow</option>
                   <option value="pill" ${CLS.hook_style === 'pill' ? 'selected' : ''}>⚪ 3D White Pill</option>
@@ -5539,6 +5564,46 @@ document.addEventListener("click", async e => {
       // A description the person wrote is copied as written; otherwise only the tags it does not already end with are added.
       const tags = saved.fixed_description ? "" : (c.hashtags || []).filter(h => !(c.description || "").includes("#" + h)).map(h => "#" + h).join(" ");
       await navigator.clipboard.writeText([c.title, c.description, tags].filter(Boolean).join("\n\n")); return toast("Post text copied", "ok");
+    }
+    if (a === "ai_generate_hooks") {
+      const btn = e.target.closest("[data-act='ai_generate_hooks']");
+      const jid = D.jid;
+      const cid = D.cid;
+      if (!jid || !cid) return toast("No clip selected", "bad");
+      const origHtml = btn.innerHTML;
+      btn.disabled = true;
+      btn.innerHTML = `<span>⏳</span> Generating…`;
+      toast("AI is creating 5 viral hook variations…", "ok");
+      try {
+        const res = await api(`/api/jobs/${jid}/clips/${cid}/hooks`, {}, "POST");
+        if (res && res.hooks && res.hooks.length) {
+          const j = jobOf(jid);
+          const c = j?.clips.find(x => x.id === cid);
+          if (c) c.hooks = res.hooks;
+          const pills = $("#dlg_hook_pills");
+          if (pills) {
+            pills.innerHTML = res.hooks.map((h, i) => `
+              <button type="button" class="btn sm hook-pill-btn" data-act="pick_hook" data-hook="${esc(h)}" title="Click to use this hook" style="font-size:10px;padding:2px 8px;font-weight:700;background:var(--bg-1,#120e0c);border:1px solid ${i === 0 ? 'var(--accent, #00f0ff)' : 'var(--line)'};border-radius:12px;color:${i === 0 ? 'var(--accent, #00f0ff)' : 'var(--text)'};cursor:pointer">
+                #${i+1}: ${esc(h)}
+              </button>
+            `).join("");
+          }
+          const hookInput = $("#clipdlg [data-f='hook']");
+          if (hookInput) {
+            hookInput.value = res.hooks[0];
+            if (c) c.hook = res.hooks[0];
+          }
+          toast("✨ 5 viral hooks generated!", "ok");
+        } else {
+          toast("AI returned no hooks. Please try again.", "bad");
+        }
+      } catch (err) {
+        toast("Failed to generate hooks: " + (err.message || err), "bad");
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = origHtml;
+      }
+      return;
     }
     if (a === "pick_hook") {
       const h = d.hook;

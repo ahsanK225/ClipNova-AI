@@ -37,7 +37,7 @@ F:\Games\GTA 6 CLIPPING\
 │   │   ├── accounts.py                     # Social OAuth connections, multi-client token refresh & YouTube API upload
 │   │   ├── ai.py                           # Gemini multimodal vision (see_json), multi-key pool rotation, per-key live health testing & OpenRouter free models
 │   │   ├── asr.py                          # Speech recognition & word-level timing (sherpa-onnx)
-│   │   ├── brain.py                        # Universal grounding (anti-hallucination), multimodal scene analysis, dual AI judges & SEO
+│   │   ├── brain.py                        # Universal grounding (anti-hallucination), multimodal scene analysis, dual AI judges, viral hooks generator & SEO
 │   │   ├── config.py                       # App configuration & environment parsing
 │   │   ├── creators.py                     # Creator workspace profiles, trigger words & settings
 │   │   ├── db.py                           # SQLite / SQLAlchemy persistence
@@ -46,7 +46,7 @@ F:\Games\GTA 6 CLIPPING\
 │   │   ├── games.py                        # GTA VI & gaming stream detection engine
 │   │   ├── hashtags.py                     # Non-AI fast hashtags engine (derives 3-5 tags without burning tokens)
 │   │   ├── jobs.py                         # Video processing queue, facecam resolution, multimodal SEO & Windows retry save
-│   │   ├── live.py                         # Live stream buffer, 720p lock, loudness spikes & trigger clips
+│   │   ├── live.py                         # Live stream buffer, 720p lock, loudness spikes, active AI model tracking & trigger clips
 │   │   ├── load.py                         # System load, memory, and queue worker throttle
 │   │   ├── capcut\                         # Native CapCut Desktop Draft project generator (pyJianYingDraft & template)
 │   │   │   ├── export.py                   # Multi-track CapCut draft exporter (video, hook title, subtitle tracks)
@@ -54,8 +54,8 @@ F:\Games\GTA 6 CLIPPING\
 │   │   │   └── template\                   # Base CapCut project template (draft_info.json, draft_meta_info.json)
 │   │   ├── media.py                        # Long-video stream inspector, format resolver & Netscape cookie manager
 │   │   ├── posting.py                      # YouTube Shorts cloud scheduling, IG, TikTok & channel exclusivity
-│   │   ├── render.py                       # FFmpeg 9:16 vertical render, split layouts, Bouncy/Hormozi/MrBeast subtitles, Hook styles (Purple Whip, etc.)
-│   │   ├── server.py                       # FastAPI application & HTTP routes (CapCut export endpoints, multi-key pool, presets)
+│   │   ├── render.py                       # FFmpeg 9:16 vertical render, split layouts, Bouncy/Hormozi/MrBeast subtitles, Hook styles (Viral Floating Yellow/Cyan Punch, Purple Whip, etc.)
+│   │   ├── server.py                       # FastAPI application & HTTP routes (viral hooks generator, CapCut export, multi-key pool, presets)
 │   │   ├── storage.py                      # Local file, clip & recording management
 │   │   └── video.py                        # FFmpeg rendering, 9:16 layout & caption burn
 │   ├── tests\                              # Test suite (31 comprehensive suites)

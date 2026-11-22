@@ -825,6 +825,59 @@ def post_text(text, title="", uploader="", game=None):
     return {k: c[k] for k in ("title", "description", "hashtags")}
 
 
+HOOKS_SCHEMA = {
+    "type": "OBJECT",
+    "properties": {
+        "hooks": {
+            "type": "ARRAY",
+            "items": {"type": "STRING"}
+        }
+    },
+    "required": ["hooks"]
+}
+
+
+def generate_viral_hooks(text, title="", uploader="", game=None, count=5) -> list[str]:
+    """Generates punchy, viral headline hook banners for TikTok / YouTube Shorts based on dialogue and game context."""
+    t_clean = (text or "").strip()
+    gname = game if (game and game != "None") else "Gaming"
+
+    prompt = f"""You are a master viral TikTok & YouTube Shorts editor for gaming and stream clips.
+Create {count} ultra-compelling, high-CTR hook banner headlines (max 4 to 7 words each) for this moment.
+
+Video Title: {title or 'Stream Highlight'}
+Streamer: {uploader or 'Streamer'}
+Game: {gname}
+Spoken in clip:
+{t_clean if t_clean else '(High action gameplay moment, minimal dialogue)'}
+
+Rules for high CTR hooks:
+1. Make them punchy, dramatic, hilarious, or curious (e.g. 'GTA 6 influencers are insane 😳', 'HE ACTUALLY PULLED THIS OFF?! 💀', 'OHNEPIXEL REGRETS THIS MOMENT 😭').
+2. Keep length between 3 and 7 words.
+3. Put a single fitting emoji at the end of each headline.
+4. Surround the single most important punch keyword with asterisks (e.g. 'GTA 6 *influencers* are insane 😳') so it gets highlighted in vibrant canary yellow on video.
+5. Return JSON with key 'hooks' containing exactly {count} distinct options."""
+
+    try:
+        out, _m, _u = ask_ai(prompt, schema=HOOKS_SCHEMA, purpose="Clip: viral hooks", timeout=12)
+        if isinstance(out, dict) and "hooks" in out and isinstance(out["hooks"], list):
+            res = [re.sub(r'["\\]', '', str(h)).strip() for h in out["hooks"] if str(h).strip()]
+            if res:
+                return res[:count]
+    except Exception as e:
+        print(f"[brain] AI hook generation notice: {e}", flush=True)
+
+    streamer_name = uploader or "Streamer"
+    game_tag = gname if gname != "Gaming" else "GTA 6"
+    return [
+        f"{game_tag} *influencers* are insane 😳",
+        f"HE DID *NOT* EXPECT THIS TO HAPPEN?! 💀",
+        f"{streamer_name.upper()}'S *CRAZIEST* MOMENT EVER 😱",
+        f"THIS WENT COMPLETELY *WRONG* 😭",
+        f"NO WAY THIS ACTUALLY *WORKED* 🏆"
+    ]
+
+
 # ---------------------------------------------------------------- live: two judges that never see each other's input
 TRANSCRIPT_JUDGE = """You are an expert clip scout for short-form gaming and streaming videos (YouTube Shorts, Reels, TikTok).
 You only get the WORDS spoken on a live stream: a timestamped transcript, each line starting with [seconds].

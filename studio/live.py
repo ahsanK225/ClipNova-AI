@@ -535,7 +535,7 @@ class Session:
         recent = [c for c in self.job["clips"] if c.get("score", 0) > 0 and time.time() - c.get("made_at", 0) < 3600]
         last_clip = max((c.get("made_at", 0) for c in self.job["clips"]), default=self.started_at)
         must = st["must_clip_min"] > 0 and time.time() - last_clip >= st["must_clip_min"] * 60
-        verdict = {"t": round(now), "transcript": None, "reaction": None, "trigger": why}
+        verdict = {"t": round(now), "transcript": None, "reaction": None, "trigger": why, "model": ai.last_active_model()}
         if len(win) < 8:
             self.skipped += 1
             return self._verdict(verdict, "Skipped: nobody talking")
@@ -607,7 +607,7 @@ class Session:
                                                      st["decide_mode"] == "either" else "Forced: no clip for a while"))
             if too_close and ai_caught:
                 why += " (viral highlight)"
-            c["judges"] = {"words": c["score"], "reaction": rs or None, "why": why}
+            c["judges"] = {"words": c["score"], "reaction": rs or None, "why": why, "model": ai.last_active_model()}
             c["reason"] = f"{c['reason']} ({why.lower()}.)"
             self._add_clip(c)
             self._verdict(verdict, "Clipped: " + why.lower())

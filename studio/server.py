@@ -1127,6 +1127,23 @@ def clip_write(jid: str, cid: str):
         raise HTTPException(503, str(e))
 
 
+@app.post("/api/jobs/{jid}/clips/{cid}/hooks")
+def clip_generate_hooks(jid: str, cid: str):
+    """Generate 5 viral hook banner variations for this clip using AI."""
+    job, clip = _clip_or_404(jid, cid)
+    _throttle("cliphooks:" + ctx.uid(), 30, 600, "Please wait a moment before generating more hooks.")
+    usage.set_context(job.get("creator"), job.get("title") or "")
+    try:
+        text = jobs.spoken_in(job, clip)
+        title = job.get("title") or ""
+        uploader = job.get("uploader") or ""
+        game = job.get("game") or None
+        hooks = brain.generate_viral_hooks(text, title, uploader, game=game)
+        return {"hooks": hooks}
+    except Exception as e:
+        raise HTTPException(500, f"Failed to generate viral hooks: {e}")
+
+
 @app.post("/api/jobs/{jid}/clips/{cid}/open-folder")
 def open_clip_folder(jid: str, cid: str):
     """Open folder in Windows Explorer and highlight the exact clip MP4 file for 1-click ChatGPT upload."""

@@ -61,7 +61,7 @@ def brief() -> dict:
         today = c.execute(sa.select(sa.func.count(), sa.func.coalesce(sa.func.sum(_tokens()), 0)).where(
             u.user_id == uid, u.t >= midnight)).first()
     out = {"ready": ai.ready(), "provider": ai.label(), "provider_id": ai.provider(),
-           "model": (ai.models() or [""])[0], "models": ai.models(),
+           "model": ai.last_active_model(), "models": ai.models(),
            "today_calls": int(today[0]), "today_tokens": int(today[1]),
            "problem": ai.problem["text"] if ai.problem["text"] and now - ai.problem["at"] < 6 * 3600 else ""}
     _brief[uid] = (now, out)

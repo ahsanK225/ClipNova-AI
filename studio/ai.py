@@ -152,14 +152,24 @@ def ready() -> bool:
     return bool(c["provider"] in PROVIDERS and c["models"] and base_url() and (c["key"] or c["provider"] in NO_KEY))
 
 
+_last_active_model: str = ""
+
+
+def set_last_active_model(model: str):
+    global _last_active_model
+    _last_active_model = str(model or "").strip()
+
+
+def last_active_model() -> str:
+    return _last_active_model or (models() or [""])[0]
+
+
 RECOMMENDED_MODELS = {
     "gemini": [
-        {"id": "gemini-3.5-flash-lite", "name": "Gemini 3.5 Flash Lite", "is_free": True, "badge": "Free · Fast", "desc": "Ultra-fast multimodal vision & viral hooks (Recommended)"},
-        {"id": "gemini-2.5-flash", "name": "Gemini 2.5 Flash", "is_free": True, "badge": "Free · High Quality", "desc": "High accuracy visual reasoning & creative captions"},
-        {"id": "gemini-2.5-flash-lite", "name": "Gemini 2.5 Flash Lite", "is_free": True, "badge": "Free · High Quota", "desc": "Lightweight, generous free tier limits"},
-        {"id": "gemini-2.0-flash", "name": "Gemini 2.0 Flash", "is_free": True, "badge": "Free · Proven", "desc": "Stable multimodal clip & dialog analysis"},
-        {"id": "gemini-3.1-flash-lite", "name": "Gemini 3.1 Flash Lite", "is_free": True, "badge": "Free Preview", "desc": "Next-gen low latency inference"},
-        {"id": "gemini-flash-lite-latest", "name": "Gemini Flash Lite (Latest)", "is_free": True, "badge": "Auto-Updated", "desc": "Points to newest production flash-lite release"}
+        {"id": "gemini-3.5-flash-lite", "name": "Gemini 3.5 Flash Lite", "is_free": True, "badge": "Free Tier · Fast (Recommended)", "desc": "Ultra-fast multimodal vision & viral hooks (Verified Active)"},
+        {"id": "gemini-flash-lite-latest", "name": "Gemini Flash Lite (Latest)", "is_free": True, "badge": "Auto-Updated · Free", "desc": "Points to newest production flash-lite release (Verified Active)"},
+        {"id": "gemini-3-flash-preview", "name": "Gemini 3 Flash Preview", "is_free": True, "badge": "Free Preview", "desc": "Next-gen low latency multimodal inference (Verified Active)"},
+        {"id": "gemini-3.8-flash", "name": "Gemini 3.8 Flash", "is_free": True, "badge": "Latest Flagship", "desc": "Google's newest multimodal flagship model"},
     ],
     "openrouter": [
         {"id": "meta-llama/llama-3.3-70b-instruct:free", "name": "Llama 3.3 70B Instruct (Free)", "is_free": True, "badge": "Free · 70B", "desc": "Flagship open source intelligence for dialogue & SEO"},
@@ -293,13 +303,10 @@ def get_catalog(provider_id: str | None = None) -> dict:
     results = {}
     # 1. Gemini
     results["gemini"] = [
-        {"id": "gemini-3.5-flash-lite", "name": "Gemini 3.5 Flash Lite", "tier": "FREE TIER", "is_free": True, "vision": True, "structured_json": True, "context": "1M tokens", "rate_limit": "15 RPM / 1M TPM / 1500 RPD", "pricing": "Free Tier ($0)", "badge": "Free Tier · Vision · Recommended", "desc": "Ultra-fast multimodal vision & viral hooks (Recommended)"},
-        {"id": "gemini-2.5-flash", "name": "Gemini 2.5 Flash", "tier": "FREE TIER", "is_free": True, "vision": True, "structured_json": True, "context": "1M tokens", "rate_limit": "15 RPM / 1M TPM", "pricing": "Free Tier ($0)", "badge": "Free Tier · Vision · High Quality", "desc": "High accuracy visual reasoning & creative captions"},
-        {"id": "gemini-2.5-flash-lite", "name": "Gemini 2.5 Flash Lite", "tier": "FREE TIER", "is_free": True, "vision": True, "structured_json": True, "context": "1M tokens", "rate_limit": "15 RPM / 1M TPM", "pricing": "Free Tier ($0)", "badge": "Free Tier · High Quota", "desc": "Lightweight, generous free tier limits"},
-        {"id": "gemini-2.0-flash", "name": "Gemini 2.0 Flash", "tier": "FREE TIER", "is_free": True, "vision": True, "structured_json": True, "context": "1M tokens", "rate_limit": "15 RPM / 1M TPM", "pricing": "Free Tier ($0)", "badge": "Free Tier · Proven", "desc": "Stable multimodal clip & dialog analysis"},
-        {"id": "gemini-3.1-flash-lite", "name": "Gemini 3.1 Flash Lite", "tier": "FREE TIER", "is_free": True, "vision": True, "structured_json": True, "context": "1M tokens", "rate_limit": "15 RPM", "pricing": "Free Tier ($0)", "badge": "Free Preview", "desc": "Next-gen low latency inference"},
-        {"id": "gemini-flash-lite-latest", "name": "Gemini Flash Lite (Latest)", "tier": "FREE TIER", "is_free": True, "vision": True, "structured_json": True, "context": "1M tokens", "rate_limit": "15 RPM", "pricing": "Free Tier ($0)", "badge": "Auto-Updated", "desc": "Points to newest production flash-lite release"},
-        {"id": "gemini-2.5-pro", "name": "Gemini 2.5 Pro", "tier": "FREE TIER", "is_free": True, "vision": True, "structured_json": True, "context": "2M tokens", "rate_limit": "2 RPM / 32k TPM / 50 RPD", "pricing": "Free Tier ($0)", "badge": "Free Tier · Deep Thinking", "desc": "Top-tier visual reasoning and complex narrative analysis"},
+        {"id": "gemini-3.5-flash-lite", "name": "Gemini 3.5 Flash Lite", "tier": "FREE TIER", "is_free": True, "vision": True, "structured_json": True, "context": "1M tokens", "rate_limit": "15 RPM / 1M TPM / 1500 RPD", "pricing": "Free Tier ($0)", "badge": "Free Tier · Vision · Recommended", "desc": "Ultra-fast multimodal vision & viral hooks (Verified Active)"},
+        {"id": "gemini-flash-lite-latest", "name": "Gemini Flash Lite (Latest)", "tier": "FREE TIER", "is_free": True, "vision": True, "structured_json": True, "context": "1M tokens", "rate_limit": "15 RPM", "pricing": "Free Tier ($0)", "badge": "Auto-Updated · Active", "desc": "Points to newest production flash-lite release (Verified Active)"},
+        {"id": "gemini-3-flash-preview", "name": "Gemini 3 Flash Preview", "tier": "FREE TIER", "is_free": True, "vision": True, "structured_json": True, "context": "1M tokens", "rate_limit": "15 RPM", "pricing": "Free Tier ($0)", "badge": "Free Preview · Active", "desc": "Next-gen low latency multimodal inference (Verified Active)"},
+        {"id": "gemini-3.8-flash", "name": "Gemini 3.8 Flash", "tier": "FLAGSHIP", "is_free": True, "vision": True, "structured_json": True, "context": "1M tokens", "rate_limit": "Tier-based", "pricing": "Free Tier ($0)", "badge": "Latest Flagship", "desc": "Google's newest multimodal flagship model"},
     ]
 
     # 2. OpenRouter (dynamic discovery)
@@ -925,7 +932,9 @@ def call(model: str, prompt: str, schema: dict, timeout: float | None = None):
     answer must not stop the recording."""
     how = PROVIDERS[provider()][2]
     fn = {"gemini": _gemini, "openai": _openai, "anthropic": _anthropic}[how]
-    return _retry_on_quota(fn, model, prompt, schema, timeout)
+    res = _retry_on_quota(fn, model, prompt, schema, timeout)
+    set_last_active_model(model)
+    return res
 
 
 def see(prompt: str, image: bytes, timeout: float | None = None) -> tuple[str, int, int]:

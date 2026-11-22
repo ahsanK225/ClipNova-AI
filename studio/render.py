@@ -26,6 +26,14 @@ STYLES = {
               "strong": "FFFFFF", "outline": 5, "pop": 106, "upper": False, "per": 4, "anim": "bounce"},
 }
 HOOK_STYLES = {
+    "viral_yellow": {
+        "label": "Viral Floating (Yellow Punch)", "font": "Archivo Black", "size": 94, "ink": "FFFFFF",
+        "highlight": "00E5FF", "no_box": True, "outline": 7, "shadow": 4, "max_w": 960,
+    },
+    "viral_cyan": {
+        "label": "Viral Floating (Cyan Punch)", "font": "Archivo Black", "size": 94, "ink": "FFFFFF",
+        "highlight": "00F0FF", "no_box": True, "outline": 7, "shadow": 4, "max_w": 960,
+    },
     "neon": {
         "label": "Neon Dark", "font": "Anton", "size": 108, "ink": "FFFFFF", "box": "141210",
         "border": "00F0FF", "pad_x": 42, "pad_y": 24, "radius": 28, "max_w": 920,
@@ -175,7 +183,40 @@ def geometry(src_w, src_h, layout):
     return layout, fg_h, max(230, top - 190), min(1640, top + fg_h + 180)
 
 
-def _hook_events(hook, dur, y, style_name="bounce", hook_style=None, max_w=None, font_size=None, x=None):
+def _format_hook_line_no_box(line: str, ink: str, highlight_col: str, highlight_words: set | None = None) -> str:
+    """Formats a hook line with inline ASS color overrides for viral punch words."""
+    if "*" in line:
+        parts = re.split(r"(\*[^*]+\*)", line)
+        out = []
+        for p in parts:
+            if p.startswith("*") and p.endswith("*") and len(p) > 2:
+                out.append(f"{{\\c&H{highlight_col}&}}{p[1:-1]}{{\\c&H{ink}&}}")
+            else:
+                out.append(p)
+        return "".join(out)
+    words = line.split()
+    if not words:
+        return line
+    stopwords = {"the", "a", "an", "is", "are", "was", "were", "this", "that", "in", "on", "at", "to", "for", "of", "and", "or", "it", "with", "as", "by", "from", "be"}
+    hl_idx = set()
+    if highlight_words:
+        for i, w in enumerate(words):
+            if re.sub(r"[^\w]", "", w).lower() in highlight_words:
+                hl_idx.add(i)
+    if not hl_idx:
+        cands = [(len(re.sub(r"[^\w]", "", w)), i) for i, w in enumerate(words) if re.sub(r"[^\w]", "", w).lower() not in stopwords]
+        if cands:
+            hl_idx.add(max(cands, key=lambda x: x[0])[1])
+    out = []
+    for i, w in enumerate(words):
+        if i in hl_idx:
+            out.append(f"{{\\c&H{highlight_col}&}}{w}{{\\c&H{ink}&}}")
+        else:
+            out.append(w)
+    return " ".join(out)
+
+
+def _hook_events(hook, dur, y, style_name="bounce", hook_style=None, max_w=None, font_size=None, x=None, highlight=None):
     """The heading: high-CTR modern badge with 3D drop shadow, sleek border, and punchy pop-in entrance."""
     cfg = HOOK_STYLES.get(hook_style or "")
     if not cfg:
@@ -194,21 +235,44 @@ def _hook_events(hook, dur, y, style_name="bounce", hook_style=None, max_w=None,
     f = _Font.get(cfg["font"])
     size = int(font_size) if font_size and int(font_size) >= 20 else cfg["size"]
     banner_max_w = int(max_w) if max_w and int(max_w) >= 200 else cfg.get("max_w", 920)
-    words = hook.split()
-    if not words:
+    raw_words = hook.split()
+    if not raw_words:
         return []
-    lines = [" ".join(words)]
-    if f.width(lines[0], size) > banner_max_w and len(words) > 1:      # two lines, split where they come out most even
-        cut = min(range(1, len(words)), key=lambda i: max(f.width(" ".join(words[:i]), size), f.width(" ".join(words[i:]), size)))
-        lines = [" ".join(words[:cut]), " ".join(words[cut:])]
-    widest = max(f.width(l, size) for l in lines)
+
+    words = [w.replace("*", "") for w in raw_words]
+    lines_raw = [" ".join(raw_words)]
+    lines_clean = [" ".join(words)]
+    if f.width(lines_clean[0], size) > banner_max_w and len(raw_words) > 1:
+        cut = min(range(1, len(raw_words)), key=lambda i: max(f.width(" ".join(words[:i]), size), f.width(" ".join(words[i:]), size)))
+        lines_raw = [" ".join(raw_words[:cut]), " ".join(raw_words[cut:])]
+        lines_clean = [" ".join(words[:cut]), " ".join(words[cut:])]
+    widest = max(f.width(l, size) for l in lines_clean)
     if widest > banner_max_w:
         size = max(40, int(size * banner_max_w / widest))
-        widest = max(f.width(l, size) for l in lines)
+        widest = max(f.width(l, size) for l in lines_clean)
     line_h = f.em(size) * 1.16
-    bw, bh = widest + 2 * cfg["pad_x"], line_h * len(lines) + 2 * cfg["pad_y"]
+
+    hook_dur = min(3.8, max(2.5, dur * 0.35))
+    span = f"{_ts(0)},{_ts(hook_dur)}"
+    ev = []
     center_x = int(x) if x is not None else W // 2
-    x0, y0, r = center_x - bw / 2, y - bh / 2, min(cfg["radius"], bh / 2)
+
+    # Viral Floating styles without background box
+    if cfg.get("no_box"):
+        outline = cfg.get("outline", 7)
+        shadow = cfg.get("shadow", 4)
+        hl_col = cfg.get("highlight", "00E5FF")
+        for i, raw_line in enumerate(lines_raw):
+            cy = y - line_h * (len(lines_raw) - 1) / 2 + i * line_h - f.cap_shift(size)
+            formatted = _format_hook_line_no_box(raw_line, cfg["ink"], hl_col, highlight_words=highlight)
+            ev.append(f"Dialogue: 4,{span},Hook,,0,0,0,,{{\\an5\\pos({center_x},{cy:.0f})\\fad(0,350)\\fs{size}\\c&H{cfg['ink']}&\\bord{outline}\\3c&H000000&\\shad{shadow}\\4c&H000000&\\fscx88\\fscy88\\t(0,180,\\fscx100\\fscy100)}}{formatted}")
+        return ev
+
+    pad_x = cfg.get("pad_x", 42)
+    pad_y = cfg.get("pad_y", 24)
+    radius = cfg.get("radius", 28)
+    bw, bh = widest + 2 * pad_x, line_h * len(lines_clean) + 2 * pad_y
+    x0, y0, r = center_x - bw / 2, y - bh / 2, min(radius, bh / 2)
     x1, y1 = x0 + bw, y0 + bh
     n = lambda v: f"{v:.0f}"                                                         # noqa: E731
     box = (f"m {n(x0 + r)} {n(y0)} l {n(x1 - r)} {n(y0)} b {n(x1)} {n(y0)} {n(x1)} {n(y0)} {n(x1)} {n(y0 + r)} "
@@ -216,9 +280,6 @@ def _hook_events(hook, dur, y, style_name="bounce", hook_style=None, max_w=None,
            f"l {n(x0 + r)} {n(y1)} b {n(x0)} {n(y1)} {n(x0)} {n(y1)} {n(x0)} {n(y1 - r)} "
            f"l {n(x0)} {n(y0 + r)} b {n(x0)} {n(y0)} {n(x0)} {n(y0)} {n(x0 + r)} {n(y0)}")
     # Hook banner is shown at the start of the video for a few seconds to grab attention, with pop-in and smooth fadeout
-    hook_dur = min(3.8, max(2.5, dur * 0.35))
-    span = f"{_ts(0)},{_ts(hook_dur)}"
-    ev = []
     # Layer 1: Soft diffused 3D Drop Shadow
     ev.append(f"Dialogue: 1,{span},Hook,,0,0,0,,{{\\an7\\pos(0,12)\\fad(0,350)\\c&H000000&\\alpha&HA0&\\blur16\\fscx88\\fscy88\\t(0,180,\\fscx100\\fscy100)\\p1}}{box}{{\\p0}}")
     # Layer 2: Sleek contrast / neon accent border
@@ -228,8 +289,8 @@ def _hook_events(hook, dur, y, style_name="bounce", hook_style=None, max_w=None,
     # Layer 3: Solid box
     ev.append(f"Dialogue: 3,{span},Hook,,0,0,0,,{{\\an7\\pos(0,0)\\fad(0,350)\\c&H{cfg['box']}&\\fscx88\\fscy88\\t(0,180,\\fscx100\\fscy100)\\p1}}{box}{{\\p0}}")
     # Layer 4: Punchy text
-    for i, line in enumerate(lines):
-        cy = y - line_h * (len(lines) - 1) / 2 + i * line_h - f.cap_shift(size)
+    for i, line in enumerate(lines_clean):
+        cy = y - line_h * (len(lines_clean) - 1) / 2 + i * line_h - f.cap_shift(size)
         ev.append(f"Dialogue: 4,{span},Hook,,0,0,0,,{{\\an5\\pos({center_x},{cy:.0f})\\fad(0,350)\\fs{size}\\c&H{cfg['ink']}&\\fscx88\\fscy88\\t(0,180,\\fscx100\\fscy100)}}{line}")
     return ev
 
@@ -309,7 +370,7 @@ Style: Outro,Anton,80,&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000,0,0,0,0,100,10
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 """
     dur = end - start
-    ev = _hook_events(_clean(hook), dur, hook_y, style_name, hook_style, max_w=hook_w, font_size=hook_font_size, x=hook_x)
+    ev = _hook_events(_clean(hook), dur, hook_y, style_name, hook_style, max_w=hook_w, font_size=hook_font_size, x=hook_x, highlight=strong)
     if outro_cta and dur >= 5.0:
         ev.extend(_outro_events(dur, outro_text, y=1680))
     f = _Font.get(st["font"])

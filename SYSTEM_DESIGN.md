@@ -305,6 +305,21 @@ Integrated directly in `studio/brain.py` and `studio/posting.py`:
    - Real-time sliders in Visual Layout Studio for vertical placement (`hook_y`), width (`hook_w`), font size, and badge theme.
    - Real-time 9:16 phone mockup canvas renders the exact Hook Banner pill with drop shadow, border, and title text, alongside live sample bouncy subtitles.
 
+---
+
+## 21. Viral Floating Hook Banners without Box, AI Viral Hooks Generation & Active Model Tracking
+1. **Viral Floating Headline Styles (`viral_yellow` & `viral_cyan`)**:
+   - Replicates viral TikTok / Shorts headline formatting without distracting background boxes.
+   - Heavy typography in Archivo Black, 7px solid black outline stroke (`\bord7\3c&H000000&`), and 4px 3D drop shadow (`\shad4\4c&H000000&`).
+   - Keyword punch highlighting: automatically extracts the most salient non-stopword or words marked with `*word*` and paints them in vibrant canary yellow (`#FFE500` / `&H00E5FF&`) or neon cyan (`#00F0FF`), while surrounding words remain pure white (`#FFFFFF`).
+2. **AI Viral Hooks Generator Engine (`studio/brain.py`, `studio/server.py`)**:
+   - `brain.generate_viral_hooks(text, title, uploader, game, count=5)` uses structured JSON generation with Gemini to produce 5 viral headline options under 4–7 words with emojis and asterisk keyword markers.
+   - `POST /api/jobs/{jid}/clips/{cid}/hooks` provides immediate 1-click generation from the Clip Editor dialog.
+3. **Active Model Indicator & Verification**:
+   - Model switching verification: eliminated deprecated Gemini models (`gemini-2.0-flash`, `gemini-2.5-flash`) that triggered HTTP 404 and silent fallback.
+   - Verified active models: `gemini-3.5-flash-lite`, `gemini-flash-lite-latest`, `gemini-3-flash-preview`, `gemini-3.8-flash`.
+   - Real-time active model tracking (`ai.last_active_model()`) shown in Live Stream stats, decisions header, and verdict tags.
+
 
 
 

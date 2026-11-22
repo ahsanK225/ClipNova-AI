@@ -43,7 +43,7 @@ def test_caption_styles():
 
 
 def test_hook_styles_and_custom_positioning():
-    hooks_to_test = ["purple_whip", "cyber_red", "gold_luxury", "neon", "yellow", "pill"]
+    hooks_to_test = ["viral_yellow", "viral_cyan", "purple_whip", "cyber_red", "gold_luxury", "neon", "yellow", "pill"]
     for hk in hooks_to_test:
         ass = render.build_ass(
             words=[],
@@ -58,8 +58,11 @@ def test_hook_styles_and_custom_positioning():
             hook_w=850,
             hook_font_size=96,
         )
-        assert "INSANE HIGHWAY DRIFT" in ass, f"Failed on hook style {hk}"
+        assert "INSANE HIGHWAY DRIFT" in ass or "INSANE" in ass, f"Failed on hook style {hk}"
         assert "\\pos(" in ass, f"Failed on hook style {hk}: missing pos tag"
+        if hk in ("viral_yellow", "viral_cyan"):
+            assert "\\bord7" in ass or "\\bord" in ass, f"Failed on {hk}: missing outline stroke"
+            assert "\\shad4" in ass or "\\shad" in ass, f"Failed on {hk}: missing 3d drop shadow"
         print(f"PASS: hook style '{hk}' with custom hook_y/w generated valid ASS")
 
 

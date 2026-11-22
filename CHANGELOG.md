@@ -1,6 +1,35 @@
 ﻿# Changelog
 All notable project changes are documented here.
 
+## [2026-11-22] — Viral Floating Hook Banners, AI Viral Hooks Generator, Active Model Audit & Compact Studio Panel Redesign
+
+### Added & Improved
+- **Viral Floating Hook Banners without Background Box (`studio/render.py`, `web/index.html`)**:
+  - Replicated viral TikTok & YouTube Shorts headline format (`viral_yellow` & `viral_cyan`) featuring high-contrast Archivo Black typography, deep 7px solid black outline stroke (`\bord7\3c&H000000&`), and 4px 3D drop shadow (`\shad4\4c&H000000&`) without clumsy background boxes.
+  - Implemented dynamic inline color highlighting (`_format_hook_line_no_box`): automatically highlights the key punch word (or words explicitly wrapped in asterisks like `*influencers*`) in vibrant canary yellow (`#FFE500` / `&H00E5FF&`) or radiant neon cyan (`#00F0FF`), keeping surrounding text in crisp white (`#FFFFFF`).
+  - Added `viral_yellow` and `viral_cyan` options across Creator Settings, Clip Editor dialog, and Visual Layout Studio.
+  - Updated Visual Layout Studio Canvas phone preview to render floating text with yellow punch highlight.
+- **AI Viral Hooks Generator (`studio/brain.py`, `studio/server.py`, `web/index.html`)**:
+  - Implemented `brain.generate_viral_hooks(text, title, uploader, game, count=5)` utilizing Google Gemini structured schema to generate 5 punchy, viral headline hook banner options (with asterisk keyword highlighting).
+  - Added new REST API endpoint `POST /api/jobs/{jid}/clips/{cid}/hooks` with throttling and creator context tracking.
+  - Added `✨ AI Viral Hooks` button in the Clip Editor dialog right above the hook input, enabling 1-click generation and instant clickable pill selection.
+- **Active AI Model Indicator & Model Switch Audit (`studio/ai.py`, `studio/live.py`, `studio/usage.py`, `web/index.html`)**:
+  - Diagnosed and resolved the root cause of the model switching issue: Google AI had deprecated `gemini-2.0-flash`, `gemini-2.5-flash`, and `gemini-2.5-flash-lite` (returning `HTTP 404: model no longer available to new users`), which previously caused `brain.py` to silently fall back to `gemini-3.5-flash-lite`.
+  - Updated Gemini model catalog and fallback lists to exclusively offer verified, active models (`gemini-3.5-flash-lite`, `gemini-flash-lite-latest`, `gemini-3-flash-preview`, `gemini-3.8-flash`).
+  - Added real-time active model tracking (`ai.last_active_model()`) displayed prominently in the Live Stream card stats row (`Active AI Model`), in the `Latest AI decisions` card header, and inline with each AI decision verdict.
+- **Clip Editor Right Panel Clean Redesign (`web/index.html`)**:
+  - Completely redesigned the bloated, overly long clip editor panel into structured, compact Cyber Obsidian cards:
+    - **Card 1 (Viral Hook & Captions)**: Hook input, `✨ AI Viral Hooks` button, clickable pills, Hook Style and Caption Style dropdowns, and caption/outro toggle switches.
+    - **Card 2 (Visual Layout & Studio)**: Compact side-by-side layout preview (52x92), Layout & Webcam Position dropdowns, Custom Studio and Compare buttons, and Creator Preset chips.
+    - **Card 3 (Advanced Timing & Sync)**: Collapsible `<details>` section housing Voice Sync (Audio Delay), Webcam Sync (Facecam Delay), Start/End trim numbers, Outro text, and visual framing sliders (facecam vertical shift, game crop shift, zoom).
+    - **Card 4 (SEO & Publishing)**: Compact title, description, tags, YouTube Shorts SEO, and action buttons.
+  - Reduced vertical height by ~45%, eliminating scroll fatigue while keeping all advanced controls 1-click away.
+
+### Tests & Verification
+- Unit and integration tests in `tests/test_capcut_and_styles.py` executed and passed 100% across all 8 hook styles and all caption styles.
+- FFmpeg real video frame rendering on `clip014.mp4` verified with `viral_yellow_preview.png`.
+- Full end-to-end verification script `tools/verify_all.py` executed successfully.
+
 ## [2026-11-22] — Smart Clip Badges (AI vs Keyword Trigger vs Manual) & Explorer File Highlight Fix
 
 ### Added & Improved
