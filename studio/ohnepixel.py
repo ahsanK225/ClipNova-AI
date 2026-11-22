@@ -484,6 +484,7 @@ def evaluate_keyword_fallback(
             "priority": "SKIP",
             "reason": cls["skip_reason"] or "Mundane moment",
             "matches": cls["matches"],
+            "breakdown": {"keyword": cls["score"], "reaction": 0, "visual": 0},
         }
 
     tier = cls["tier"]
@@ -508,6 +509,7 @@ def evaluate_keyword_fallback(
                 "priority": "SKIP",
                 "reason": "Community expression without reaction spike or chat excitement",
                 "matches": cls["matches"],
+                "breakdown": {"keyword": score, "reaction": int(audio_zscore * 8), "visual": 0},
             }
         score = max(70, min(90, score + int(audio_zscore * 8)))
         reason = f"Community phrase with reaction spike: {', '.join(cls['level2_matches'][:2])}"
@@ -521,6 +523,7 @@ def evaluate_keyword_fallback(
             "priority": "SKIP",
             "reason": "Common words require AI multimodal verification",
             "matches": cls["matches"],
+            "breakdown": {"keyword": score, "reaction": 0, "visual": 0},
         }
 
     priority = "HIGH PRIORITY" if score >= 75 else ("REVIEW QUEUE" if score >= 60 else "SKIP")
@@ -532,4 +535,5 @@ def evaluate_keyword_fallback(
         "priority": priority,
         "reason": reason,
         "matches": cls["matches"],
+        "breakdown": {"keyword": score, "reaction": int(audio_zscore * 8), "visual": 0},
     }

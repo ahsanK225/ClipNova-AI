@@ -3636,11 +3636,22 @@ function drawClipDlg(full) {
           const autoSeoTitle = (c.seo_title && c.seo_title.trim()) || (autoTitle.includes("#Shorts") ? autoTitle : `${autoTitle} #Shorts`);
           const autoTags = (c.seo_tags && c.seo_tags.length) ? c.seo_tags.join(", ") : `${streamer.toLowerCase()}, ${gname.toLowerCase()}, ${gname.toLowerCase()} gameplay, viral gaming, shorts, gaming, funny moments`;
           const autoComment = (c.pinned_comment && c.pinned_comment.trim()) || `Would you have survived this? 😂 Drop your thoughts below! 👇`;
+
+          const cleanBase = (c.title && c.title.trim()) ? c.title.replace(/#.*$/, '').trim() : `${streamer} ${gname} Insane Moment!`;
+          const fallbackTitles = [
+            autoTitle,
+            `${cleanBase}! 😂 #Shorts`,
+            `${streamer} Loses It in ${gname}! 💀 #Shorts`,
+            `What Just Happened in ${gname}?! 😱 #Shorts`,
+            `Would You Have Survived This in ${gname}?! 🔥 #Shorts`
+          ];
+          const titleList = (Array.isArray(c.titles) && c.titles.length) ? c.titles : fallbackTitles.slice(0, 4);
+
           return `<label class="f">Title (with Viral Hashtags)<input data-f="title" value="${esc(autoTitle)}"></label>
-          <div id="dlg_title_pills" style="display:flex;flex-wrap:wrap;gap:6px;margin:-6px 0 10px 0">
-            ${(c.titles || []).map((t, i) => `
-              <button type="button" class="btn sm title-pill-btn" data-act="pick_title" data-title="${esc(t)}" title="Click to use this title" style="font-size:10px;padding:2px 8px;font-weight:600;background:var(--bg-2);border:1px solid ${autoTitle === t ? 'var(--accent, #00f0ff)' : 'var(--line)'};border-radius:12px;color:${autoTitle === t ? 'var(--accent, #00f0ff)' : 'var(--text)'};cursor:pointer">
-                Title #${i+1}: ${esc(t)}
+          <div id="dlg_title_pills" style="display:flex;flex-wrap:wrap;gap:6px;margin:-4px 0 10px 0">
+            ${titleList.map((t, i) => `
+              <button type="button" class="btn sm title-pill-btn" data-act="pick_title" data-title="${esc(t)}" title="Click to use this title" style="font-size:10px;padding:3px 9px;font-weight:600;background:var(--bg-2);border:1px solid ${autoTitle === t ? 'var(--accent, #00f0ff)' : 'var(--line)'};border-radius:12px;color:${autoTitle === t ? 'var(--accent, #00f0ff)' : 'var(--text)'};cursor:pointer">
+                💡 Title #${i+1}: ${esc(t)}
               </button>
             `).join("")}
           </div>
@@ -3657,7 +3668,22 @@ function drawClipDlg(full) {
                 <button type="button" class="btn sm" data-act="copyseo" data-j="${j.id}" data-c="${esc(c.id)}" style="font-size:11px;padding:3px 8px">${ic("copy")}Copy SEO</button>
               </div>
             </div>
-            <label class="f" style="margin-bottom:8px">Shorts Title (High-CTR with #Shorts)<input data-f="seo_title" value="${esc(autoSeoTitle)}"></label>
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+              <label class="f" style="margin-bottom:0;font-size:11px;font-weight:600">Shorts Title (High-CTR with #Shorts)</label>
+              <button type="button" class="btn sm" data-act="ai_generate_titles" id="btn_ai_titles" style="background:linear-gradient(135deg,#06b6d4,#3b82f6);color:#fff;border:none;font-weight:700;font-size:10px;padding:2px 8px;border-radius:12px;cursor:pointer;display:inline-flex;align-items:center;gap:4px">
+                <span>✨</span> AI Title Ideas
+              </button>
+            </div>
+            <label class="f" style="margin-bottom:6px"><input data-f="seo_title" value="${esc(autoSeoTitle)}"></label>
+            <div id="dlg_seo_title_pills" style="display:flex;flex-wrap:wrap;gap:6px;margin:0 0 10px 0">
+              ${titleList.map((t, i) => {
+                const sTitle = t.includes("#Shorts") ? t : `${t} #Shorts`;
+                return `
+                <button type="button" class="btn sm seo-title-pill-btn" data-act="pick_title" data-title="${esc(sTitle)}" title="Click to use this SEO title" style="font-size:10px;padding:3px 9px;font-weight:600;background:var(--bg-2);border:1px solid ${autoSeoTitle === sTitle ? 'var(--accent, #00f0ff)' : 'var(--line)'};border-radius:12px;color:${autoSeoTitle === sTitle ? 'var(--accent, #00f0ff)' : 'var(--text)'};cursor:pointer">
+                  💡 Title #${i+1}: ${esc(sTitle)}
+                </button>
+              `}).join("")}
+            </div>
             <label class="f" style="margin-bottom:8px">YouTube Search Tags (for Studio Tags)<input data-f="seo_tags" value="${esc(autoTags)}"></label>
             <label class="f" style="margin-bottom:0">Pinned Comment Hook<input data-f="pinned_comment" value="${esc(autoComment)}"></label>
           </div>`;
@@ -5934,13 +5960,61 @@ document.addEventListener("click", async e => {
       const titleIn = $("#clipdlg [data-f='title']");
       const seoIn = $("#clipdlg [data-f='seo_title']");
       if (titleIn && t) titleIn.value = t;
-      if (seoIn && t) seoIn.value = t;
-      $$(".title-pill-btn").forEach(btn => {
-        const match = (btn.dataset.title === t);
+      const seoT = t.includes("#Shorts") ? t : `${t} #Shorts`;
+      if (seoIn && t) seoIn.value = seoT;
+      $$(".title-pill-btn, .seo-title-pill-btn").forEach(btn => {
+        const match = (btn.dataset.title === t || btn.dataset.title === seoT);
         btn.style.border = match ? "1px solid var(--accent, #00f0ff)" : "1px solid var(--line)";
         btn.style.color = match ? "var(--accent, #00f0ff)" : "var(--text)";
       });
       toast(`Title set: ${t}`, "ok");
+      return;
+    }
+    if (a === "ai_generate_titles") {
+      const btn = b;
+      const jid = D.jid || (jobOf(D.jid)?.id);
+      const cid = D.cid;
+      if (!jid || !cid) return toast("No clip selected", "bad");
+      const origHtml = btn.innerHTML;
+      btn.disabled = true;
+      btn.innerHTML = `<span>⏳</span> Generating…`;
+      toast("AI is creating 4 viral title suggestions…", "ok");
+      try {
+        const res = await send(`/api/jobs/${encodeURIComponent(jid)}/clips/${encodeURIComponent(cid)}/titles`, {});
+        if (res && res.titles && res.titles.length) {
+          const j = jobOf(jid);
+          const c = j?.clips.find(x => x.id === cid);
+          if (c) {
+            c.titles = res.titles;
+            if (res.title) c.title = res.title;
+          }
+          const tIn = $("#clipdlg [data-f='title']");
+          const sIn = $("#clipdlg [data-f='seo_title']");
+          if (tIn && res.titles[0]) tIn.value = res.titles[0];
+          const firstSeo = res.titles[0].includes("#Shorts") ? res.titles[0] : `${res.titles[0]} #Shorts`;
+          if (sIn && res.titles[0]) sIn.value = firstSeo;
+
+          const renderTitleBtns = (cls, activeVal) => res.titles.map((t, i) => {
+            const cur = cls.includes("seo") ? (t.includes("#Shorts") ? t : `${t} #Shorts`) : t;
+            const isMatch = (i === 0);
+            return `
+              <button type="button" class="btn sm ${cls}" data-act="pick_title" data-title="${esc(cur)}" title="Click to use this title" style="font-size:10px;padding:3px 9px;font-weight:600;background:var(--bg-2);border:1px solid ${isMatch ? 'var(--accent, #00f0ff)' : 'var(--line)'};border-radius:12px;color:${isMatch ? 'var(--accent, #00f0ff)' : 'var(--text)'};cursor:pointer">
+                💡 Title #${i+1}: ${esc(cur)}
+              </button>
+            `;
+          }).join("");
+          const titlePills = $("#dlg_title_pills");
+          const seoTitlePills = $("#dlg_seo_title_pills");
+          if (titlePills) titlePills.innerHTML = renderTitleBtns("title-pill-btn", res.titles[0]);
+          if (seoTitlePills) seoTitlePills.innerHTML = renderTitleBtns("seo-title-pill-btn", firstSeo);
+          toast("✨ 4 fresh viral titles generated!", "ok");
+        }
+      } catch (err) {
+        toast("Failed to generate titles: " + err.message, "bad");
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = origHtml;
+      }
       return;
     }
     if (a === "copyseo") {
@@ -6005,12 +6079,19 @@ document.addEventListener("click", async e => {
             `).join("");
           }
           const titlePills = $("#dlg_title_pills");
-          if (titlePills && c.titles && c.titles.length) {
-            titlePills.innerHTML = c.titles.map((t, i) => `
-              <button type="button" class="btn sm title-pill-btn" data-act="pick_title" data-title="${esc(t)}" title="Click to use this title" style="font-size:10px;padding:2px 8px;font-weight:600;background:var(--bg-2);border:1px solid ${c.title === t ? 'var(--accent, #00f0ff)' : 'var(--line)'};border-radius:12px;color:${c.title === t ? 'var(--accent, #00f0ff)' : 'var(--text)'};cursor:pointer">
-                Title #${i+1}: ${esc(t)}
-              </button>
-            `).join("");
+          const seoTitlePills = $("#dlg_seo_title_pills");
+          if (c.titles && c.titles.length) {
+            const renderTitleBtns = (cls, activeVal) => c.titles.map((t, i) => {
+              const cur = cls.includes("seo") ? (t.includes("#Shorts") ? t : `${t} #Shorts`) : t;
+              const isMatch = (activeVal === cur || activeVal === t);
+              return `
+                <button type="button" class="btn sm ${cls}" data-act="pick_title" data-title="${esc(cur)}" title="Click to use this title" style="font-size:10px;padding:3px 9px;font-weight:600;background:var(--bg-2);border:1px solid ${isMatch ? 'var(--accent, #00f0ff)' : 'var(--line)'};border-radius:12px;color:${isMatch ? 'var(--accent, #00f0ff)' : 'var(--text)'};cursor:pointer">
+                  💡 Title #${i+1}: ${esc(cur)}
+                </button>
+              `;
+            }).join("");
+            if (titlePills) titlePills.innerHTML = renderTitleBtns("title-pill-btn", c.title);
+            if (seoTitlePills) seoTitlePills.innerHTML = renderTitleBtns("seo-title-pill-btn", c.seo_title || c.title);
           }
 
           const j = jobOf(jid);
@@ -6432,6 +6513,27 @@ HOOKS:
         const t = await send(`/api/jobs/${D.jid}/clips/${D.cid}/write`, {});
         const f = k => $(`#clipdlg [data-f="${k}"]`);
         f("title").value = t.title; f("description").value = t.description; f("hashtags").value = (t.hashtags || []).join(" ");
+        const seoIn = f("seo_title");
+        const seoT = t.seo_title || (t.title.includes("#Shorts") ? t.title : `${t.title} #Shorts`);
+        if (seoIn) seoIn.value = seoT;
+        if (t.titles && t.titles.length) {
+          const j = jobOf(D.jid);
+          const c = j?.clips.find(x => x.id === D.cid);
+          if (c) c.titles = t.titles;
+          const renderTitleBtns = (cls, activeVal) => t.titles.map((titleStr, i) => {
+            const cur = cls.includes("seo") ? (titleStr.includes("#Shorts") ? titleStr : `${titleStr} #Shorts`) : titleStr;
+            const isMatch = (activeVal === cur || activeVal === titleStr);
+            return `
+              <button type="button" class="btn sm ${cls}" data-act="pick_title" data-title="${esc(cur)}" title="Click to use this title" style="font-size:10px;padding:3px 9px;font-weight:600;background:var(--bg-2);border:1px solid ${isMatch ? 'var(--accent, #00f0ff)' : 'var(--line)'};border-radius:12px;color:${isMatch ? 'var(--accent, #00f0ff)' : 'var(--text)'};cursor:pointer">
+                💡 Title #${i+1}: ${esc(cur)}
+              </button>
+            `;
+          }).join("");
+          const titlePills = $("#dlg_title_pills");
+          const seoTitlePills = $("#dlg_seo_title_pills");
+          if (titlePills) titlePills.innerHTML = renderTitleBtns("title-pill-btn", t.title);
+          if (seoTitlePills) seoTitlePills.innerHTML = renderTitleBtns("seo-title-pill-btn", seoT);
+        }
         return toast("New post text written. Read it over: it is saved when you post.", "ok");
       } finally { b.disabled = false; b.textContent = was; }
     }

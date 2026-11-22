@@ -41,7 +41,7 @@ def main(data):
         # ---- the AI's answer, in each shape services send it
         with patch.object(brain, "ask_ai", return_value=([GOOD], "m", 10)) as ai:
             t = brain.post_text(SAID)
-            check("the AI's answer becomes a title, description and hashtags", set(t) == {"title", "description", "hashtags"}
+            check("the AI's answer becomes a title, description and hashtags", {"title", "description", "hashtags"}.issubset(set(t))
                   and t["title"] == "The shot nobody expected")
             check("links and @handles never reach the post text", "example.com" not in t["description"] and "@" not in t["description"])
             check("hashtags come back as plain words", t["hashtags"] == ["gaming", "clutchshot", "fps"])

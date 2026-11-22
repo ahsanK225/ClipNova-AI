@@ -1,6 +1,44 @@
 ﻿# Changelog
 All notable project changes are documented here.
 
+## [2026-11-23] — Multi-Title SEO Suggestions & Interactive Title Pill Selection in Clip Editor
+
+### Added
+- **Multi-Title AI Suggestions & Interactive Clickable Pills (`studio/brain.py`, `studio/server.py`, `web/index.html`)**:
+  - Restored and enhanced creator-favorite feature where AI suggests 3-4 alternative high-CTR YouTube Shorts titles for every clip.
+  - In `#clipdlg` Clip Editor:
+    - Under **Title (with Viral Hashtags)**: Added `#dlg_title_pills` rendering 3-4 clickable title suggestion pills (`💡 Title #1: ...`, `💡 Title #2: ...`, `💡 Title #3: ...`, `💡 Title #4: ...`).
+    - Under **AI SEO - YouTube Shorts SEO**: Added `#dlg_seo_title_pills` rendering 3-4 clickable Shorts title pills directly beneath `Shorts Title (High-CTR with #Shorts)`.
+    - Added shiny `✨ AI Title Ideas` button (`btn_ai_titles`) next to Shorts Title to generate 4 fresh title variations on demand.
+  - **Synchronized Pill Click Handler (`pick_title`)**:
+    - Clicking any title pill instantly populates BOTH the `Title (with Viral Hashtags)` input and the `Shorts Title (High-CTR with #Shorts)` input.
+    - Synchronously highlights the clicked title pill across both sections with the active neon cyan accent border and glow (`1px solid var(--accent, #00f0ff)`).
+  - **Dynamic AI Generation & Fallback Pipeline (`studio/brain.py`)**:
+    - Added `TITLES_SCHEMA` and `generate_viral_titles(text, title, uploader, game, count=4)` generating 4 distinct viral titles ending with `#Shorts` and fitting emojis.
+    - Updated `_tidy` to guarantee every clip retains and generates a 4-title array (`titles: [...]`), ensuring pills are never empty even if video dialogue is minimal.
+    - Updated `post_text` to return `titles` array alongside `title`, `description`, `hashtags`, `seo_title`, `seo_tags`, and `pinned_comment`.
+    - Updated `describe_multimodal` to generate 4 titles.
+  - **New REST API Endpoint (`studio/server.py`)**:
+    - Added `@app.get("/api/jobs/{jid}/clips/{cid}/titles")` and `@app.post("/api/jobs/{jid}/clips/{cid}/titles")` calling `clip_generate_titles(jid, cid)`.
+    - Updated `clip_write` to persist `clip["titles"]` and return it.
+    - Updated `generate_clip_ai_seo` to ensure 4 title variations are returned and saved.
+  - **Live UI Dynamic Refresh (`web/index.html`)**:
+    - `writetext` ("Write again with AI") dynamically populates both `#dlg_title_pills` and `#dlg_seo_title_pills`.
+    - `re_ai_seo` ("✨ AI Scan Video & Fix SEO") dynamically populates both `#dlg_title_pills` and `#dlg_seo_title_pills`.
+    - `ai_generate_titles` ("✨ AI Title Ideas") fetches 4 fresh titles and immediately updates inputs and pills.
+
+### Tests and Verification
+- Created `tests/test_seo_title_suggestions.py` covering:
+  - `generate_viral_titles` fallback generation (4 titles ending with #Shorts)
+  - `_tidy` 4-title and hook preservation
+  - `post_text` returning `titles` array
+  - `/api/jobs/{jid}/clips/{cid}/titles` endpoint execution and clip persistence
+  - `web/index.html` presence of `#dlg_title_pills`, `#dlg_seo_title_pills`, and event handlers.
+  - Result: 5/5 tests passed (0.016s).
+- Ran existing project test suite `test_post_text.py` (35 checks passed), `test_origins_chat_teaser.py` (4/4 passed), and `test_seo.py` (17 checks passed).
+- Node.js JavaScript syntax check on `web/index.html`: 2/2 script blocks passed with zero syntax errors.
+- Live server daemon restarted on port 8765: HTTP 200 OK.
+
 ## [2026-11-23] — Explicit Clip Origin Badges, Twitch Live Chat Window & Viral Climax Teaser Cold Open
 
 ### Added

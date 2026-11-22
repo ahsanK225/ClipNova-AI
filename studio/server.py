@@ -1155,12 +1155,38 @@ def clip_write(jid: str, cid: str):
     _throttle("clipwrite:" + ctx.uid(), 20, 600, "That's a lot of rewrites in a short time. Wait a few minutes.")
     usage.set_context(job.get("creator"), job.get("title") or "")
     try:
-        return brain.post_text(jobs.spoken_in(job, clip), job.get("title") or "", job.get("uploader") or "",
+        res = brain.post_text(jobs.spoken_in(job, clip), job.get("title") or "", job.get("uploader") or "",
                                game=job.get("game") or None)
+        if isinstance(res, dict) and res.get("titles"):
+            clip["titles"] = res["titles"]
+            jobs.save(job)
+        return res
     except ValueError as e:
         raise HTTPException(400, str(e))
     except RuntimeError as e:
         raise HTTPException(503, str(e))
+
+
+@app.get("/api/jobs/{jid}/clips/{cid}/titles")
+@app.post("/api/jobs/{jid}/clips/{cid}/titles")
+def clip_generate_titles(jid: str, cid: str):
+    """Generate 4 viral, high-CTR YouTube Shorts title suggestions using AI."""
+    job, clip = _clip_or_404(jid, cid)
+    _throttle("cliptitles:" + ctx.uid(), 30, 600, "Please wait a moment before generating more titles.")
+    usage.set_context(job.get("creator"), job.get("title") or "")
+    try:
+        text = jobs.spoken_in(job, clip)
+        title = job.get("title") or clip.get("title") or ""
+        uploader = job.get("uploader") or job.get("creator") or ""
+        game = job.get("game") or None
+        titles = brain.generate_viral_titles(text, title, uploader, game=game, count=4)
+        clip["titles"] = titles
+        if titles and not clip.get("title"):
+            clip["title"] = titles[0]
+        jobs.save(job)
+        return {"ok": True, "titles": titles, "title": clip.get("title")}
+    except Exception as e:
+        raise HTTPException(500, f"Failed to generate viral titles: {e}")
 
 
 @app.get("/api/jobs/{jid}/clips/{cid}/hooks")
@@ -1320,6 +1346,17 @@ def generate_clip_ai_seo(jid: str, cid: str, body: dict = Body(default={})):
             pass
     if not meta or not meta.get("hook"):
         raise HTTPException(500, "Could not generate AI SEO for this clip. Check your AI API key in Settings.")
+    titles = meta.get("titles") or []
+    if not titles or len(titles) < 3:
+        try:
+            titles = brain.generate_viral_titles(clip_text or job.get("title", ""),
+                                                 title=job.get("title", ""),
+                                                 uploader=streamer_name,
+                                                 game=job.get("game"),
+                                                 count=4)
+        except Exception:
+            titles = [meta["title"]]
+    meta["titles"] = titles
     clip.update({
         "hook": meta["hook"],
         "hooks": meta.get("hooks", []),

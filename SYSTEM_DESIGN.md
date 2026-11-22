@@ -134,6 +134,11 @@ Integrated directly in `studio/brain.py` and `studio/posting.py`:
   - Allows creators to re-scan any clip's visual frame with AI via `POST /api/jobs/{jid}/clips/{cid}/ai_seo`.
   - Instantly populates and refreshes Hook, Title, Description, YouTube search tags, and Pinned comment in the editor dialog.
   - Re-burning the hook is executed seamlessly via "Save and re-make clip".
+- **Multi-Title AI Suggestions & Interactive Clickable Pills (`brain.py`, `server.py`, `web/index.html`)**:
+  - AI generates 4 distinct, high-CTR YouTube Shorts titles ending with `#Shorts` and fitting emojis via `generate_viral_titles()`.
+  - In `#clipdlg`, both `Title (with Viral Hashtags)` and `Shorts Title (High-CTR with #Shorts)` feature `#dlg_title_pills` and `#dlg_seo_title_pills` containers displaying clickable title suggestion pills (`💡 Title #1`, `💡 Title #2`, `💡 Title #3`, `💡 Title #4`).
+  - Added dedicated `✨ AI Title Ideas` button (`btn_ai_titles`) calling `/api/jobs/{jid}/clips/{cid}/titles` for on-demand title generation.
+  - Clicking any suggested pill updates both title inputs simultaneously and applies a glowing cyan accent border to the active pill across both containers.
 - **5-Line Story "Khulasa"**: Contextual story summary of the specific comedic/action moment (actor, unexpected twist, escalation, streamer reaction, community question).
 - **High-CTR Title**: Curiosity-gap title capped with `#Shorts`.
 - **Top Discussion Pinned Comment**: Provocative prompt posted as top comment to drive algorithm engagement and comments.

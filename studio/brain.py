@@ -21,7 +21,9 @@ SCHEMA = {
             "score": {"type": "INTEGER"},
             "category": {"type": "STRING"},
             "hook": {"type": "STRING"},
+            "hooks": {"type": "ARRAY", "items": {"type": "STRING"}},
             "title": {"type": "STRING"},
+            "titles": {"type": "ARRAY", "items": {"type": "STRING"}},
             "description": {"type": "STRING"},
             "hashtags": {"type": "ARRAY", "items": {"type": "STRING"}},
             "seo_title": {"type": "STRING"},
@@ -248,10 +250,53 @@ def _tidy(c, s, e, game=None):
         }
         pinned_comment = engagements.get(cat, f"Would you have survived this in {gname}? 😂 Let me know in the comments! 👇")
 
+    # High-CTR alternative titles array (4 clickable options)
+    raw_titles = c.get("titles") or []
+    titles = [roman.to_roman(_text(t, 100)) for t in raw_titles if isinstance(t, str) and t.strip()]
+    if title_clean:
+        t_short = title_clean if "#shorts" in title_clean.lower() else f"{title_clean} #Shorts"
+        if t_short not in titles:
+            titles.insert(0, t_short)
+    if seo_title and seo_title not in titles:
+        titles.append(seo_title)
+    up_first = re.sub(r"\W", " ", title_clean.split()[0] if title_clean else "Streamer").strip() or "Streamer"
+    clean_t = re.sub(r"#.*$", "", title_clean).strip()
+    fallbacks = [
+        f"{clean_t}! 😂 #Shorts",
+        f"{up_first} Loses It in {gname}! 💀 #Shorts",
+        f"What Did {up_first} Just Do in {gname}?! 😱 #Shorts",
+        f"Would You Have Survived This in {gname}?! 🔥 #Shorts",
+    ]
+    for fb in fallbacks:
+        if len(titles) >= 4:
+            break
+        if fb not in titles and f"{fb} #Shorts" not in titles:
+            titles.append(fb)
+    titles = [t if "#shorts" in t.lower() else f"{t} #Shorts" for t in titles][:4]
+
+    raw_hooks = c.get("hooks") or []
+    hooks = [roman.to_roman(_text(h, 60)).upper() for h in raw_hooks if isinstance(h, str) and h.strip()]
+    if hook_clean and hook_clean not in hooks:
+        hooks.insert(0, hook_clean)
+    if len(hooks) < 3:
+        h_fallbacks = [
+            f"WAIT FOR THE REACTION 💀",
+            f"{up_first.upper()} LOST HIS MIND 😂",
+            f"WHAT DID HE DO?! 😱",
+            f"DID NOT EXPECT THIS 🚗💥",
+            f"BEST {gname.upper()} MOMENT 🔥",
+        ]
+        for hf in h_fallbacks:
+            if len(hooks) >= 5:
+                break
+            if hf not in hooks:
+                hooks.append(hf)
+
     return {
         "start": s, "end": e, "score": max(0, min(100, int(_num(c.get("score"))))),
         "category": cat if cat in CATEGORIES else "other",
-        "hook": hook_clean, "title": title_clean,
+        "hook": hook_clean, "hooks": hooks[:5],
+        "title": title_clean, "titles": titles,
         "description": desc_clean,
         "hashtags": [t for t in tags if t][:8],
         "highlight_words": [roman.to_roman(_text(h, 30)) for h in words][:8] if words else ["crazy", "moment", "watch"],
@@ -784,9 +829,22 @@ def describe_multimodal(image_bytes: bytes, text: str = "", title: str = "", upl
             if not hooks_list and data.get("hook"):
                 hooks_list = [str(data["hook"])[:60].upper()]
             raw_titles = data.get("titles") or []
-            titles_list = [str(t)[:100] for t in raw_titles if isinstance(t, str) and t.strip()][:3]
-            if not titles_list:
-                titles_list = [stitle]
+            titles_list = [str(t)[:100] for t in raw_titles if isinstance(t, str) and t.strip()][:4]
+            if stitle and stitle not in titles_list:
+                titles_list.insert(0, stitle)
+            if len(titles_list) < 4:
+                fallbacks = [
+                    f"{stitle.replace('#Shorts', '').strip()} #Shorts",
+                    f"{up} Loses It in {gname}! 💀 #Shorts",
+                    f"What Did {up} Just Do in {gname}?! 😱 #Shorts",
+                    f"Would You Have Survived This in {gname}?! 😂 #Shorts",
+                ]
+                for fb in fallbacks:
+                    if len(titles_list) >= 4:
+                        break
+                    if fb not in titles_list:
+                        titles_list.append(fb)
+            titles_list = titles_list[:4]
             best_hook = str(data.get("hook") or (hooks_list[1] if len(hooks_list) > 1 else hooks_list[0]))[:60].upper()
 
             out = {
@@ -822,7 +880,78 @@ def post_text(text, title="", uploader="", game=None):
     if not c or not (_text(c.get("title"), 100) or _text(c.get("description"), 300)):
         raise RuntimeError("The AI answered, but without a usable title or description. Try again.")
     c = _tidy(c, 0, 0, game)
-    return {k: c[k] for k in ("title", "description", "hashtags")}
+    titles = c.get("titles") or []
+    if not titles or len(titles) < 3:
+        try:
+            titles = generate_viral_titles(text, title=c.get("title") or title, uploader=uploader, game=game, count=4)
+        except Exception:
+            titles = [c["title"]]
+    c["titles"] = titles
+    return {
+        "title": c["title"],
+        "titles": titles,
+        "description": c["description"],
+        "hashtags": c["hashtags"],
+        "seo_title": c.get("seo_title", c["title"]),
+        "seo_tags": c.get("seo_tags", []),
+        "pinned_comment": c.get("pinned_comment", "")
+    }
+
+
+TITLES_SCHEMA = {
+    "type": "OBJECT",
+    "properties": {
+        "titles": {
+            "type": "ARRAY",
+            "items": {"type": "STRING"}
+        }
+    },
+    "required": ["titles"]
+}
+
+
+def generate_viral_titles(text, title="", uploader="", game=None, count=4) -> list[str]:
+    """Generates 4 high-CTR, viral YouTube Shorts title suggestions with emojis and #Shorts."""
+    t_clean = (text or "").strip()
+    gname = game if (game and game != "None") else "Gaming"
+    streamer_name = uploader or "Streamer"
+
+    prompt = f"""You are a master viral YouTube Shorts title writer for gaming clips.
+Create {count} distinct, click-worthy YouTube Shorts titles under 70 characters that end with #Shorts.
+
+Video Title: {title or 'Stream Highlight'}
+Streamer: {streamer_name}
+Game: {gname}
+Spoken in clip:
+{t_clean if t_clean else '(High action gameplay moment, minimal dialogue)'}
+
+Rules for high CTR Shorts titles:
+1. Make them punchy, funny, curious, or dramatic centering on {streamer_name} and the crazy event in {gname}.
+2. Title 1: Streamer funny reaction / shock (e.g. '{streamer_name} Loses It Driving This Purple Whip in {gname}! 💀 #Shorts')
+3. Title 2: Curiosity gap / mystery (e.g. 'What Did {streamer_name} Just Find in {gname}?! 😱 #Shorts')
+4. Title 3: Relatable question / challenge (e.g. 'Would You Have Survived This in {gname}?! 😂 #Shorts')
+5. Title 4: High energy spectacle / fail (e.g. '{streamer_name}'s Funniest {gname} Moment Ever! 🔥 #Shorts')
+6. Each title MUST end with #Shorts and include 1-2 emojis.
+7. Return JSON with key 'titles' containing exactly {count} distinct options."""
+
+    try:
+        out, _m, _u = ask_ai(prompt, schema=TITLES_SCHEMA, purpose="Clip: viral titles", timeout=12)
+        if isinstance(out, dict) and "titles" in out and isinstance(out["titles"], list):
+            res = [re.sub(r'["\\]', '', str(t)).strip() for t in out["titles"] if str(t).strip()]
+            res = [t if "#shorts" in t.lower() else f"{t} #Shorts" for t in res]
+            if len(res) >= 2:
+                return res[:count]
+    except Exception as e:
+        print(f"[brain] AI title generation notice: {e}", flush=True)
+
+    base = title or f"{streamer_name} {gname} Insane Moment"
+    clean_base = re.sub(r"#.*$", "", base).strip()
+    return [
+        f"{clean_base}! 😂 #Shorts",
+        f"{streamer_name} Lost His Mind in {gname}! 💀 #Shorts",
+        f"Did NOT Expect This to Happen in {gname}! 😱 #Shorts",
+        f"What Would You Do in This Situation?! 🔥 #Shorts",
+    ][:count]
 
 
 HOOKS_SCHEMA = {
