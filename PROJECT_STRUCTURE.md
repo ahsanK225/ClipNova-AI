@@ -88,6 +88,11 @@ F:\Games\GTA 6 CLIPPING\
 │   │   │   ├── layout-blur.jpg             # Original 16:9 + Ambient Blurred Video Background
 │   │   │   └── layout-zoom.jpg             # Zoomed 16:9 + Ambient Blurred Video Background
 │   │   └── index.html                      # UI dashboard with visual layout previews, multi-key pool & live player
+│   ├── tests/                              # Automated test suites
+│   │   ├── test_origins_chat_teaser.py     # Unit tests for clip origin badges, Twitch chat streaming & teaser cold open
+│   │   ├── test_trigger_timeline.py        # Unit tests for 12s pre-roll hook and 28s post-roll reaction
+│   │   ├── test_hook_single_yellow.py      # Unit tests for single punch keyword in hook banner
+│   │   └── test_capcut_and_styles.py       # Unit tests for CapCut export and bouncy caption styles
 │   ├── GAMING.md                           # Specification for gaming & GTA 6 workflows
 │   ├── requirements.txt                    # Pinned Python package dependencies
 │   └── .venv\                              # Python 3.11 isolated runtime environment

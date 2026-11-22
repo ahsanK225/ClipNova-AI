@@ -1,6 +1,39 @@
 ﻿# Changelog
 All notable project changes are documented here.
 
+## [2026-11-23] — Explicit Clip Origin Badges, Twitch Live Chat Window & Viral Climax Teaser Cold Open
+
+### Added
+- **Explicit Clip Origin Badges & Labels (`studio/live.py`, `web/index.html`)**:
+  - Eliminated ambiguity between manual button clips, keyword triggers, and real AI auto detections.
+  - **Manual Clips**: UI clicks on "Clip last 30s" / "Clip now" are strictly tagged with `source: 'manual'` and `trigger_type: 'manual'`, rendering as a prominent pink badge: `👆 MANUAL` (even if multimodal AI evaluates the score).
+  - **Keyword Trigger Clips**: Trigger phrases and reaction keywords are strictly tagged with `source: 'trigger'`, rendering as vibrant amber badges: `🎯 "Oh my god"`, `🎯 "Chat"`, `🎯 "Meme"` (the creator's preferred style).
+  - **Real AI Auto Detection**: Highlights detected automatically by AI are tagged with `source: 'ai_auto'` and rendered as `🤖 AI AUTO 96` / `🤖 AI AUTO 83`.
+- **Real-Time Twitch Live Chat Window / Feed (`studio/live.py`, `web/index.html`)**:
+  - Backend IRC bot parses incoming `PRIVMSG` stream messages, buffering latest clean user and text messages in `self.recent_chat_msgs`.
+  - Added dedicated `💬 Twitch Live Chat` meter component in the live recording dashboard matching the height of the AI decisions feed (190px).
+  - Displays real-time message stream with colored user badges, smooth auto-scroll, and a 1-click `Popout ↗` window option.
+- **Viral Climax Teaser Cold Open Hook Editor & Concat Pipeline (`studio/render.py`, `studio/jobs.py`, `web/index.html`)**:
+  - Implemented creator-requested Viral Teaser Cold Open: takes the funniest 3-5 seconds of reaction/punchline from the end of the video and prepends it at 0:00 as a teaser hook.
+  - In `#clipdlg` clip editor: added interactive "🎬 Viral Climax Teaser (Cold Open Hook)" control card with duration selector (3s, 4s, 5s) and `🎯 Use Current Video Playhead` button to grab the exact playhead position from preview.
+  - In `studio/render.py`: `build_ass` shifts transcript captions by `teaser_dur` and displays Hook Banner over the teaser cold open; `_render_in` uses ffmpeg filter concat to assemble the teaser and main video in a single 1080p60 pass with seamless audio.
+- **12-Hour AM/PM Time Format & Plain Human Headlines (`studio/live.py`, `web/index.html`)**:
+  - Saved `wall_t = time.time()` on every AI verdict in `studio/live.py`.
+  - Frontend formats timestamps into clean 12-hour AM/PM times (`02:12 PM`, `01:11 PM`, `11:08 AM`).
+  - Replaced developer debug jargon with plain creator headlines (Loud Voice / Shout, Chat Spike Surge, Target Pace Reached, Quiet Gameplay, Routine Conversation, Viral Highlight Clipped).
+
+### Tests and Verification
+- Created `tests/test_origins_chat_teaser.py` covering:
+  - Manual clip payload tagging (`source: manual`, `trigger_type: manual`)
+  - Twitch IRC PRIVMSG username and message extraction
+  - Teaser cold open ASS subtitle time shift and hook banner display
+  - Video filter `vin` parameter for concat filter
+  - Result: 4/4 tests passed (0.019s).
+- Ran existing project test suites: `test_trigger_timeline.py`, `test_hook_single_yellow.py`, `test_ohnepixel_engine.py`, `test_capcut_and_styles.py`. Result: 21/21 tests passed.
+- Node.js JavaScript syntax check on `web/index.html`: `All 2 script blocks 100% valid!`.
+- Server restarted on port 8765: HTTP 200 OK.
+
+
 ## [2026-11-23] — Unified Sleek Folded Stream Cards & Real Video Preview Fallback
 
 ### Changed & Improved

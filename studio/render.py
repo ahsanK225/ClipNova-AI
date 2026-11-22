@@ -266,7 +266,7 @@ def _format_hook_line_no_box(line: str, ink: str, highlight_col: str, highlight_
     return line
 
 
-def _hook_events(hook, dur, y, style_name="bounce", hook_style=None, max_w=None, font_size=None, x=None, highlight=None):
+def _hook_events(hook, dur, y, style_name="bounce", hook_style=None, max_w=None, font_size=None, x=None, highlight=None, teaser_dur=0.0):
     """The heading: high-CTR modern badge with 3D drop shadow, sleek border, and punchy pop-in entrance."""
     cfg = HOOK_STYLES.get(hook_style or "")
     if not cfg:
@@ -307,7 +307,10 @@ def _hook_events(hook, dur, y, style_name="bounce", hook_style=None, max_w=None,
         widest = max(f.width(l, size) for l in lines_clean)
     line_h = f.em(size) * 1.16
 
-    hook_dur = min(3.8, max(2.5, dur * 0.35))
+    if teaser_dur > 0:
+        hook_dur = max(teaser_dur + 0.5, 3.8)
+    else:
+        hook_dur = min(3.8, max(2.5, dur * 0.35))
     span = f"{_ts(0)},{_ts(hook_dur)}"
     ev = []
     center_x = int(x) if x is not None else W // 2
@@ -391,7 +394,7 @@ def _outro_events(dur: float, outro_text: str = "", y: int = 1500) -> list:
     return ev
 
 
-def build_ass(words, start, end, hook, style_name, highlight, hook_y, cap_y, hook_style=None, outro_cta=True, outro_text=None, hook_w=None, hook_font_size=None, hook_x=None) -> str:
+def build_ass(words, start, end, hook, style_name, highlight, hook_y, cap_y, hook_style=None, outro_cta=True, outro_text=None, hook_w=None, hook_font_size=None, hook_x=None, teaser_dur=0.0) -> str:
     st = STYLES.get(style_name, STYLES["bounce"])
     cfg = HOOK_STYLES.get(hook_style or "")
     if not cfg:
@@ -424,15 +427,16 @@ Style: Outro,Anton,80,&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000,0,0,0,0,100,10
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 """
-    dur = end - start
-    ev = _hook_events(_clean(hook), dur, hook_y, style_name, hook_style, max_w=hook_w, font_size=hook_font_size, x=hook_x, highlight=strong)
+    dur = (end - start) + teaser_dur
+    hook_show_dur = max(teaser_dur + 1.5, min(dur, 4.5)) if teaser_dur > 0 else dur
+    ev = _hook_events(_clean(hook), dur, hook_y, style_name, hook_style, max_w=hook_w, font_size=hook_font_size, x=hook_x, highlight=strong, teaser_dur=teaser_dur)
     if outro_cta and dur >= 5.0:
         ev.extend(_outro_events(dur, outro_text, y=1680))
     f = _Font.get(st["font"])
 
     # Robust Timeline Normalization:
     # Convert every word timestamp directly onto the clip's local timeline (0.0 <= s <= dur).
-    # Correctly handles both absolute timestamps (w["s"] around start) and slice-local timestamps (w["s"] around 0.0)
+    # When teaser_dur > 0, word timestamps are shifted by teaser_dur so captions match main video.
     inside = []
     if words:
         valid_words = [w for w in words if w.get("w")]
@@ -442,10 +446,10 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             cw = _clean(w.get("w", ""))
             if not cw:
                 continue
-            ws = float(w.get("s", 0.0)) - (start if is_absolute else 0.0) - CAPTION_LEAD
-            we = float(w.get("e", ws + 0.3)) - (start if is_absolute else 0.0) - CAPTION_LEAD
-            if we > 0.0 and ws < dur + 0.1:
-                inside.append(dict(w, w=cw, s=max(0.0, ws), e=min(dur, max(ws + 0.05, we))))
+            ws = float(w.get("s", 0.0)) - (start if is_absolute else 0.0) - CAPTION_LEAD + teaser_dur
+            we = float(w.get("e", ws + 0.3)) - (start if is_absolute else 0.0) - CAPTION_LEAD + teaser_dur
+            if we > teaser_dur and ws < dur + 0.1:
+                inside.append(dict(w, w=cw, s=max(teaser_dur, ws), e=min(dur, max(ws + 0.05, we))))
 
     inside = sorted(inside, key=lambda w: w["s"])
     for i, w in enumerate(inside[:-1]):
@@ -503,8 +507,8 @@ PIP_W = 380            # how wide the facecam is in the 1080-wide frame
 PIP_MARGIN = 26
 
 
-def _filter(layout, fg_h, facecam=None, facecam_pos="top-right", facecam_delay=0.0, facecam_offset_y=0, game_offset_x=0, zoom=1.0, custom_layout=None):
-    vin_prefix = f"[0:v]setpts=PTS-STARTPTS,fps={config.OUT_FPS}"
+def _filter(layout, fg_h, facecam=None, facecam_pos="top-right", facecam_delay=0.0, facecam_offset_y=0, game_offset_x=0, zoom=1.0, custom_layout=None, vin="0:v"):
+    vin_prefix = f"[{vin}]setpts=PTS-STARTPTS,fps={config.OUT_FPS}"
     if abs(facecam_delay) >= 0.005:
         if facecam_delay < 0:
             fc_delay_filter = f",trim=start={abs(facecam_delay):.3f},setpts=PTS-STARTPTS"
@@ -720,10 +724,25 @@ def render_clip(src: Path, out_dir: Path, name: str, clip: dict, words: list, sr
     hook_fs = clip.get("hook_font_size") or (custom_layout.get("hook_font_size") if isinstance(custom_layout, dict) else None)
     hook_x = clip.get("hook_x") or (custom_layout.get("hook_x") if isinstance(custom_layout, dict) else None)
 
+    teaser_enabled = bool(clip.get("teaser_enabled"))
+    main_dur = max(0.1, end - start)
+    teaser_dur = 0.0
+    teaser_start = None
+    if teaser_enabled:
+        teaser_dur = min(float(clip.get("teaser_dur") or 4.0), main_dur * 0.45)
+        teaser_dur = max(1.5, round(teaser_dur, 2))
+        if clip.get("teaser_start") is not None:
+            try:
+                teaser_start = max(start, min(float(clip["teaser_start"]), end - 1.0))
+            except (ValueError, TypeError):
+                teaser_start = max(start, end - teaser_dur)
+        else:
+            teaser_start = max(start, end - teaser_dur)
+
     ass = build_ass(words if clip.get("captions", True) else [], start, end, clip.get("hook", ""), clip.get("style", "bounce"),
                     clip.get("highlight_words", []), hook_y, cap_y, hook_style,
                     outro_cta=clip.get("outro_cta", True), outro_text=clip.get("outro_text"),
-                    hook_w=hook_w, hook_font_size=hook_fs, hook_x=hook_x)
+                    hook_w=hook_w, hook_font_size=hook_fs, hook_x=hook_x, teaser_dur=teaser_dur)
     # The clip is made in a short work folder and moved into place afterwards. The caption step of ffmpeg cannot
     # open files whose full path is longer than 260 characters on Windows, which a data folder deep inside other
     # folders easily reaches. Inside the work folder every name is short and relative (a drive colon would also
@@ -735,27 +754,22 @@ def render_clip(src: Path, out_dir: Path, name: str, clip: dict, words: list, sr
         return _render_in(work, src, out_dir, name, start, end, layout, fg_h, ass, face=face,
                           facecam_pos=facecam_pos, facecam_delay=facecam_delay, audio_delay=audio_delay, meta=meta,
                           facecam_offset_y=facecam_offset_y, game_offset_x=game_offset_x, zoom=zoom,
-                          custom_layout=custom_layout)
+                          custom_layout=custom_layout, teaser_enabled=teaser_enabled, teaser_dur=teaser_dur,
+                          teaser_start=teaser_start)
     finally:
         shutil.rmtree(work, ignore_errors=True)
 
 
 def _render_in(work: Path, src: Path, out_dir: Path, name: str, start, end, layout, fg_h, ass: str, face=None,
                facecam_pos="top-right", facecam_delay=0.0, audio_delay=0.0, meta=None,
-               facecam_offset_y=0, game_offset_x=0, zoom=1.0, custom_layout=None) -> dict:
+               facecam_offset_y=0, game_offset_x=0, zoom=1.0, custom_layout=None,
+               teaser_enabled=False, teaser_dur=0.0, teaser_start=None) -> dict:
     global _qsv_ok
     (work / f"{name}.ass").write_text(ass, encoding="utf-8")
     (work / "f").mkdir()
     for f in config.FONTS_DIR.glob("*.ttf"):
         shutil.copyfile(f, work / "f" / f.name)
-    fc = _filter(layout, fg_h, face, facecam_pos=facecam_pos, facecam_delay=facecam_delay,
-                 facecam_offset_y=facecam_offset_y, game_offset_x=game_offset_x, zoom=zoom,
-                 custom_layout=custom_layout) + f"[v0]ass={name}.ass:fontsdir=f[v]"
     dur = max(0.1, end - start)
-    # Accurate input seek: -ss before -i decodes directly from start time.
-    # Combined with [0:v]setpts=PTS-STARTPTS and asetpts=PTS-STARTPTS, both video and audio clocks
-    # reset cleanly to 0.000s on the first frame, guaranteeing frame-accurate subtitle and delay alignment.
-    seek_args = ["-ss", f"{start:.3f}", "-i", str(Path(src).resolve()), "-t", f"{dur:.3f}"]
 
     # Audio filters: reset audio PTS to 0.000s first, then resample to lock clock to video
     af_filters = ["asetpts=PTS-STARTPTS", "aresample=async=1000:min_hard_comp=0.010:first_pts=0"]
@@ -769,12 +783,33 @@ def _render_in(work: Path, src: Path, out_dir: Path, name: str, start, end, layo
     af_filters.append("loudnorm=I=-14:TP=-1.5:LRA=11")
     af_chain = ",".join(af_filters)
 
-    base = ["ffmpeg", "-y", "-v", "error"] + seek_args + [
-            "-filter_complex", fc, "-map", "[v]", "-map", "0:a:0",
-            "-af", af_chain,
-            "-avoid_negative_ts", "make_zero",
-            "-fps_mode", "cfr",
-            "-c:a", "aac", "-b:a", "160k", "-ar", "48000"]
+    if teaser_enabled and teaser_dur > 0:
+        t_dur = min(float(teaser_dur), dur * 0.45)
+        t_start = float(teaser_start if teaser_start is not None else (end - t_dur))
+        seek_args = [
+            "-ss", f"{t_start:.3f}", "-i", str(Path(src).resolve()), "-t", f"{t_dur:.3f}",
+            "-ss", f"{start:.3f}", "-i", str(Path(src).resolve()), "-t", f"{dur:.3f}",
+        ]
+        concat_fc = f"[0:v]setpts=PTS-STARTPTS,fps={config.OUT_FPS}[tv];[0:a:0]asetpts=PTS-STARTPTS[ta];[1:v]setpts=PTS-STARTPTS,fps={config.OUT_FPS}[mv];[1:a:0]asetpts=PTS-STARTPTS[ma];[tv][ta][mv][ma]concat=n=2:v=1:a=1[v_raw][a_raw];"
+        fc = concat_fc + _filter(layout, fg_h, face, facecam_pos=facecam_pos, facecam_delay=facecam_delay,
+                     facecam_offset_y=facecam_offset_y, game_offset_x=game_offset_x, zoom=zoom,
+                     custom_layout=custom_layout, vin="v_raw") + f"[v0]ass={name}.ass:fontsdir=f[v];[a_raw]{af_chain}[a]"
+        base = ["ffmpeg", "-y", "-v", "error"] + seek_args + [
+                "-filter_complex", fc, "-map", "[v]", "-map", "[a]",
+                "-avoid_negative_ts", "make_zero",
+                "-fps_mode", "cfr",
+                "-c:a", "aac", "-b:a", "160k", "-ar", "48000"]
+    else:
+        seek_args = ["-ss", f"{start:.3f}", "-i", str(Path(src).resolve()), "-t", f"{dur:.3f}"]
+        fc = _filter(layout, fg_h, face, facecam_pos=facecam_pos, facecam_delay=facecam_delay,
+                     facecam_offset_y=facecam_offset_y, game_offset_x=game_offset_x, zoom=zoom,
+                     custom_layout=custom_layout) + f"[v0]ass={name}.ass:fontsdir=f[v]"
+        base = ["ffmpeg", "-y", "-v", "error"] + seek_args + [
+                "-filter_complex", fc, "-map", "[v]", "-map", "0:a:0",
+                "-af", af_chain,
+                "-avoid_negative_ts", "make_zero",
+                "-fps_mode", "cfr",
+                "-c:a", "aac", "-b:a", "160k", "-ar", "48000"]
     for k, v in (meta or {}).items():
         if v:
             base += ["-metadata", f"{k}={v}"]
@@ -805,7 +840,7 @@ def _render_in(work: Path, src: Path, out_dir: Path, name: str, start, end, layo
             _qsv_ok = False
     else:
         raise RuntimeError(f"Render failed: {err}")
-    cover_t = min(1.2, (end - start) / 2)
+    cover_t = min(1.2, (t_dur / 2) if (teaser_enabled and teaser_dur > 0) else ((end - start) / 2))
     run(["ffmpeg", "-y", "-v", "error", "-i", f"{name}.mp4", "-ss", f"{cover_t:.2f}", "-frames:v", "1",
          "-q:v", "3", f"{name}.jpg"], cwd=work)
     for ext in ("mp4", "jpg", "ass"):

@@ -455,6 +455,18 @@ def request_render(jid, cid, changes: dict):
                 new[hk] = int(float(changes[hk]))
             except (ValueError, TypeError):
                 pass
+    if "teaser_enabled" in changes:
+        new["teaser_enabled"] = bool(changes["teaser_enabled"])
+    if "teaser_dur" in changes:
+        try:
+            new["teaser_dur"] = max(1.0, min(10.0, round(float(changes["teaser_dur"]), 2)))
+        except (ValueError, TypeError):
+            new["teaser_dur"] = 4.0
+    if "teaser_start" in changes and changes["teaser_start"] is not None:
+        try:
+            new["teaser_start"] = round(float(changes["teaser_start"]), 2)
+        except (ValueError, TypeError):
+            new.pop("teaser_start", None)
     if "seo_tags" in changes:
         raw_tags = changes["seo_tags"]
         if isinstance(raw_tags, str):

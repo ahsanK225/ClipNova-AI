@@ -1247,7 +1247,7 @@ function drawStream() {
     <h3>${esc(p.title || "Live now")}</h3><p class="by">${esc(p.name || c.name)}</p>
     ${stats.length ? `<div class="sstats">${stats.map(([v, l]) => `<div><b>${esc(v)}</b><span>${esc(l)}</span></div>`).join("")}</div>` : ""}
     <div class="cta">${rec
-      ? `<div style="display:flex;gap:8px;align-items:center"><button class="btn danger" data-act="stoplive" data-j="${esc(rec)}">${ic("stop")}Stop recording</button><button class="btn primary sm" data-act="clipnow" data-j="${esc(rec)}" data-s="30" title="Clip the last 30 seconds immediately">${ic("scissors")}Clip last 30s</button></div><small style="color:var(--good);font-weight:600;display:block;margin-top:6px">● Recording stream &amp; listening with Whisper. (Stream records in background even if browser player is blocked)</small>`
+      ? `<div style="display:flex;gap:8px;align-items:center"><button class="btn danger" data-act="stoplive" data-j="${esc(rec)}">${ic("stop")}Stop recording</button><button class="btn primary sm" data-act="clipnow" data-j="${esc(rec)}" data-s="30" title="Clip the last 30 seconds immediately">${ic("scissors")}Clip last 30s</button>${k === 'twitch' ? `<a class="btn sm ghost" href="https://www.twitch.tv/popout/${encodeURIComponent(p.name || c.name || '')}/chat?popout=" target="_blank" rel="noopener" style="font-size:11px;padding:5px 9px;text-decoration:none;display:inline-flex;align-items:center;gap:4px" title="Open Twitch Chat in Popout Window">💬 Popout Chat ↗</a>` : ''}</div><small style="color:var(--good);font-weight:600;display:block;margin-top:6px">● Recording stream &amp; listening with Whisper. (Stream records in background even if browser player is blocked)</small>`
       : `<button class="btn primary" data-act="golive" data-url="${esc(p.channel)}"><span class="rdot"></span>Record this stream</button><small>ClipNova AI watches it and clips the best moments as they happen.</small>`}</div>`);
 }
 function liveOn(c) { return Object.entries(c.profiles || {}).filter(([k, p]) => p.live && c.channels?.[k] === p.channel).sort(([, p]) => p.channel === c.channel ? -1 : 1); }
@@ -2096,38 +2096,69 @@ function scoreCls(s) { return s >= 80 ? "s-hi" : s >= 60 ? "s-mid" : ""; }
 
 function clipBadgeInfo(c) {
   const reason = String(c.reason || "").trim();
-  // Check if triggered by speech/chat keywords (e.g. Someone said "..." or trigger phrase)
+  const s = Number(c.score);
+  const isAiScore = !isNaN(s) && s > 0;
+  const hiCls = s >= 80 ? "s-hi" : s >= 60 ? "s-mid" : "";
+  const judgeDetail = c.judges ? ` (Words: ${c.judges.words || 0}${c.judges.reaction ? `, Reaction: ${c.judges.reaction}` : ""})` : "";
+
+  // 1. Explicit Check for MANUAL clips (Hand clip button, Clip last 30s)
+  const isManual = c.source === "manual" || c.clip_type === "manual" ||
+    c.trigger_label === "Hand clip" || c.trigger_label === "Hand" ||
+    reason.toLowerCase().includes("manually clipped") ||
+    reason.toLowerCase().includes("hand clip");
+
+  if (isManual) {
+    return {
+      type: "manual",
+      cls: "s-manual",
+      icon: "👆",
+      label: "Manual",
+      cardBadge: `<span class="badge l s-manual" style="background:rgba(236,72,153,0.22);color:#F472B6;border:1px solid rgba(236,72,153,0.45);font-weight:800;letter-spacing:0.5px" title="Manually clipped by you${isAiScore ? ` (AI Score: ${s}/100)` : ''}">👆 MANUAL</span>`,
+      dialogBadge: `<span class="badge s-manual" style="position:static;background:rgba(236,72,153,0.22);color:#F472B6;border:1px solid rgba(236,72,153,0.45);font-weight:800" title="Manually clipped by you${isAiScore ? ` (AI Score: ${s}/100)` : ''}">👆 Clipped by Hand (Manual)</span>`,
+      desc: c.reason || "Clipped manually by user"
+    };
+  }
+
+  // 2. Explicit Check for KEYWORD TRIGGERS (Reaction phrases & custom keywords)
   const matchSaid = reason.match(/Someone said\s*["“']([^"”']+)["”']/i);
   const matchTrigger = reason.match(/Triggered by\s*["“']([^"”']+)["”']/i);
   const matchedWord = matchSaid ? matchSaid[1] : (matchTrigger ? matchTrigger[1] : null);
-  const isTrigger = Boolean(matchedWord || c.trigger || c.trigger_phrase || /trigger/i.test(reason) || reason.toLowerCase().startsWith("someone said"));
+  const isTrigger = c.source === "trigger" || c.clip_type === "trigger" ||
+    Boolean(c.trigger_word) || (c.trigger_label && c.trigger_label !== "Hand clip" && c.trigger_label !== "Hand") ||
+    Boolean(matchedWord) || Boolean(c.trigger) || Boolean(c.trigger_phrase) ||
+    /trigger/i.test(reason) || reason.toLowerCase().startsWith("someone said") || /^["“'][^"”']+["”']/.test(reason);
 
   if (isTrigger) {
-    const word = matchedWord || c.trigger_phrase || "Keyword";
+    let word = c.trigger_word || c.trigger_phrase || matchedWord || "";
+    if (!word && c.trigger_label) {
+      word = c.trigger_label.replace(/^["'“”]|["'“”]$/g, '').trim();
+    }
+    if (!word && reason) {
+      const m = reason.match(/Triggered by\s*["“']?([^"”'—\n]+)["”']?/i) || reason.match(/^["“']([^"”']+)["”']/i);
+      if (m) word = m[1].trim();
+    }
+    if (!word) word = "Keyword";
     const shortWord = word.length > 13 ? word.slice(0, 11) + "…" : word;
     return {
       type: "trigger",
       cls: "s-trigger",
       icon: "🎯",
       label: `Trigger: "${word}"`,
-      cardBadge: `<span class="badge l s-trigger" title="Triggered by speech/chat keyword: &quot;${esc(word)}&quot;">🎯 &quot;${esc(shortWord)}&quot;</span>`,
-      dialogBadge: `<span class="badge s-trigger" style="position:static" title="Triggered by speech/chat keyword: &quot;${esc(word)}&quot;">🎯 Triggered by &quot;${esc(word)}&quot;</span>`,
+      cardBadge: `<span class="badge l s-trigger" style="background:rgba(245,158,11,0.22);color:#FBBF24;border:1px solid rgba(245,158,11,0.45);font-weight:800" title="Triggered by speech/chat keyword: &quot;${esc(word)}&quot;${isAiScore ? ` (AI Score: ${s}/100)` : ''}">🎯 &quot;${esc(shortWord)}&quot;</span>`,
+      dialogBadge: `<span class="badge s-trigger" style="position:static;background:rgba(245,158,11,0.22);color:#FBBF24;border:1px solid rgba(245,158,11,0.45);font-weight:800" title="Triggered by speech/chat keyword: &quot;${esc(word)}&quot;">🎯 Triggered by &quot;${esc(word)}&quot;</span>`,
       desc: `Triggered by speech/chat keyword "${word}"`
     };
   }
 
-  const s = Number(c.score);
-  const isAi = !isNaN(s) && s > 0;
-  if (isAi) {
-    const hiCls = s >= 80 ? "s-hi" : s >= 60 ? "s-mid" : "";
-    const judgeDetail = c.judges ? ` (Words: ${c.judges.words || 0}${c.judges.reaction ? `, Reaction: ${c.judges.reaction}` : ""})` : "";
+  // 3. REAL AI AUTO DETECTION (AI listened to stream and clipped automatically)
+  if (isAiScore) {
     return {
       type: "ai",
       cls: `s-ai ${hiCls}`.trim(),
-      icon: "⚡",
-      label: `AI ${s}`,
-      cardBadge: `<span class="badge l s-ai ${hiCls}" title="AI Highlight Score: ${s}/100${esc(judgeDetail)}">⚡ AI ${s}</span>`,
-      dialogBadge: `<span class="badge s-ai ${hiCls}" style="position:static" title="AI Highlight Score: ${s}/100${esc(judgeDetail)}">⚡ AI Score ${s}${esc(judgeDetail)}</span>`,
+      icon: "🤖",
+      label: `AI AUTO ${s}`,
+      cardBadge: `<span class="badge l s-ai ${hiCls}" style="background:rgba(0,240,255,0.18);color:#00F0FF;border:1px solid rgba(0,240,255,0.4);font-weight:800" title="Auto-clipped by AI Highlight Detection (${s}/100)${esc(judgeDetail)}">🤖 AI AUTO ${s}</span>`,
+      dialogBadge: `<span class="badge s-ai ${hiCls}" style="position:static;background:rgba(0,240,255,0.18);color:#00F0FF;border:1px solid rgba(0,240,255,0.4);font-weight:800" title="Auto-clipped by AI Highlight Detection: ${s}/100${esc(judgeDetail)}">🤖 AI AUTO Score ${s}${esc(judgeDetail)}</span>`,
       desc: c.reason || `AI highlight detection (${s}/100)`
     };
   }
@@ -2137,8 +2168,8 @@ function clipBadgeInfo(c) {
     cls: "s-manual",
     icon: "👆",
     label: "Manual",
-    cardBadge: `<span class="badge l s-manual" title="Manually clipped by user">👆 Manual</span>`,
-    dialogBadge: `<span class="badge s-manual" style="position:static" title="Manually clipped by user">👆 Clipped by hand</span>`,
+    cardBadge: `<span class="badge l s-manual" style="background:rgba(236,72,153,0.22);color:#F472B6;border:1px solid rgba(236,72,153,0.45);font-weight:800" title="Manually clipped by user">👆 MANUAL</span>`,
+    dialogBadge: `<span class="badge s-manual" style="position:static;background:rgba(236,72,153,0.22);color:#F472B6;border:1px solid rgba(236,72,153,0.45);font-weight:800" title="Manually clipped by user">👆 Clipped by hand</span>`,
     desc: c.reason || "Clipped manually by user"
   };
 }
@@ -2215,33 +2246,144 @@ function liveHtml(j) {
       <div class="stat"><b>${L.checks}</b><span>AI calls${L.skipped ? ` · ${L.skipped} skipped` : ""}${L.rejected ? ` · ${L.rejected} turned down` : ""}</span></div><div class="stat"><b>${j.clips.length}</b><span>Clips so far</span></div>
       <div class="stat"><b style="color:var(--accent,#00F0FF);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;font-weight:700">${esc(S.status?.ai?.model || 'gemini-3.5-flash-lite')}</b><span>Active AI Model</span></div>
       ${L.pending_clips ? `<div class="stat"><b>${L.pending_clips}</b><span>Hand clip being prepared</span></div>` : ""}</div>
-    <div class="meters" style="grid-template-columns: repeat(auto-fit, minmax(260px, 1fr))">
+    <div class="meters" style="grid-template-columns: repeat(auto-fit, minmax(280px, 1fr))">
       <div class="meter"><h4>Loudness, last minute</h4>${spark(L.level, "", -55, -8)}</div>
       ${L.chat ? `<div class="meter"><h4>Chat messages per second</h4>${spark(L.chat, "chat", 0, Math.max(4, ...L.chat))}</div>` : ""}
-      <div class="meter" style="grid-column: span 2; min-width: 0">
+      <div class="meter" style="min-width: 0; display:flex; flex-direction:column">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+          <h4 style="margin:0;display:flex;align-items:center;gap:6px">
+            <span style="color:#A78BFA">💬</span> Twitch Live Chat
+            ${L.channel ? `<span style="font-size:10px;font-weight:700;color:var(--text-sub);background:rgba(255,255,255,0.06);padding:1px 6px;border-radius:4px">#${esc(L.channel)}</span>` : ''}
+          </h4>
+          <div style="display:flex;align-items:center;gap:6px">
+            <span class="pill" style="font-size:9.5px;padding:2px 7px;border-radius:10px;background:rgba(167,139,250,0.18);color:#A78BFA;border:1px solid rgba(167,139,250,0.35);font-weight:800">● LIVE</span>
+            ${L.channel ? `<a class="btn sm ghost" href="https://www.twitch.tv/popout/${encodeURIComponent(L.channel)}/chat?popout=" target="_blank" rel="noopener" style="font-size:10px;padding:2px 6px;color:#A78BFA;border:1px solid rgba(167,139,250,0.3);text-decoration:none" title="Open Twitch Chat in Popout Window">Popout ↗</a>` : ''}
+          </div>
+        </div>
+        <div id="live_chat_stream" style="max-height:190px;height:190px;overflow-y:auto;display:flex;flex-direction:column;gap:5px;padding-right:4px;font-size:11.5px">
+          ${(L.recent_chat || []).length ? L.recent_chat.slice(-35).map(m => `
+            <div style="display:flex;align-items:baseline;gap:6px;padding:3px 8px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.05);border-radius:6px;min-width:0">
+              <b style="color:#A78BFA;font-size:11px;white-space:nowrap;flex:none">${esc(m.user)}:</b>
+              <span style="color:#F1F5F9;word-break:break-word;font-size:11.5px">${esc(m.msg)}</span>
+            </div>
+          `).join("") : `<div class="sub" style="padding:40px 10px;text-align:center;font-size:11.5px">Listening to live stream chat… Messages appear here in real-time.</div>`}
+        </div>
+      </div>
+      <div class="meter" style="min-width: 0; display:flex; flex-direction:column">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
           <h4 style="margin:0;display:flex;align-items:center;gap:6px"><span>🧠</span> Latest AI Decisions &amp; Moment Activity</h4>
           <span class="pill" style="font-size:10px;padding:2px 8px;border-radius:12px;background:rgba(0,240,255,0.12);color:var(--accent,#00F0FF);border:1px solid rgba(0,240,255,0.3);font-weight:600">🤖 ${esc(S.status?.ai?.model || 'gemini-3.5-flash-lite')}</span>
         </div>
-        <div style="max-height:165px;overflow-y:auto;display:flex;flex-direction:column;gap:5px;padding-right:4px">
-          ${(L.verdicts || []).length ? L.verdicts.slice(0, 8).map(v => {
+        <div style="max-height:190px;overflow-y:auto;display:flex;flex-direction:column;gap:5px;padding-right:4px">
+          ${(L.verdicts || []).length ? L.verdicts.slice(0, 10).map(v => {
             const res = v.result || "";
+            const trig = v.trigger || "";
             const isClipped = res.startsWith("Clipped");
             const isHigh = isClipped && res.includes("HIGH PRIORITY");
-            const isMonitoring = res.includes("nobody talking") || res.includes("nothing clip-worthy");
-            const badgeBg = isHigh ? "rgba(0,255,136,0.18)" : isClipped ? "rgba(0,240,255,0.18)" : isMonitoring ? "rgba(100,116,139,0.15)" : "rgba(255,170,0,0.15)";
-            const badgeCol = isHigh ? "#00FF88" : isClipped ? "#00F0FF" : isMonitoring ? "#94A3B8" : "#FFAA00";
-            const badgeBorder = isHigh ? "rgba(0,255,136,0.35)" : isClipped ? "rgba(0,240,255,0.35)" : isMonitoring ? "rgba(100,116,139,0.3)" : "rgba(255,170,0,0.3)";
-            const badgeText = isHigh ? "⚡ HIGH PRIORITY" : isClipped ? "✂️ CLIPPED" : isMonitoring ? "🔍 LISTENING" : "⏭️ EVALUATED";
+
+            // 1. Format clean 12-Hour AM/PM Time (e.g. 02:12 PM, 11:08 AM)
+            let time12 = "";
+            const epochSec = v.wall_t || (L.started_at ? L.started_at + v.t : (j.created ? j.created + v.t : 0));
+            if (epochSec) {
+              const dt = new Date(epochSec * 1000);
+              time12 = dt.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true });
+            } else {
+              const m = Math.floor(v.t / 60);
+              const s = v.t % 60;
+              time12 = `${m}m ${s < 10 ? '0' : ''}${s}s`;
+            }
+
+            // 2. Human-Friendly Event Title & Explanation (No developer jargon!)
+            let icon = "🔍";
+            let headline = "Monitoring Stream";
+            let explanation = res;
+            let badgeText = "🔍 LISTENING";
+            let badgeCol = "#38BDF8";
+            let badgeBg = "rgba(56,189,248,0.14)";
+            let badgeBorder = "rgba(56,189,248,0.3)";
+
+            if (isClipped) {
+              icon = "✂️";
+              headline = isHigh ? "Viral Highlight Clipped!" : "Exciting Moment Clipped!";
+              badgeText = isHigh ? "⚡ HIGH PRIORITY" : "✂️ CLIPPED";
+              badgeCol = isHigh ? "#00FF88" : "#00F0FF";
+              badgeBg = isHigh ? "rgba(0,255,136,0.18)" : "rgba(0,240,255,0.18)";
+              badgeBorder = isHigh ? "rgba(0,255,136,0.35)" : "rgba(0,240,255,0.35)";
+              const cleanWhy = res.replace(/^Clipped\s*\([^)]*\):\s*/i, "").trim();
+              explanation = cleanWhy ? `"${cleanWhy}" — Saved to clips with full 28s reaction aftermath.` : "High energy moment saved into clips!";
+            } else if (res.includes("loudness") || trig.includes("loudness")) {
+              icon = "🔊";
+              const m = (res + " " + trig).match(/loudness\s*([+\-]?\d+%)/i);
+              const pct = m ? m[1] : "+60%";
+              headline = `Loud Voice / Shout (${pct})`;
+              badgeText = "🔍 LISTENING";
+              badgeCol = "#38BDF8";
+              badgeBg = "rgba(56,189,248,0.14)";
+              badgeBorder = "rgba(56,189,248,0.3)";
+              explanation = "Streamer spoke loud or shouted, but words were routine gameplay talk without a funny punchline.";
+            } else if (res.includes("chat") || trig.includes("chat")) {
+              icon = "💬";
+              const m = (res + " " + trig).match(/chat\s*([+\-]?\d+%)/i);
+              const pct = m ? m[1] : "+50%";
+              headline = `Chat Spike Surge (${pct})`;
+              badgeText = "🔍 LISTENING";
+              badgeCol = "#A78BFA";
+              badgeBg = "rgba(167,139,250,0.14)";
+              badgeBorder = "rgba(167,139,250,0.3)";
+              explanation = "Chat messages flooded fast, but streamer was in routine gameplay. AI kept listening.";
+            } else if (res.includes("Hourly target reached") || res.includes("this hour")) {
+              icon = "🎯";
+              headline = "Target Pace Reached";
+              badgeText = "🎯 PACING";
+              badgeCol = "#F59E0B";
+              badgeBg = "rgba(245,158,11,0.14)";
+              badgeBorder = "rgba(245,158,11,0.3)";
+              const m = res.match(/\((\d+)\/(\d+)\s*clips\)/i);
+              const countStr = m ? `${m[1]} clips made` : "Pace active";
+              explanation = `Healthy pace (${countStr}). AI is prioritizing major viral highlights & trigger phrases.`;
+            } else if (res.includes("nobody talking")) {
+              icon = "🤫";
+              headline = "Quiet Gameplay";
+              badgeText = "🔍 LISTENING";
+              badgeCol = "#94A3B8";
+              badgeBg = "rgba(148,163,184,0.14)";
+              badgeBorder = "rgba(148,163,184,0.25)";
+              explanation = "Streamer not speaking or game is loading. AI waiting for next dialogue.";
+            } else if (res.includes("nothing clip-worthy")) {
+              icon = "🎮";
+              headline = "Routine Conversation";
+              badgeText = "🔍 LISTENING";
+              badgeCol = "#38BDF8";
+              badgeBg = "rgba(56,189,248,0.14)";
+              badgeBorder = "rgba(56,189,248,0.3)";
+              explanation = "Dialogue detected, but no funny jokes, fails, or punchlines happened in this stretch.";
+            } else if (res.includes("Reaction judge said no")) {
+              icon = "🎮";
+              headline = "Casual Speech";
+              badgeText = "🔍 LISTENING";
+              badgeCol = "#94A3B8";
+              badgeBg = "rgba(148,163,184,0.14)";
+              badgeBorder = "rgba(148,163,184,0.25)";
+              explanation = "Streamer talking, but audio volume and chat remained calm at normal levels.";
+            } else if (res.includes("Duplicate") || res.includes("Too close")) {
+              icon = "🔁";
+              headline = "Already Clipped";
+              badgeText = "⏭️ SKIPPED";
+              badgeCol = "#94A3B8";
+              badgeBg = "rgba(148,163,184,0.14)";
+              badgeBorder = "rgba(148,163,184,0.25)";
+              explanation = "This action moment was already captured in a recent clip. Skipping duplicate.";
+            }
+
             return `
-              <div style="display:flex;align-items:center;gap:8px;padding:5px 9px;background:var(--bg-2,#141210);border:1px solid var(--line);border-radius:7px;font-size:11px;justify-content:space-between">
-                <div style="display:flex;align-items:center;gap:8px;min-width:0;overflow:hidden">
-                  <span style="font-family:monospace;font-size:10px;color:var(--text-sub);white-space:nowrap">⏱️ ${fmt(v.t)}</span>
-                  <span class="pill" style="font-size:9px;padding:1px 6px;border-radius:5px;background:${badgeBg};color:${badgeCol};border:1px solid ${badgeBorder};font-weight:800;white-space:nowrap">${badgeText}</span>
-                  ${v.trigger ? `<span style="font-weight:700;color:var(--brand-ink);white-space:nowrap;font-size:10px">${esc(v.trigger)}</span>` : ""}
-                  <span style="color:var(--text-sub);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px">${esc(res)}</span>
+              <div style="display:flex;align-items:center;gap:10px;padding:7px 11px;background:rgba(18,24,38,0.85);border:1px solid rgba(255,255,255,0.08);border-radius:8px;font-size:11.5px;justify-content:space-between">
+                <div style="display:flex;align-items:center;gap:9px;min-width:0;overflow:hidden;flex:1">
+                  <span style="font-family:ui-monospace,monospace;font-size:10.5px;font-weight:700;color:#F8FAFC;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);padding:2px 7px;border-radius:5px;white-space:nowrap;letter-spacing:0.02em">⏱️ ${time12}</span>
+                  <span class="pill" style="font-size:9.5px;padding:2px 7px;border-radius:5px;background:${badgeBg};color:${badgeCol};border:1px solid ${badgeBorder};font-weight:800;white-space:nowrap">${badgeText}</span>
+                  <span style="font-weight:700;color:var(--brand-ink);white-space:nowrap;font-size:11.5px;display:inline-flex;align-items:center;gap:4px"><span>${icon}</span> ${esc(headline)}:</span>
+                  <span style="color:var(--text-sub);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11.5px" title="${esc(explanation)}">${esc(explanation)}</span>
                 </div>
-                ${v.model ? `<span style="font-family:monospace;font-size:9px;color:var(--accent,#00F0FF);white-space:nowrap;margin-left:6px">${esc(v.model)}</span>` : ""}
+                <span style="font-family:ui-monospace,monospace;font-size:9.5px;color:var(--accent,#00F0FF);white-space:nowrap;padding:2px 6px;border-radius:4px;background:rgba(0,240,255,0.08);border:1px solid rgba(0,240,255,0.2);margin-left:8px;flex:none">${esc(v.model || S.status?.ai?.model || 'gemini-3.5-flash-lite')}</span>
               </div>
             `;
           }).join("") : "<div class='sub' style='padding:8px 0'>Listening and analyzing stream moments…</div>"}
@@ -3339,6 +3481,48 @@ function drawClipDlg(full) {
           </div>
         </div>
 
+        <!-- Card: Viral Climax Teaser Hook (Cold Open) -->
+        <div class="card" style="margin:0 0 10px 0;background:linear-gradient(135deg, rgba(236,72,153,0.08), rgba(99,102,241,0.08));border:1px solid rgba(236,72,153,0.35);border-radius:10px;padding:12px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+            <h3 style="margin:0;font-size:13px;display:flex;align-items:center;gap:6px">
+              <span>🎬</span> Viral Climax Teaser (Cold Open Hook)
+            </h3>
+            <span class="pill" style="font-size:10px;padding:2px 8px;border-radius:10px;background:rgba(236,72,153,0.18);color:#F472B6;border:1px solid rgba(236,72,153,0.4);font-weight:800">🔥 Viral Retention</span>
+          </div>
+          <p class="sub" style="font-size:11px;margin:0 0 8px 0;line-height:1.4">
+            Video ke aakhri 3-5 seconds (reaction / punchline) ko shuru mein cold open teaser bana kar play karein. Hook banner isi teaser par pop-in hoga!
+          </p>
+          <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+            <label class="sw" style="margin:0;font-size:12px;font-weight:700;color:#F8FAFC">
+              <input type="checkbox" data-f="teaser_enabled" id="dlg_teaser_enabled" ${c.teaser_enabled ? "checked" : ""} onchange="const el=$('#dlg_teaser_opts');if(el)el.style.display=this.checked?'block':'none'">
+              <span>Prepend Climax Teaser at Beginning</span>
+            </label>
+          </div>
+          <div id="dlg_teaser_opts" style="display:${c.teaser_enabled ? 'block' : 'none'};margin-top:10px;padding-top:10px;border-top:1px dashed rgba(255,255,255,0.12)">
+            <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+              <label class="f" style="margin:0;flex:1;min-width:140px">
+                <span style="font-size:11px;font-weight:600">Teaser Duration:</span>
+                <select data-f="teaser_dur" id="dlg_teaser_dur" style="font-size:12px">
+                  <option value="3" ${Number(c.teaser_dur) === 3 ? "selected" : ""}>3.0 Seconds</option>
+                  <option value="4" ${(!c.teaser_dur || Number(c.teaser_dur) === 4) ? "selected" : ""}>4.0 Seconds (Recommended)</option>
+                  <option value="5" ${Number(c.teaser_dur) === 5 ? "selected" : ""}>5.0 Seconds (Extra Punch)</option>
+                  <option value="6" ${Number(c.teaser_dur) === 6 ? "selected" : ""}>6.0 Seconds</option>
+                </select>
+              </label>
+              <div style="flex:1;min-width:200px">
+                <span style="font-size:11px;font-weight:600;display:block;margin-bottom:4px">Grab Position From Video:</span>
+                <button type="button" class="btn sm" onclick="grabVideoPlayheadForTeaser()" style="background:rgba(0,240,255,0.12);border:1px solid rgba(0,240,255,0.4);color:#00F0FF;font-size:11px;font-weight:700;padding:5px 12px;border-radius:6px;width:100%;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:6px">
+                  <span>🎯</span> Use Current Video Playhead
+                </button>
+                <input type="hidden" data-f="teaser_start" id="dlg_teaser_start" value="${c.teaser_start ?? ''}">
+              </div>
+            </div>
+            <div id="dlg_teaser_status" style="margin-top:8px;font-size:11px;color:#94A3B8;background:rgba(0,0,0,0.3);padding:6px 10px;border-radius:6px;border:1px solid rgba(255,255,255,0.06)">
+              ${c.teaser_enabled ? `✓ Active: Aakhri ${c.teaser_dur || 4}s ka teaser 0:00 par shuru hoga Hook title ke sath.` : 'Tip: Left side par video chala kar aakhri reaction par pause karein aur "Use Current Video Playhead" dabayein!'}
+            </div>
+          </div>
+        </div>
+
         <!-- Card 2: Layout & Framing Studio -->
         <div class="card" style="margin:0 0 10px 0;background:var(--bg-2);border:1px solid var(--line);border-radius:10px;padding:12px">
           <div style="display:flex;gap:12px;align-items:center;margin-bottom:8px">
@@ -3531,6 +3715,30 @@ function postText() {   // the post text as it is in the clip editor right now
   const v = k => $(`#clipdlg [data-f="${k}"]`).value;
   return {title: v("title"), description: v("description"), hashtags: v("hashtags").split(/\s+/).map(h => h.replace(/^#+/, "")).filter(Boolean)};
 }
+window.grabVideoPlayheadForTeaser = function() {
+  const vid = $("#stage video");
+  const j = jobOf(D.jid);
+  const c = j?.clips.find(x => x.id === D.cid);
+  if (!vid || !c) return toast("Play the video preview first to pick a reaction moment", "warn");
+  const cur = vid.currentTime || 0;
+  const absTime = (c.start || 0) + cur;
+  const durInput = $("#dlg_teaser_dur");
+  const dur = durInput ? Number(durInput.value) || 4.0 : 4.0;
+  const teaserStart = Math.max(c.start || 0, Math.min(absTime, (c.end || 0) - 1.0));
+  const teaserStartInput = $("#dlg_teaser_start");
+  if (teaserStartInput) teaserStartInput.value = Math.round(teaserStart * 100) / 100;
+  const chk = $("#dlg_teaser_enabled");
+  if (chk && !chk.checked) {
+    chk.checked = true;
+    if ($("#dlg_teaser_opts")) $("#dlg_teaser_opts").style.display = "block";
+  }
+  const m = Math.floor(cur / 60);
+  const s = Math.floor(cur % 60);
+  const timeStr = `${m}:${s < 10 ? '0' : ''}${s}`;
+  const statusEl = $("#dlg_teaser_status");
+  if (statusEl) statusEl.innerHTML = `🎯 <b>Grabbed moment at ${timeStr}</b> (${dur}s teaser will play first with your Hook banner). Click "Re-make clip" to apply.`;
+  toast(`🎯 Grabbed ${dur}s teaser at ${timeStr}!`, "ok");
+};
 $("#clipdlg").addEventListener("close", () => { $("#clipdlg").innerHTML = ""; D.jid = null; });
 $("#clipdlg").addEventListener("click", e => { if (e.target === e.currentTarget) e.currentTarget.close(); });
 

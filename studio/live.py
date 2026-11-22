@@ -152,6 +152,8 @@ class Session:
         self.chat_kept = 0                   # the second this was last pruned at
         self.chat_total = 0
         self.chat_on = False
+        self.recent_chat_msgs = collections.deque(maxlen=60)  # live buffer of incoming chat messages
+        self.channel = None
         self.last_check = 0.0
         self.words_at_check = 0
         self.checks = 0
@@ -240,7 +242,8 @@ class Session:
         threading.Thread(target=ctx.bind(self._analyze), daemon=True).start()
         m = re.match(r"^https?://(?:www\.)?twitch\.tv/([A-Za-z0-9_]+)", self.job["source"]["url"])
         if m:
-            threading.Thread(target=ctx.bind(self._chat), args=(m.group(1).lower(),), daemon=True).start()
+            self.channel = m.group(1).lower()
+            threading.Thread(target=ctx.bind(self._chat), args=(self.channel,), daemon=True).start()
 
     def stop(self, note="Stopped by you"):
         """Instant for the user: the card and the creator show as stopped straight away. Clips already being made
@@ -420,12 +423,18 @@ class Session:
                                 second = int(self.samples / SR)
                                 self.chat[second] += 1
                                 self.chat_total += 1
-                                # how many different people, not how many messages: a wave of the same
-                                # emotes is not a crowd getting excited
-                                who = _NICK.findall(line.decode("utf-8", "replace"))
+                                line_str = line.decode("utf-8", "replace")
+                                who = _NICK.findall(line_str)
                                 if who:
                                     self.chat_users.setdefault(second, set()).add(who[0].lower())
                                     self.chat_kept = _trim_names(self.chat_users, second, self.chat_kept)
+                                    parts = line_str.split(f" PRIVMSG #{channel} :", 1)
+                                    if len(parts) > 1 and parts[1].strip():
+                                        self.recent_chat_msgs.append({
+                                            "user": who[0],
+                                            "msg": parts[1].strip()[:140],
+                                            "t": time.time(),
+                                        })
                 s.close()
             except Exception:  # noqa: BLE001
                 pass
@@ -539,7 +548,7 @@ class Session:
         recent = [c for c in self.job["clips"] if c.get("score", 0) > 0 and time.time() - c.get("made_at", 0) < 3600]
         last_clip = max((c.get("made_at", 0) for c in self.job["clips"]), default=self.started_at)
         must = st["must_clip_min"] > 0 and time.time() - last_clip >= st["must_clip_min"] * 60
-        verdict = {"t": round(now), "transcript": None, "reaction": None, "trigger": why, "model": ai.last_active_model()}
+        verdict = {"t": round(now), "wall_t": time.time(), "transcript": None, "reaction": None, "trigger": why, "model": ai.last_active_model()}
         if len(win) < 8:
             self.skipped += 1
             return self._verdict(verdict, "Skipped: nobody talking")
@@ -639,6 +648,8 @@ class Session:
             why = mm["reason"]
             if too_close and ai_caught:
                 why += " (viral highlight)"
+            c["source"] = "ai_auto"
+            c["clip_type"] = "ai_auto"
             c["score"] = mm["score"]
             c["priority"] = mm["priority"]
             c["breakdown"] = mm["breakdown"]
@@ -781,6 +792,8 @@ class Session:
                         "why": f'"{matched_p}"',
                         "tier": 1,
                         "trigger_type": "reaction_phrase",
+                        "source": "trigger",
+                        "trigger_word": matched_p,
                         "trigger_t": match_t,
                     })
                 return
@@ -831,6 +844,8 @@ class Session:
                                 "why": f'"{orig_p}"',
                                 "tier": 2,
                                 "trigger_type": "custom_phrase",
+                                "source": "trigger",
+                                "trigger_word": orig_p,
                                 "trigger_t": t,
                             })
 
@@ -870,10 +885,10 @@ class Session:
 
             # False-positive guardrail:
             # If not an explicit UI button click ("Clip last 30s") and priority is SKIP:
-            is_button = req.get("trigger_type") is None and req.get("why") in (None, "Hand")
+            is_button = req.get("source") == "manual" or (req.get("trigger_type") in (None, "manual") and req.get("why") in (None, "Hand", "Hand clip"))
             if not is_button and mm["priority"] == "SKIP":
                 self.manual.remove(req)
-                verdict = {"t": round(req["end"]), "transcript": mm["score"], "reaction": None,
+                verdict = {"t": round(req["end"]), "wall_t": time.time(), "transcript": mm["score"], "reaction": None,
                            "trigger": req.get("why"), "model": ai.last_active_model()}
                 self._verdict(verdict, f"Skipped: {mm['reason']}")
                 continue
@@ -904,10 +919,24 @@ class Session:
                 "why": mm["reason"],
                 "model": ai.last_active_model(),
             }
-            if req.get("why"):
+            if is_button:
+                c["source"] = "manual"
+                c["clip_type"] = "manual"
+                c["trigger_label"] = "Hand clip"
+                c["reason"] = f"Manually clipped by you ({mm['reason']})"
+            elif req.get("source") == "trigger" or req.get("trigger_type") in ("reaction_phrase", "custom_phrase"):
+                c["source"] = "trigger"
+                c["clip_type"] = "trigger"
+                trig_w = req.get("trigger_word") or (req.get("why") or "").replace('"', '').strip()
+                c["trigger_word"] = trig_w
+                c["trigger_label"] = req.get("why") or f'"{trig_w}"'
+                c["trigger_phrase"] = trig_w
+                c["reason"] = f'Triggered by "{trig_w}" — {mm["reason"]}'
+            elif req.get("why"):
                 c["trigger_label"] = req["why"]
                 c["reason"] = f"{req['why']} — {mm['reason']}"
             else:
+                c["source"] = "manual"
                 c["reason"] = mm["reason"]
 
             if "trigger_t" in req:
@@ -1087,7 +1116,13 @@ class Session:
             end = self.seg_clock        # the picture has not caught up with the sound: clip what was recorded
         if end < 5:
             raise ValueError("Nothing has been recorded yet.")
-        self.manual.append({"start": max(0.0, end - seconds), "end": end})
+        self.manual.append({
+            "start": max(0.0, end - seconds),
+            "end": end,
+            "source": "manual",
+            "trigger_type": "manual",
+            "why": "Hand clip",
+        })
 
     def _publish(self):
         elapsed = self.samples / SR
@@ -1099,10 +1134,13 @@ class Session:
                 live={"elapsed": round(elapsed), "buffer_sec": round(self.segments[-1][2] - self.segments[0][1]) if self.segments else 0,
                       "lines": [l["text"] for l in lines], "level": [round(x) for x in self.db[-60:]],
                       "chat": [self.chat.get(t, 0) for t in range(max(0, sec - 60), sec)] if self.chat_on or self.chat_total else None,
+                      "recent_chat": list(self.recent_chat_msgs),
+                      "channel": getattr(self, "channel", None),
                       "checks": self.checks, "skipped": self.skipped, "tokens": self.tokens, "words": len(self.words),
                       "rejected": self.rejected, "verdicts": list(reversed(self.verdicts)),
                       "every_min": int(self.settings.get("ai_every_min", 3)) or 3,
                       "auto": None,
+                      "started_at": self.started_at,
                       "detection_mode": self.active_detection_mode(),
                       "model": ai.last_active_model(),
                       "pending_clips": len(self.manual)})

@@ -383,6 +383,22 @@ Integrated directly in `studio/brain.py` and `studio/posting.py`:
    - 1-click fold/expand toggle for stream cards with localStorage state persistence.
    - Compact folded summary cards (`📁 N clips inside this project`) saving massive vertical scrolling.
 
+---
+
+## 24. Clip Origin Taxonomy, Twitch Live Chat Stream & Viral Teaser Cold Open Architecture
+1. **Clip Origin Taxonomy & Distinction**:
+   - **`source: "manual"`**: Triggered via user button click ("Clip last 30s", "Clip now", "Hand clip"). Displays prominent pink badge `👆 MANUAL` (independent of multimodal score evaluation).
+   - **`source: "trigger"`**: Triggered via reaction phrase or creator custom keyword. Displays amber badge `🎯 "<word>"` (e.g. `🎯 "Oh my god"`, `🎯 "Chat"`).
+   - **`source: "ai_auto"`**: Detected automatically by AI without button or trigger phrase. Displays cyan/green badge `🤖 AI AUTO <score>`.
+2. **Real-Time Twitch Live Chat Streaming**:
+   - Background IRC client connects to `irc.chat.twitch.tv:6697` anonymously.
+   - Parses `PRIVMSG` lines into circular buffer `self.recent_chat_msgs` (`user`, `msg`, `t`).
+   - Frontend renders live scrolling chat window matching the AI decision feed height (190px) with user colored badges and 1-click Popout Chat window option.
+3. **Viral Climax Teaser Cold Open Hook Pipeline**:
+   - Allows creators to take the end 3-5 seconds (reaction climax) and prepend it at 0:00 as a teaser hook.
+   - Interactive control in `#clipdlg` with duration selector and `🎯 Use Current Video Playhead` button.
+   - Single-pass ffmpeg concatenation (`concat=n=2:v=1:a=1`), shifting transcript subtitles by `teaser_dur` and displaying the Hook Banner over the teaser cold open.
+
 
 
 
