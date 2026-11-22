@@ -201,11 +201,16 @@ Integrated directly in `studio/brain.py` and `studio/posting.py`:
 
 ---
 
-## 10. Universal Multilingual Trigger Recognition Engine
-1. **Trigger Phrase Persistence**:
+## 10. Universal Multilingual Trigger Recognition Engine & Pure AI Mode
+1. **Trigger Phrase Persistence & Deletion Support**:
    - Master list (`MASTER_TRIGGER_WORDS`) contains exhaustive variants across English, Roman Urdu, and Hindi.
    - Extended validation limit to 5000 characters to prevent tag truncation.
-   - Inherited by all new creators and persisted across sessions.
+   - Inherited by new creators as initial defaults, but fully user-editable: users can delete keywords, define concise custom phrases (< 30 characters), or clear the entire field.
+   - Explicit empty string `""` is preserved across in-memory cache and disk storage without forced resurrection.
+2. **Pure AI Clipping Mode (Zero Trigger Keywords)**:
+   - When `trigger_words` is empty, `live.py` completely bypasses both built-in `CLIP_WORDS` and custom keyword checks.
+   - Auto-clipping operates in pure AI mode driven by audio loudness bursts, chat velocity spikes, scheduled intervals, and Gemini multimodal visual/transcript verification.
+   - Setup UI features 1-click `Clear All (AI Only)` and `Restore Defaults` buttons.
 
 ---
 

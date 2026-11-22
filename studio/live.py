@@ -748,8 +748,9 @@ class Session:
 
         earliest_new = new_words[0]["s"]
 
-        # 1. Built-in "clip" trigger detection across rolling window
-        if not self.said and (window_words[-1]["s"] - self.last_said > self.SAID_GAP):
+        # 1. Built-in "clip" trigger detection across rolling window (only if keyword triggers enabled)
+        has_triggers = bool(str(self.settings.get("trigger_words", "")).strip())
+        if has_triggers and not self.said and (window_words[-1]["s"] - self.last_said > self.SAID_GAP):
             norm_tokens = [self._normalize_trigger_text(w.get("w", "")) for w in window_words]
             for i, w in enumerate(window_words):
                 if w["s"] < earliest_new - 5.0:

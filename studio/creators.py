@@ -70,9 +70,10 @@ def _fix(c: dict) -> dict:
         c["channel"] = next((ch[k] for k in PLATFORMS if k in ch), "")
     if not c.get("layout"):
         c["layout"] = "split"
-    tw = str(c.get("trigger_words") or "").strip()
-    if not tw or len(tw) < 30:
+    if "trigger_words" not in c or c["trigger_words"] is None:
         c["trigger_words"] = MASTER_TRIGGER_WORDS
+    else:
+        c["trigger_words"] = str(c["trigger_words"]).strip()[:5000]
     return c
 NUMERIC = {"min_len": (5, 120), "max_len": (10, 180), "max_clips": (1, 20), "min_score": (0, 100), "buffer_min": (5, 120), "live_per_hour": (1, 60), "ai_every_min": (1, 30), "auto_jump_pct": (20, 300), "must_clip_min": (0, 240), "min_gap_min": (0, 60),
            "post_min_score": (0, 100), "post_gap_min": (5, 1440), "daily_cap": (1, 50), "quality": (360, 1080)}

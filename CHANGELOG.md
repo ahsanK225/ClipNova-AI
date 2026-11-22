@@ -1,6 +1,32 @@
 ﻿# Changelog
 All notable project changes are documented here.
 
+## [2026-11-23] — Creator Trigger Keywords Deletion & Pure AI Clipping Support
+
+### Added
+- **Pure AI Livestream Clipping Mode**:
+  - Creators can now clear the trigger words textarea to test or run pure autonomous multimodal AI clipping without relying on spoken keywords or phrase triggers.
+  - When `trigger_words` is empty, both built-in "clip that/karo" detection and custom phrase detection are bypassed in `studio/live.py`, letting multimodal visual inspection, loudness spikes, chat velocity, and Gemini scoring decide highlights.
+- **Setup UI Quick Action Buttons (`web/index.html`)**:
+  - Added `🗑️ Clear All (AI Only)` button: 1-click clears all trigger words and enables unscheduled testing of pure AI clipping.
+  - Added `🔄 Restore Defaults` button: 1-click restores the full 39 master multilingual trigger phrases.
+  - Added explanatory hint: "Leave completely empty to disable keyword triggers (pure AI intelligent scoring only)."
+
+### Fixed
+- **Trigger Keywords Deletion & Short Phrases Bug (`studio/creators.py`)**:
+  - Fixed aggressive validation in `_fix()` where `not tw or len(tw) < 30` forcefully resurrected `MASTER_TRIGGER_WORDS` whenever a user deleted keywords or set a short phrase.
+  - User can now save an empty string `""` or short custom trigger phrases (e.g. `"clip that, insane"`), and the value is permanently preserved across in-memory cache, JSON disk files, and page reloads.
+
+### Tests and Verification
+- Created automated test suite `tests/test_creators_trigger_words.py`:
+  - `test_01_default_trigger_words_assigned_on_creation`: PASSED.
+  - `test_02_empty_trigger_words_persists_on_update_and_reload`: PASSED.
+  - `test_03_short_custom_trigger_words_persists`: PASSED.
+  - `test_04_live_session_bypasses_triggers_when_empty`: PASSED.
+- Tested live HTTP API: `PUT /api/creators/ohnepixel` with empty string verified returning `''` and persisting across `GET /api/creators`.
+- Verified regression suite `tests/test_trigger_timeline.py` and `tests/test_usa_publishing_calendar.py`: **14/14 PASSED**.
+- Node.js full AST verification: **PASS** (455,196 chars inline JavaScript verified clean).
+
 ## [2026-11-23] — Creator Content Calendar & Setup Schedule View
 
 ### Added
