@@ -91,6 +91,7 @@ F:\Games\GTA 6 CLIPPING\
 │   │   ├── audio\                          # Curated background tracks & viral meme sounds (.mp3)
 │   │   └── index.html                      # UI dashboard with visual layout previews, multi-key pool & live player
 │   ├── tests/                              # Automated test suites
+│   │   ├── test_stream_chat_and_scroll.py  # Unit tests for stream card live chat elevation, compact stats & scroll auto-stick/preservation
 │   │   ├── test_bgm_and_meme_sounds.py     # Unit tests for viral background music, meme sounds & zero-latency sync preview
 │   │   ├── test_origins_chat_teaser.py     # Unit tests for clip origin badges, Twitch chat streaming & teaser cold open
 │   │   ├── test_trigger_timeline.py        # Unit tests for 12s pre-roll hook and 28s post-roll reaction

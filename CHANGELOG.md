@@ -1,6 +1,36 @@
 ﻿# Changelog
 All notable project changes are documented here.
 
+## [2026-11-23] — Twitch Live Chat Elevation, Compact Stats Bar & Polling Scroll Auto-Stick/Preservation
+
+### Added
+- **Stream Card Live Chat Elevation (`web/index.html`)**:
+  - Elevated Twitch Live Chat feed directly into the stream card (`.stream .sinfo`) beside the live video player in the exact prominent panel requested by the user.
+  - Displays real-time message stream with purple username badges, live channel badge (`#channel`), and 1-click `Popout ↗` window link.
+  - Added floating `More messages below ↓` jump button that appears if the user scrolls up to read earlier chat.
+- **Scroll Memory & Auto-Stick Pipeline (`web/index.html`)**:
+  - Auto-sticks live chat to the bottom (`scrollTop = scrollHeight`) as new messages arrive in real-time, exactly mirroring real Twitch chat.
+  - Added smart scroll detection: if the user scrolls up to read history (`> 45px` from bottom), auto-scroll pauses and preserves the user's exact scroll position across 2-second polling cycles.
+  - Added scroll position preservation for `#live_ai_verdicts_list` so user reviewing older decisions is never snapped back to the top by polling.
+- **`⚡ LATEST` AI Decision Highlight (`web/index.html`)**:
+  - Added distinctive glowing cyan `⚡ LATEST` badge and card styling on the freshest decision in `Latest AI Decisions & Moment Activity`.
+- **Extended Verdicts Retention Buffer (`studio/live.py`)**:
+  - Extended live session verdicts buffer from 6 to 30 items (`del self.verdicts[:-30]`) and attached precise `wall_t` epoch timestamps.
+- **Automated Test Suite (`tests/test_stream_chat_and_scroll.py`)**:
+  - Added unit test suite covering verdict retention, `wall_t` timestamps, deque chat message ordering, HTML compact stats, and scroll restoration logic.
+
+### Changed
+- **Compact Stream Stats Bar (`web/index.html`)**:
+  - Replaced bulky 3-block grid cards (`watching / live for / followers`) with a single-line horizontal badges bar (`.sstats-compact`), liberating vertical screen real estate for the elevated chat feed.
+- **Streamlined Bottom Meters Grid (`web/index.html`)**:
+  - Removed redundant chat column from the bottom meters grid, leaving a clean 4-meter layout (`Loudness`, `Chat messages per second`, `Latest AI Decisions`, `What was just said`).
+
+### Tests and Verification
+- Node.js script AST check on `web/index.html`: `ALL SCRIPTS SYNTAX PERFECT!` (438,453 chars).
+- Executed `tests/test_stream_chat_and_scroll.py`: 3/3 passed in 0.011s.
+- Executed regression suite `test_origins_chat_teaser.py`, `test_bgm_and_meme_sounds.py`, and `test_seo_title_suggestions.py`: 16/16 passed in 13.293s.
+- Server daemon verified healthy on port 8765: `{"ok":true}`.
+
 ## [2026-11-23] — Viral Background Music & Meme Sounds Library with Zero-Latency Real-Time In-Browser Sync Preview & FFmpeg Mix Rendering
 
 ### Added

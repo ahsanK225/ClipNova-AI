@@ -430,10 +430,19 @@ Integrated directly in `studio/brain.py` and `studio/posting.py`:
    - `render._render_in` loops the background track infinitely using `-stream_loop -1 -i <bgm_path>`.
    - Mixes background audio into the master output using:
      `[bgm:a]volume={bgm_volume}[bgma];[main_audio][bgma]amix=inputs=2:duration=first:dropout_transition=2,loudnorm=I=-14:TP=-1.5:LRA=11[a]`
-   - `duration=first` guarantees the output audio ends exactly when the video clip ends, while `loudnorm` standardizes broadcast loudness.
-
-
-
-
+   - `duration=first` guarantees the output audio ends exactly when the video clip ends, while `loudnorm` standardizes broadcast loudness.## 26. Stream Card Live Chat Elevation, Compact Stats Bar & Polling Scroll Auto-Stick/Preservation
+1. **Stream Card Live Chat Elevation (`web/index.html`)**:
+   - Live Twitch/YouTube chat is rendered directly inside the top stream card's right-hand panel (`.stream .sinfo`), directly beside the live stream video player.
+   - Embeds a sleek 180–240px tall scroll container (`#stream_live_chat_list`) featuring colored username badges, message text, live channel badge (`#channel`), and 1-click `Popout ↗` window link.
+2. **Compact Stream Stats Bar (`web/index.html`)**:
+   - Replaced bulky 3-block grid cards (`watching / live for / followers`) with a single-line horizontal badges bar (`.sstats-compact`), liberating vertical screen real estate for the elevated chat feed.
+3. **Smart Scroll Memory & Auto-Stick Pipeline (`web/index.html`)**:
+   - **Chronological Flow**: Incoming messages append chronologically at the bottom.
+   - **Sticky Bottom Mode**: When the user is at the bottom (`scrollHeight - scrollTop - clientHeight < 45px`), new incoming messages pin to the bottom automatically (`scrollTop = scrollHeight`), matching native Twitch chat.
+   - **Scroll Freeze on History Inspection**: If the user scrolls up to read earlier chat, auto-scroll pauses, and their exact `scrollTop` offset is preserved across 2-second background polling cycles. A floating `More messages below ↓` button appears, allowing 1-click snap back to live messages.
+   - **AI Decisions Scroll Stability**: Persistent `#live_ai_verdicts_list` preserves user scroll position so checking older decisions is never disrupted by background DOM redraws.
+   - **Latest Event Badge**: The top decision displays a glowing cyan `⚡ LATEST` pill for instant situational awareness.
+4. **Extended Verdicts Buffer (`studio/live.py`)**:
+   - Live session verdicts buffer extended from 6 to 30 items (`del self.verdicts[:-30]`) with accurate `wall_t` epoch timestamps.
 
 

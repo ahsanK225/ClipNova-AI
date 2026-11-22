@@ -190,21 +190,22 @@ main{background:var(--bg);margin:8px 8px 8px 0;border-radius:var(--r-lg);height:
 .noembed b{font-size:15px;color:#fff}
 .noembed span{font-size:13px;color:#B9A597;max-width:380px}
 .noembed .btn{margin-top:6px}
-.sinfo{display:flex;flex-direction:column;gap:12px;padding:6px 6px 4px 2px;min-width:0}
+.sinfo{display:flex;flex-direction:column;gap:8px;padding:6px 6px 4px 2px;min-width:0;height:100%}
 .sinfo .top{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .sinfo .logo{flex:none;width:28px;height:28px;border-radius:8px;display:grid;place-items:center}
 .sinfo .logo svg{width:16px;height:16px}
 .sinfo .lv{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;background:#E5323F;color:#fff;padding:3px 10px;border-radius:999px}
 .sinfo .lv i{width:6px;height:6px;border-radius:50%;background:#fff;animation:pulse 1.3s infinite}
-.sinfo h3{font-size:16px;line-height:1.4;font-weight:600;color:#fff;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}
-.sinfo .by{font-size:12px;color:#B9A597;margin-top:-6px}
+.sinfo h3{font-size:15px;line-height:1.3;font-weight:600;color:#fff;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere;margin:0}
+.sinfo .by{font-size:12px;color:#B9A597;margin:0}
+.sstats-compact{display:flex;align-items:center;gap:8px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:5px 10px;font-size:11px;color:#CBD5E1;flex-wrap:wrap}
 .sstats{display:grid;grid-template-columns:repeat(auto-fit,minmax(84px,1fr));gap:8px}
 .sstats div{background:rgba(255,255,255,.06);border-radius:10px;padding:10px 12px}
 .sstats b{display:block;font-size:17px;font-weight:700;color:#fff;letter-spacing:-.01em}
 .sstats span{font-size:11px;color:#B9A597}
-.sinfo .cta{margin-top:auto;display:flex;flex-direction:column;gap:8px}
-.sinfo .cta .btn{height:46px;width:100%;justify-content:center;font-size:15px}
-.sinfo .cta small{font-size:12px;color:#B9A597;text-align:center}
+.sinfo .cta{margin-top:auto;display:flex;flex-direction:column;gap:6px}
+.sinfo .cta .btn{height:38px;width:100%;justify-content:center;font-size:13.5px}
+.sinfo .cta small{font-size:11px;color:#B9A597;text-align:center}
 .splat{display:flex;gap:4px;margin-left:auto}
 .splat button{display:grid;place-items:center;width:30px;height:30px;border:0;border-radius:8px;background:rgba(255,255,255,.06);color:#B9A597;cursor:pointer;transition:background-color .15s ease}
 .splat button:hover{background:rgba(255,255,255,.12)}
@@ -1242,13 +1243,61 @@ function drawStream() {
   const stats = [p.viewers != null ? [fmtK(p.viewers), "watching"] : null, p.started ? [since(p.started), "live for"] : null,
                  p.followers ? [p.followers.split(" ")[0], p.followers.split(" ").slice(1).join(" ")] : null].filter(Boolean);
   const rec = c.live_job;
+  const j = rec ? (S.jobs || []).find(x => x.id === rec) : null;
+  const L = j?.live || {};
+  const chatChan = L.channel || p.name || c.name || "";
+  const recentChat = L.recent_chat || [];
+
+  const chatMsgsHtml = recentChat.length
+    ? recentChat.map(m => `
+        <div style="display:flex;align-items:baseline;gap:6px;padding:3px 7px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.05);border-radius:6px;min-width:0">
+          <b style="color:#A78BFA;font-size:11px;white-space:nowrap;flex:none">${esc(m.user)}:</b>
+          <span style="color:#F1F5F9;word-break:break-word;font-size:11px">${esc(m.msg)}</span>
+        </div>
+      `).join("")
+    : `<div class="sub" style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;text-align:center;font-size:11.5px;color:var(--text-sub);padding:18px">
+         <span style="font-size:18px;margin-bottom:4px">${rec ? "📡" : "💬"}</span>
+         <span>${rec ? `Connected to #${esc(chatChan)} chat. Messages stream here live…` : `Click <b>"Record this stream"</b> below to capture live chat & audio.`}</span>
+       </div>`;
+
   put(box.querySelector(".sinfo"), `<div class="top">${platLogo(k)}<span class="lv"><i></i>Live on ${PLAT[k].name}</span>
       ${on.length > 1 ? `<div class="splat">${on.map(([x]) => `<button class="${x === k ? "on" : ""}" data-act="spick" data-p="${x}" title="Watch on ${PLAT[x].name}">${PLAT[x].svg}</button>`).join("")}</div>` : ""}</div>
-    <h3>${esc(p.title || "Live now")}</h3><p class="by">${esc(p.name || c.name)}</p>
-    ${stats.length ? `<div class="sstats">${stats.map(([v, l]) => `<div><b>${esc(v)}</b><span>${esc(l)}</span></div>`).join("")}</div>` : ""}
-    <div class="cta">${rec
-      ? `<div style="display:flex;gap:8px;align-items:center"><button class="btn danger" data-act="stoplive" data-j="${esc(rec)}">${ic("stop")}Stop recording</button><button class="btn primary sm" data-act="clipnow" data-j="${esc(rec)}" data-s="30" title="Clip the last 30 seconds immediately">${ic("scissors")}Clip last 30s</button>${k === 'twitch' ? `<a class="btn sm ghost" href="https://www.twitch.tv/popout/${encodeURIComponent(p.name || c.name || '')}/chat?popout=" target="_blank" rel="noopener" style="font-size:11px;padding:5px 9px;text-decoration:none;display:inline-flex;align-items:center;gap:4px" title="Open Twitch Chat in Popout Window">💬 Popout Chat ↗</a>` : ''}</div><small style="color:var(--good);font-weight:600;display:block;margin-top:6px">● Recording stream &amp; listening with Whisper. (Stream records in background even if browser player is blocked)</small>`
-      : `<button class="btn primary" data-act="golive" data-url="${esc(p.channel)}"><span class="rdot"></span>Record this stream</button><small>ClipNova AI watches it and clips the best moments as they happen.</small>`}</div>`);
+    <h3 style="font-size:15px;line-height:1.3;margin:0 0 2px;color:#fff">${esc(p.title || "Live now")}</h3>
+    <p class="by" style="font-size:11.5px;color:#94A3B8;margin:0 0 4px">${esc(p.name || c.name)}</p>
+    ${stats.length ? `
+      <div class="sstats-compact" style="display:flex;align-items:center;gap:8px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:5px 10px;font-size:11px;color:#CBD5E1;flex-wrap:wrap;flex:none">
+        ${p.viewers != null ? `<span style="display:inline-flex;align-items:center;gap:4px">👁️ <b style="color:#FFF;font-size:12px">${fmtK(p.viewers)}</b> <span style="color:#94A3B8">watching</span></span>` : ""}
+        ${p.started ? `<span style="color:rgba(255,255,255,0.2)">•</span><span style="display:inline-flex;align-items:center;gap:4px">⏱️ <b style="color:#FFF;font-size:12px">${since(p.started)}</b> <span style="color:#94A3B8">live</span></span>` : ""}
+        ${p.followers ? `<span style="color:rgba(255,255,255,0.2)">•</span><span style="display:inline-flex;align-items:center;gap:4px">👥 <b style="color:#FFF;font-size:12px">${p.followers.split(" ")[0]}</b> <span style="color:#94A3B8">followers</span></span>` : ""}
+      </div>
+    ` : ""}
+    <div class="sinfo-chat-box" style="flex:1;min-height:180px;max-height:240px;background:rgba(10,14,24,0.75);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:8px 10px;display:flex;flex-direction:column;gap:5px;min-width:0;position:relative;margin:2px 0">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding-bottom:5px;border-bottom:1px solid rgba(255,255,255,0.06);flex:none">
+        <div style="display:flex;align-items:center;gap:6px">
+          <span style="color:#A78BFA;font-size:12.5px">💬</span>
+          <b style="font-size:11.5px;color:#F1F5F9">${PLAT[k].name} Live Chat</b>
+          ${chatChan ? `<span style="font-size:10px;font-weight:700;color:var(--text-sub);background:rgba(255,255,255,0.06);padding:1px 6px;border-radius:4px">#${esc(chatChan)}</span>` : ''}
+        </div>
+        <div style="display:flex;align-items:center;gap:6px">
+          <span class="pill" style="font-size:9.5px;padding:1px 6px;border-radius:10px;background:rgba(167,139,250,0.18);color:#A78BFA;border:1px solid rgba(167,139,250,0.35);font-weight:800">● LIVE</span>
+          ${k === 'twitch' ? `<a class="btn sm ghost" href="https://www.twitch.tv/popout/${encodeURIComponent(chatChan || p.name || c.name || '')}/chat?popout=" target="_blank" rel="noopener" style="font-size:10px;padding:1px 6px;color:#A78BFA;border:1px solid rgba(167,139,250,0.3);text-decoration:none" title="Open Twitch Chat in Popout Window">Popout ↗</a>` : ''}
+        </div>
+      </div>
+      <div id="stream_live_chat_list" style="flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:4px;padding-right:2px;min-height:0">
+        ${chatMsgsHtml}
+      </div>
+      <button id="stream_chat_jump_btn" type="button" style="display:none;position:absolute;bottom:8px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,#7C5CFF,#6366F1);color:#fff;border:0;border-radius:20px;padding:2px 10px;font-size:9.5px;font-weight:700;cursor:pointer;box-shadow:0 3px 10px rgba(0,0,0,0.6);z-index:5" onclick="const el=document.getElementById('stream_live_chat_list');if(el){el.scrollTop=el.scrollHeight;this.style.display='none';}">
+        More messages below ↓
+      </button>
+    </div>
+    <div class="cta" style="margin-top:auto">${rec
+      ? `<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+           <button class="btn danger sm" data-act="stoplive" data-j="${esc(rec)}" style="font-size:12px;padding:6px 12px">${ic("stop")}Stop recording</button>
+           <button class="btn primary sm" data-act="clipnow" data-j="${esc(rec)}" data-s="30" title="Clip the last 30 seconds immediately" style="font-size:12px;padding:6px 12px">${ic("scissors")}Clip last 30s</button>
+           ${k === 'twitch' ? `<a class="btn sm ghost" href="https://www.twitch.tv/popout/${encodeURIComponent(chatChan || p.name || c.name || '')}/chat?popout=" target="_blank" rel="noopener" style="font-size:11px;padding:5px 9px;text-decoration:none;display:inline-flex;align-items:center;gap:4px" title="Open Twitch Chat in Popout Window">💬 Popout Chat ↗</a>` : ''}
+         </div>
+         <small style="color:var(--good);font-weight:600;display:block;margin-top:4px;font-size:11px">● Recording stream &amp; listening with Whisper. (Stream records in background even if browser player is blocked)</small>`
+      : `<button class="btn primary" data-act="golive" data-url="${esc(p.channel)}"><span class="rdot"></span>Record this stream</button><small style="font-size:11px">ClipNova AI watches it and clips the best moments as they happen.</small>`}</div>`);
 }
 function liveOn(c) { return Object.entries(c.profiles || {}).filter(([k, p]) => p.live && c.channels?.[k] === p.channel).sort(([, p]) => p.channel === c.channel ? -1 : 1); }
 function statusBadge(c) {
@@ -2251,35 +2300,16 @@ function liveHtml(j) {
       ${L.chat ? `<div class="meter"><h4>Chat messages per second</h4>${spark(L.chat, "chat", 0, Math.max(4, ...L.chat))}</div>` : ""}
       <div class="meter" style="min-width: 0; display:flex; flex-direction:column">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-          <h4 style="margin:0;display:flex;align-items:center;gap:6px">
-            <span style="color:#A78BFA">💬</span> Twitch Live Chat
-            ${L.channel ? `<span style="font-size:10px;font-weight:700;color:var(--text-sub);background:rgba(255,255,255,0.06);padding:1px 6px;border-radius:4px">#${esc(L.channel)}</span>` : ''}
-          </h4>
-          <div style="display:flex;align-items:center;gap:6px">
-            <span class="pill" style="font-size:9.5px;padding:2px 7px;border-radius:10px;background:rgba(167,139,250,0.18);color:#A78BFA;border:1px solid rgba(167,139,250,0.35);font-weight:800">● LIVE</span>
-            ${L.channel ? `<a class="btn sm ghost" href="https://www.twitch.tv/popout/${encodeURIComponent(L.channel)}/chat?popout=" target="_blank" rel="noopener" style="font-size:10px;padding:2px 6px;color:#A78BFA;border:1px solid rgba(167,139,250,0.3);text-decoration:none" title="Open Twitch Chat in Popout Window">Popout ↗</a>` : ''}
-          </div>
-        </div>
-        <div id="live_chat_stream" style="max-height:190px;height:190px;overflow-y:auto;display:flex;flex-direction:column;gap:5px;padding-right:4px;font-size:11.5px">
-          ${(L.recent_chat || []).length ? L.recent_chat.slice(-35).map(m => `
-            <div style="display:flex;align-items:baseline;gap:6px;padding:3px 8px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.05);border-radius:6px;min-width:0">
-              <b style="color:#A78BFA;font-size:11px;white-space:nowrap;flex:none">${esc(m.user)}:</b>
-              <span style="color:#F1F5F9;word-break:break-word;font-size:11.5px">${esc(m.msg)}</span>
-            </div>
-          `).join("") : `<div class="sub" style="padding:40px 10px;text-align:center;font-size:11.5px">Listening to live stream chat… Messages appear here in real-time.</div>`}
-        </div>
-      </div>
-      <div class="meter" style="min-width: 0; display:flex; flex-direction:column">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
           <h4 style="margin:0;display:flex;align-items:center;gap:6px"><span>🧠</span> Latest AI Decisions &amp; Moment Activity</h4>
           <span class="pill" style="font-size:10px;padding:2px 8px;border-radius:12px;background:rgba(0,240,255,0.12);color:var(--accent,#00F0FF);border:1px solid rgba(0,240,255,0.3);font-weight:600">🤖 ${esc(S.status?.ai?.model || 'gemini-3.5-flash-lite')}</span>
         </div>
-        <div style="max-height:190px;overflow-y:auto;display:flex;flex-direction:column;gap:5px;padding-right:4px">
-          ${(L.verdicts || []).length ? L.verdicts.slice(0, 10).map(v => {
+        <div id="live_ai_verdicts_list" style="max-height:190px;overflow-y:auto;display:flex;flex-direction:column;gap:5px;padding-right:4px">
+          ${(L.verdicts || []).length ? L.verdicts.slice(0, 20).map((v, idx) => {
             const res = v.result || "";
             const trig = v.trigger || "";
             const isClipped = res.startsWith("Clipped");
             const isHigh = isClipped && res.includes("HIGH PRIORITY");
+            const isLatest = (idx === 0);
 
             // 1. Format clean 12-Hour AM/PM Time (e.g. 02:12 PM, 11:08 AM)
             let time12 = "";
@@ -2376,14 +2406,19 @@ function liveHtml(j) {
             }
 
             return `
-              <div style="display:flex;align-items:center;gap:10px;padding:7px 11px;background:rgba(18,24,38,0.85);border:1px solid rgba(255,255,255,0.08);border-radius:8px;font-size:11.5px;justify-content:space-between">
-                <div style="display:flex;align-items:center;gap:9px;min-width:0;overflow:hidden;flex:1">
-                  <span style="font-family:ui-monospace,monospace;font-size:10.5px;font-weight:700;color:#F8FAFC;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);padding:2px 7px;border-radius:5px;white-space:nowrap;letter-spacing:0.02em">⏱️ ${time12}</span>
-                  <span class="pill" style="font-size:9.5px;padding:2px 7px;border-radius:5px;background:${badgeBg};color:${badgeCol};border:1px solid ${badgeBorder};font-weight:800;white-space:nowrap">${badgeText}</span>
-                  <span style="font-weight:700;color:var(--brand-ink);white-space:nowrap;font-size:11.5px;display:inline-flex;align-items:center;gap:4px"><span>${icon}</span> ${esc(headline)}:</span>
-                  <span style="color:var(--text-sub);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11.5px" title="${esc(explanation)}">${esc(explanation)}</span>
+              <div style="display:flex;flex-direction:column;gap:4px;padding:8px 10px;background:${isLatest ? 'rgba(0,240,255,0.06)' : 'rgba(18,24,38,0.7)'};border:1px solid ${isLatest ? 'rgba(0,240,255,0.35)' : 'rgba(255,255,255,0.07)'};border-left:3px solid ${isLatest ? 'var(--accent,#00F0FF)' : (isClipped ? '#00FF88' : 'rgba(255,255,255,0.14)')};border-radius:8px;font-size:11.5px;transition:all .15s ease;${isLatest ? 'box-shadow:0 0 14px rgba(0,240,255,0.08);' : ''}">
+                <div style="display:flex;align-items:center;justify-content:space-between;gap:6px">
+                  <div style="display:flex;align-items:center;gap:6px;flex-wrap:nowrap">
+                    <span style="font-family:ui-monospace,monospace;font-size:10.5px;font-weight:700;color:#94A3B8;letter-spacing:0.02em">⏱️ ${time12}</span>
+                    <span class="pill" style="font-size:9.5px;padding:1px 7px;border-radius:4px;background:${badgeBg};color:${badgeCol};border:1px solid ${badgeBorder};font-weight:800;white-space:nowrap">${badgeText}</span>
+                    ${isLatest ? `<span style="font-size:9px;padding:1px 5px;border-radius:3px;background:rgba(0,240,255,0.2);color:#00F0FF;border:1px solid rgba(0,240,255,0.4);font-weight:800;letter-spacing:0.04em">⚡ LATEST</span>` : ''}
+                  </div>
+                  ${v.transcript ? `<span style="font-size:10px;font-weight:700;color:${v.transcript >= 70 ? '#00FF88' : '#94A3B8'};font-family:ui-monospace,monospace">Score ${v.transcript}</span>` : ''}
                 </div>
-                <span style="font-family:ui-monospace,monospace;font-size:9.5px;color:var(--accent,#00F0FF);white-space:nowrap;padding:2px 6px;border-radius:4px;background:rgba(0,240,255,0.08);border:1px solid rgba(0,240,255,0.2);margin-left:8px;flex:none">${esc(v.model || S.status?.ai?.model || 'gemini-3.5-flash-lite')}</span>
+                <div style="display:flex;align-items:baseline;gap:5px;font-size:11.5px;line-height:1.35;min-width:0">
+                  <span style="font-weight:700;color:var(--brand-ink,#FFF);white-space:nowrap;flex:none">${icon} ${esc(headline)}:</span>
+                  <span style="color:var(--text-sub,#94A3B8);font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(explanation)}">${esc(explanation)}</span>
+                </div>
               </div>
             `;
           }).join("") : "<div class='sub' style='padding:8px 0'>Listening and analyzing stream moments…</div>"}
@@ -4055,10 +4090,47 @@ $("#clipdlg").addEventListener("click", e => { if (e.target === e.currentTarget)
 
 /* ============================================================ render + polling */
 function render() {
+  // 1. Capture scroll states before redraw to eliminate polling jumping/snapping
+  const chatEl = document.getElementById("stream_live_chat_list");
+  let chatWasNearBottom = true;
+  let chatPrevScroll = 0;
+  if (chatEl) {
+    chatPrevScroll = chatEl.scrollTop;
+    chatWasNearBottom = (chatEl.scrollHeight - chatEl.scrollTop - chatEl.clientHeight) < 45;
+  }
+
+  const aiEl = document.getElementById("live_ai_verdicts_list");
+  let aiPrevScroll = 0;
+  if (aiEl) {
+    aiPrevScroll = aiEl.scrollTop;
+  }
+
   drawShell(); drawJobs(); drawStream(); drawSelBar();
   if (S.view === "overview") drawOverview();
   if ($("#clog")) drawLog();
   if (D.jid) drawClipDlg(false);
+
+  // 2. Restore scroll states after redraw
+  const newChatEl = document.getElementById("stream_live_chat_list");
+  const jumpBtn = document.getElementById("stream_chat_jump_btn");
+  if (newChatEl) {
+    if (chatWasNearBottom) {
+      newChatEl.scrollTop = newChatEl.scrollHeight;
+      if (jumpBtn) jumpBtn.style.display = "none";
+    } else {
+      newChatEl.scrollTop = chatPrevScroll;
+      if (jumpBtn) jumpBtn.style.display = "block";
+    }
+    newChatEl.onscroll = () => {
+      const near = (newChatEl.scrollHeight - newChatEl.scrollTop - newChatEl.clientHeight) < 35;
+      if (jumpBtn) jumpBtn.style.display = near ? "none" : "block";
+    };
+  }
+
+  const newAiEl = document.getElementById("live_ai_verdicts_list");
+  if (newAiEl && aiPrevScroll > 0) {
+    newAiEl.scrollTop = aiPrevScroll;
+  }
 }
 function checkCleanupPrompts() {
   if (window._cleanupPromptOpen) return;

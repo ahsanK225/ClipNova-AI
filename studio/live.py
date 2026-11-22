@@ -707,8 +707,11 @@ class Session:
                 break
 
     def _verdict(self, v, result):
-        self.verdicts.append(dict(v, result=result))
-        del self.verdicts[:-6]
+        d = dict(v, result=result)
+        if "wall_t" not in d:
+            d["wall_t"] = time.time()
+        self.verdicts.append(d)
+        del self.verdicts[:-30]
 
     @staticmethod
     def _normalize_trigger_text(text: str) -> str:
