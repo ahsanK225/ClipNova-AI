@@ -405,6 +405,33 @@ Integrated directly in `studio/brain.py` and `studio/posting.py`:
    - Interactive control in `#clipdlg` with duration selector and `🎯 Use Current Video Playhead` button.
    - Single-pass ffmpeg concatenation (`concat=n=2:v=1:a=1`), shifting transcript subtitles by `teaser_dur` and displaying the Hook Banner over the teaser cold open.
 
+---
+
+## 25. Viral Background Music & Meme Sounds Pipeline (Live Sync & Mix Rendering)
+1. **Curated Preset Sound Library (`studio/audio.py`, `web/audio/`)**:
+   - Pristine 44.1kHz stereo MP3 tracks synthesized and bundled:
+     - `🏎️ Phonk Drift Beat` (140 BPM driving 808 cowbells & sub-bass for fast gaming/drifts)
+     - `🕵️ Sneaky Snitch` (120 BPM playful pizzicato bounce for funny moments & NPC fails)
+     - `🚨 Dramatic Suspense` (Dark sub drone & heartbeat pulse for intense climax scenes)
+     - `⚡ Hype Trap Anthem` (145 BPM brass stabs & rolling 808s for victory kills)
+     - `☕ Chill Lo-Fi Breeze` (82 BPM Rhodes chords & vinyl crackle for relaxing cruises)
+     - `🎻 Sad Violin (L Moment)` (Melancholic string progression for deaths & busted moments)
+     - `💥 Vine Boom Impact` (Deep sub-bass explosion impact for punchlines & reveals)
+     - `🗿 Bruh Sound Effect` (Vocal formant drop for disbelief & facepalms)
+     - `🔔 Metal Pipe Falling` (Resonant chaotic metallic ringing clang on crashes)
+     - `🎺 MLG Airhorn Blast` (3-shot high-energy trumpet fanfare for hype)
+   - Dynamic user upload support (`POST /api/audio/upload`) storing custom `.mp3`, `.wav`, `.m4a` files in `data/audio/uploads/`.
+2. **Zero-Latency In-Browser Live Audio Sync Engine (`web/index.html`)**:
+   - Synchronizes an HTML5 `<audio id="clip_bgm_audio">` with `#stage video` play, pause, seek, and loop events.
+   - Eliminates all re-rendering wait time during creative audio auditioning: creators hear the background music/meme sounds alongside the streamer's voice instantly.
+   - Real-time volume slider (0% to 100%, default 18%) directly updates audio gain live.
+   - Individual track cards feature instant `▶️ Test` audition buttons and Category Filter tabs (`🔥 All`, `🎵 Music`, `💥 Memes`, `📁 Uploads`).
+3. **FFmpeg Audio Mix & Auto-Loop Pipeline (`studio/render.py`)**:
+   - `render._render_in` loops the background track infinitely using `-stream_loop -1 -i <bgm_path>`.
+   - Mixes background audio into the master output using:
+     `[bgm:a]volume={bgm_volume}[bgma];[main_audio][bgma]amix=inputs=2:duration=first:dropout_transition=2,loudnorm=I=-14:TP=-1.5:LRA=11[a]`
+   - `duration=first` guarantees the output audio ends exactly when the video clip ends, while `loudnorm` standardizes broadcast loudness.
+
 
 
 

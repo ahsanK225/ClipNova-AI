@@ -3523,6 +3523,51 @@ function drawClipDlg(full) {
           </div>
         </div>
 
+        <!-- Card: Viral Background Music & Meme Sounds -->
+        <div class="card" style="margin:0 0 10px 0;background:var(--bg-2);border:1px solid var(--line);border-radius:10px;padding:12px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+            <h3 style="margin:0;font-size:13px;display:flex;align-items:center;gap:6px"><span>🎵</span> Background Music &amp; Meme Sounds</h3>
+            <span class="pill" style="font-size:10px;padding:2px 8px;border-radius:10px;background:rgba(0,240,255,0.15);color:var(--accent,#00F0FF);border:1px solid rgba(0,240,255,0.3);font-weight:700">⚡ Live Sync (No Re-render)</span>
+          </div>
+          <p class="sub" style="font-size:11px;margin:0 0 10px 0;line-height:1.4">
+            Select viral background music or meme sounds. Video ke sath <b>LIVE</b> suniye bina re-render ke intezar ke!
+          </p>
+
+          <!-- Real-Time Volume & Live Sync Controls -->
+          <div style="background:var(--bg-3);border:1px solid var(--line);border-radius:8px;padding:8px 10px;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+            <div style="display:flex;align-items:center;gap:8px;flex:1;min-width:180px">
+              <span style="font-size:12px">🔊</span>
+              <span style="font-size:11px;font-weight:600">Music Volume:</span>
+              <input type="range" id="dlg_bgm_vol" min="0" max="100" value="${Math.round((c.bgm_volume ?? 0.18) * 100)}" style="flex:1;accent-color:var(--accent,#00F0FF);cursor:pointer" oninput="updateBgmVolume(this.value)">
+              <b id="dlg_bgm_vol_txt" style="font-size:11px;min-width:32px;color:var(--accent,#00F0FF);font-family:monospace">${Math.round((c.bgm_volume ?? 0.18) * 100)}%</b>
+            </div>
+            <div style="display:flex;align-items:center;gap:6px">
+              <input type="hidden" data-f="bgm_track" id="dlg_bgm_track" value="${esc(c.bgm_track || 'none')}">
+              <input type="hidden" data-f="bgm_volume" id="dlg_bgm_volume_input" value="${c.bgm_volume ?? 0.18}">
+              <button type="button" class="btn sm" id="btn_bgm_preview_toggle" onclick="toggleBgmSyncPreview()" style="font-size:11px;padding:3px 9px;background:rgba(255,255,255,0.06);border:1px solid var(--line);border-radius:6px;cursor:pointer">
+                <span>🔊</span> Sync: <b id="bgm_sync_status" style="color:#00FF88">ON</b>
+              </button>
+              <label class="btn sm" style="font-size:11px;padding:3px 9px;cursor:pointer;background:linear-gradient(135deg,#00F0FF,#0099FF);color:#050505;font-weight:700;border:none;border-radius:6px;display:inline-flex;align-items:center;gap:4px">
+                <span>➕</span> Upload
+                <input type="file" id="dlg_bgm_uploader" accept="audio/*" style="display:none" onchange="uploadCustomAudioTrack(this)">
+              </label>
+            </div>
+          </div>
+
+          <!-- Category Filter Tabs -->
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
+            <button type="button" class="btn sm bgm-filter-btn" data-cat="all" onclick="filterBgmTracks('all')" style="font-size:10px;padding:2px 8px;border-radius:12px;background:var(--accent,#00F0FF);color:#000;font-weight:700;border:none;cursor:pointer">🔥 All</button>
+            <button type="button" class="btn sm bgm-filter-btn" data-cat="music" onclick="filterBgmTracks('music')" style="font-size:10px;padding:2px 8px;border-radius:12px;background:var(--bg-3);color:var(--text);border:1px solid var(--line);cursor:pointer">🎵 Beats &amp; Music</button>
+            <button type="button" class="btn sm bgm-filter-btn" data-cat="meme" onclick="filterBgmTracks('meme')" style="font-size:10px;padding:2px 8px;border-radius:12px;background:var(--bg-3);color:var(--text);border:1px solid var(--line);cursor:pointer">💥 Meme Sounds</button>
+            <button type="button" class="btn sm bgm-filter-btn" data-cat="custom" onclick="filterBgmTracks('custom')" style="font-size:10px;padding:2px 8px;border-radius:12px;background:var(--bg-3);color:var(--text);border:1px solid var(--line);cursor:pointer">📁 My Uploads</button>
+          </div>
+
+          <!-- Sound Cards Grid -->
+          <div id="dlg_bgm_cards" style="display:grid;grid-template-columns:repeat(auto-fill, minmax(170px, 1fr));gap:6px;max-height:220px;overflow-y:auto;padding-right:4px">
+            <div style="padding:15px;text-align:center;color:var(--text-sub);font-size:11px">Loading sound library…</div>
+          </div>
+        </div>
+
         <!-- Card 2: Layout & Framing Studio -->
         <div class="card" style="margin:0 0 10px 0;background:var(--bg-2);border:1px solid var(--line);border-radius:10px;padding:12px">
           <div style="display:flex;gap:12px;align-items:center;margin-bottom:8px">
@@ -3717,11 +3762,13 @@ function drawClipDlg(full) {
           <button class="btn" data-act="copypin" data-j="${j.id}" data-c="${esc(c.id)}">${ic("copy")}📌 Copy Pinned Comment</button>
           <button class="btn danger ghost" data-act="delclip" data-j="${j.id}" data-c="${esc(c.id)}">${ic("trash")}Delete from disk</button></div>
       </div></div>`;
+    setTimeout(() => { loadBgmTracks(c.bgm_track || "none", c.bgm_volume ?? 0.18); }, 40);
   } else if (D.sig !== sig) {
     const stageEl = $("#stage");
     if (stageEl) {
       if (c.status === "done") {
         stageEl.innerHTML = `<video src="${m}${esc(c.file)}?v=${c.version}&cb=${Date.now()}" poster="${m}${esc(c.cover)}?v=${c.version}&cb=${Date.now()}" controls autoplay playsinline></video>`;
+        setTimeout(() => { setupVideoBgmSync(c.bgm_track || "none", c.bgm_volume ?? 0.18); }, 40);
       } else {
         stageEl.innerHTML = stage;
       }
@@ -3765,7 +3812,245 @@ window.grabVideoPlayheadForTeaser = function() {
   if (statusEl) statusEl.innerHTML = `🎯 <b>Grabbed moment at ${timeStr}</b> (${dur}s teaser will play first with your Hook banner). Click "Re-make clip" to apply.`;
   toast(`🎯 Grabbed ${dur}s teaser at ${timeStr}!`, "ok");
 };
-$("#clipdlg").addEventListener("close", () => { $("#clipdlg").innerHTML = ""; D.jid = null; });
+
+/* ============================================================ Background Music & Meme Sounds Live Sync */
+window._bgmAudio = window._bgmAudio || new Audio();
+window._bgmAudio.loop = true;
+window._bgmSyncOn = true;
+window._bgmAuditionTimer = null;
+window._bgmCurrentCategory = "all";
+
+async function loadBgmTracks(selectedTrackId, currentVol) {
+  try {
+    if (!S.bgmTracks || !S.bgmTracks.length) {
+      const res = await api("/api/audio/tracks");
+      if (res && res.tracks) S.bgmTracks = res.tracks;
+    }
+  } catch (err) {
+    console.warn("Failed to fetch audio tracks:", err);
+  }
+  renderBgmCards(window._bgmCurrentCategory || "all", selectedTrackId);
+  setupVideoBgmSync(selectedTrackId, currentVol);
+}
+
+function renderBgmCards(category = "all", selectedId = null) {
+  const container = $("#dlg_bgm_cards");
+  if (!container) return;
+  const tracks = S.bgmTracks || [];
+  const activeId = selectedId !== null ? selectedId : ($("#dlg_bgm_track")?.value || "none");
+  window._bgmCurrentCategory = category;
+
+  const filtered = tracks.filter(t => {
+    if (category === "all") return true;
+    if (category === "music") return t.category === "music" || t.id === "none";
+    if (category === "meme") return t.category === "meme" || t.id === "none";
+    if (category === "custom") return t.category === "custom" || t.id === "none";
+    return true;
+  });
+
+  container.innerHTML = filtered.map(t => {
+    const isSel = (activeId === t.id);
+    return `
+      <div class="bgm-card" data-track-id="${esc(t.id)}" onclick="selectBgmTrack('${esc(t.id)}')"
+           style="background:${isSel ? 'rgba(0,240,255,0.12)' : 'var(--bg-3)'};border:1px solid ${isSel ? 'var(--accent, #00F0FF)' : 'var(--line)'};border-radius:8px;padding:8px;cursor:pointer;display:flex;flex-direction:column;gap:4px;transition:all 0.15s ease;position:relative">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:6px">
+          <div style="display:flex;align-items:center;gap:6px;min-width:0">
+            <span style="font-size:15px;flex-shrink:0">${esc(t.emoji || '🎵')}</span>
+            <b style="font-size:11px;color:${isSel ? 'var(--accent, #00F0FF)' : '#F1F5F9'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(t.title)}</b>
+          </div>
+          ${t.id !== 'none' ? `
+            <button type="button" class="btn icon sm ghost" onclick="auditionTrack(event, '${esc(t.id)}')" title="Preview sound" style="padding:2px 4px;font-size:10px;height:auto;flex-shrink:0">
+              ▶️
+            </button>
+          ` : ''}
+        </div>
+        <div style="font-size:9.5px;color:var(--text-sub);line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">
+          ${esc(t.desc || '')}
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-top:2px;font-size:9px">
+          <span style="color:${isSel ? '#00FF88' : 'var(--text-sub)'};font-weight:700">
+            ${isSel ? '✓ SELECTED' : (t.category ? t.category.toUpperCase() : '')}
+          </span>
+          ${t.duration > 0 ? `<span style="color:#64748B">${t.duration}s</span>` : ''}
+        </div>
+      </div>
+    `;
+  }).join("");
+}
+
+function selectBgmTrack(trackId) {
+  const hiddenTrack = $("#dlg_bgm_track");
+  if (hiddenTrack) hiddenTrack.value = trackId;
+  const j = jobOf(D.jid);
+  const c = j?.clips.find(x => x.id === D.cid);
+  if (c) c.bgm_track = trackId;
+
+  const track = (S.bgmTracks || []).find(t => t.id === trackId);
+  const volSlider = $("#dlg_bgm_vol");
+  const vol = (volSlider ? Number(volSlider.value) : 18) / 100;
+
+  if (!track || track.id === "none") {
+    if (window._bgmAudio) {
+      window._bgmAudio.pause();
+      window._bgmAudio.removeAttribute("src");
+    }
+    toast("No background music (original audio only).", "ok");
+  } else {
+    if (window._bgmAudio) {
+      window._bgmAudio.src = track.url;
+      window._bgmAudio.volume = vol;
+      const v = $("#stage video");
+      if (v && !v.paused) {
+        if (window._bgmAudio.duration) {
+          window._bgmAudio.currentTime = (v.currentTime % window._bgmAudio.duration);
+        }
+        window._bgmAudio.play().catch(()=>{});
+      } else {
+        window._bgmAudio.currentTime = 0;
+        window._bgmAudio.play().catch(()=>{});
+        clearTimeout(window._bgmAuditionTimer);
+        window._bgmAuditionTimer = setTimeout(() => {
+          const vid = $("#stage video");
+          if (!vid || vid.paused) {
+            window._bgmAudio.pause();
+          }
+        }, 4000);
+      }
+    }
+    toast(`🎵 Selected "${track.title}"! Playing in sync with video preview.`, "ok");
+  }
+  renderBgmCards(window._bgmCurrentCategory || "all", trackId);
+}
+
+function auditionTrack(e, trackId) {
+  if (e) e.stopPropagation();
+  const track = (S.bgmTracks || []).find(t => t.id === trackId);
+  if (!track || !track.url) return;
+  if (!window._bgmAudio) window._bgmAudio = new Audio();
+  window._bgmAudio.src = track.url;
+  const vol = (Number($("#dlg_bgm_vol")?.value || 18)) / 100;
+  window._bgmAudio.volume = vol;
+  window._bgmAudio.currentTime = 0;
+  window._bgmAudio.play().catch(()=>{});
+  clearTimeout(window._bgmAuditionTimer);
+  window._bgmAuditionTimer = setTimeout(() => {
+    const vid = $("#stage video");
+    if (!vid || vid.paused) {
+      window._bgmAudio.pause();
+    }
+  }, 3500);
+}
+
+function updateBgmVolume(val) {
+  const v = Math.max(0, Math.min(100, Number(val)));
+  const txt = $("#dlg_bgm_vol_txt");
+  if (txt) txt.textContent = v + "%";
+  const inp = $("#dlg_bgm_volume_input");
+  if (inp) inp.value = (v / 100).toFixed(2);
+  const j = jobOf(D.jid);
+  const c = j?.clips.find(x => x.id === D.cid);
+  if (c) c.bgm_volume = v / 100;
+  if (window._bgmAudio) {
+    window._bgmAudio.volume = v / 100;
+  }
+}
+
+function toggleBgmSyncPreview() {
+  window._bgmSyncOn = !window._bgmSyncOn;
+  const statusEl = $("#bgm_sync_status");
+  if (statusEl) {
+    statusEl.textContent = window._bgmSyncOn ? "ON" : "OFF";
+    statusEl.style.color = window._bgmSyncOn ? "#00FF88" : "#FF4444";
+  }
+  if (!window._bgmSyncOn && window._bgmAudio) {
+    window._bgmAudio.pause();
+  } else if (window._bgmSyncOn && window._bgmAudio && window._bgmAudio.src) {
+    const v = $("#stage video");
+    if (v && !v.paused) {
+      window._bgmAudio.play().catch(()=>{});
+    }
+  }
+  toast(`Audio Sync Preview is now ${window._bgmSyncOn ? 'ACTIVE' : 'MUTED'}`, "ok");
+}
+
+function filterBgmTracks(cat) {
+  $$(".bgm-filter-btn").forEach(b => {
+    const isSel = b.dataset.cat === cat;
+    b.style.background = isSel ? "var(--accent, #00F0FF)" : "var(--bg-3)";
+    b.style.color = isSel ? "#000" : "var(--text)";
+    b.style.fontWeight = isSel ? "700" : "400";
+    b.style.border = isSel ? "none" : "1px solid var(--line)";
+  });
+  renderBgmCards(cat);
+}
+
+async function uploadCustomAudioTrack(input) {
+  if (!input.files || !input.files[0]) return;
+  const file = input.files[0];
+  const formData = new FormData();
+  formData.append("file", file);
+  toast(`Uploading ${file.name}…`, "ok");
+  try {
+    const res = await fetch("/api/audio/upload", {
+      method: "POST",
+      body: formData
+    });
+    const data = await res.json();
+    if (data.ok && data.track) {
+      if (!S.bgmTracks) S.bgmTracks = [];
+      S.bgmTracks.push(data.track);
+      toast(`✨ Uploaded "${data.track.title}"! Added to library.`, "ok");
+      filterBgmTracks("custom");
+      selectBgmTrack(data.track.id);
+    } else {
+      toast("Upload failed: " + (data.detail || "Server error"), "bad");
+    }
+  } catch (err) {
+    toast("Upload error: " + err.message, "bad");
+  } finally {
+    input.value = "";
+  }
+}
+
+function setupVideoBgmSync(selectedTrackId, currentVol) {
+  const v = $("#stage video");
+  if (!v) return;
+  if (selectedTrackId && selectedTrackId !== "none") {
+    const track = (S.bgmTracks || []).find(t => t.id === selectedTrackId);
+    if (track && track.url && window._bgmAudio) {
+      window._bgmAudio.src = track.url;
+      window._bgmAudio.volume = currentVol !== undefined ? currentVol : 0.18;
+    }
+  }
+  v.onplay = () => {
+    if (window._bgmSyncOn && window._bgmAudio && window._bgmAudio.src && !window._bgmAudio.src.endsWith("/none")) {
+      if (window._bgmAudio.duration) {
+        window._bgmAudio.currentTime = (v.currentTime % window._bgmAudio.duration);
+      }
+      window._bgmAudio.play().catch(()=>{});
+    }
+  };
+  v.onpause = () => {
+    if (window._bgmAudio) window._bgmAudio.pause();
+  };
+  v.onseeking = () => {
+    if (window._bgmAudio && window._bgmAudio.duration) {
+      window._bgmAudio.currentTime = (v.currentTime % window._bgmAudio.duration);
+    }
+  };
+  v.onended = () => {
+    if (window._bgmAudio) window._bgmAudio.pause();
+  };
+}
+
+$("#clipdlg").addEventListener("close", () => {
+  if (window._bgmAudio) {
+    window._bgmAudio.pause();
+    window._bgmAudio.removeAttribute("src");
+  }
+  $("#clipdlg").innerHTML = "";
+  D.jid = null;
+});
 $("#clipdlg").addEventListener("click", e => { if (e.target === e.currentTarget) e.currentTarget.close(); });
 
 /* ============================================================ render + polling */

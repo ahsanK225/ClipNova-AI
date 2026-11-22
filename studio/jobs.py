@@ -409,9 +409,14 @@ def request_render(jid, cid, changes: dict):
         raise ValueError("Those times aren't valid.")
     if not 3 <= new["end"] - new["start"] <= 180:
         raise ValueError("A clip can be 3 to 180 seconds long.")
-    for k in ("hook", "title", "description", "style", "layout", "seo_title", "pinned_comment", "hook_style", "outro_text", "facecam_pos"):
+    for k in ("hook", "title", "description", "style", "layout", "seo_title", "pinned_comment", "hook_style", "outro_text", "facecam_pos", "bgm_track"):
         if k in changes:
-            new[k] = str(changes[k])[:{"hook": 60, "title": 100, "description": 2000, "seo_title": 100, "pinned_comment": 500, "hook_style": 20, "outro_text": 100, "facecam_pos": 20}.get(k, 20)]
+            new[k] = str(changes[k])[:{"hook": 60, "title": 100, "description": 2000, "seo_title": 100, "pinned_comment": 500, "hook_style": 20, "outro_text": 100, "facecam_pos": 20, "bgm_track": 50}.get(k, 20)]
+    if "bgm_volume" in changes:
+        try:
+            new["bgm_volume"] = max(0.0, min(1.0, round(float(changes["bgm_volume"]), 2)))
+        except (ValueError, TypeError):
+            new["bgm_volume"] = 0.18
     if "hashtags" in changes:
         new["hashtags"] = clean_hashtags(changes["hashtags"])
     if "outro_cta" in changes:

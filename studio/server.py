@@ -39,7 +39,7 @@ def _quiet(fn):
 
 app = FastAPI(title="PeakCut", docs_url=None, redoc_url=None, openapi_url=None)
 WEB = config.ROOT / "web"
-OPEN = ("/api/auth/", "/pub/", "/api/public", "/auth/google/", "/auth/verify", "/brand/", "/assets/", "/healthz", "/favicon.ico", "/robots.txt", "/sitemap.xml")
+OPEN = ("/api/auth/", "/pub/", "/api/public", "/auth/google/", "/auth/verify", "/brand/", "/assets/", "/api/audio/", "/healthz", "/favicon.ico", "/robots.txt", "/sitemap.xml")
 PAGES = {"/": "landing.html", "/login": "auth.html", "/signup": "auth.html", "/reset": "reset.html",
          "/privacy": "legal.html", "/terms": "legal.html", "/acceptable-use": "legal.html"}
 VIDEO_TYPES = {".mp4", ".mov", ".mkv", ".webm", ".m4v", ".ts", ".flv", ".avi"}
@@ -1513,6 +1513,37 @@ def media_file(jid: str, name: str, download: int = 0):
         if clip:
             save_as = account.clip_title_name(clip, Path(name).stem) + ".mp4"
     return FileResponse(f, filename=save_as if download else None, headers={"Cache-Control": "private, max-age=300"})
+
+
+# ================================================================ Background Music & Meme Sounds
+@app.get("/api/audio/tracks")
+def audio_tracks():
+    from . import audio
+    return {"ok": True, "tracks": audio.list_tracks()}
+
+
+@app.api_route("/api/audio/track/{track_id}", methods=["GET", "HEAD"])
+def audio_track_file(track_id: str):
+    from . import audio
+    p = audio.get_track_path(track_id)
+    if not p or not p.is_file():
+        raise HTTPException(404, "Audio track not found.")
+    ext = p.suffix.lower()
+    media_type = "audio/mpeg" if ext == ".mp3" else ("audio/wav" if ext == ".wav" else "audio/mp4")
+    return FileResponse(p, media_type=media_type, headers={"Cache-Control": "public, max-age=604800, stale-while-revalidate=86400"})
+
+
+@app.post("/api/audio/upload")
+async def audio_upload(file: UploadFile = File(...)):
+    from . import audio
+    if not file.filename:
+        raise HTTPException(400, "No file provided.")
+    content = await file.read()
+    try:
+        track = audio.save_upload(file.filename, content)
+        return {"ok": True, "track": track}
+    except ValueError as err:
+        raise HTTPException(400, str(err))
 
 
 # ================================================================ creators and live recording

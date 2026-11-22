@@ -37,10 +37,11 @@ F:\Games\GTA 6 CLIPPING\
 ├── PeakCut\                                # Primary Target Repository (ahsanK225)
 │   ├── deploy\                             # Docker & Cloud deployment files
 │   ├── studio\                             # Core Python processing & API engine
-│   │   ├── admin.py                        # Admin & diagnostics routes
 │   │   ├── accounts.py                     # Social OAuth connections, multi-client token refresh & YouTube API upload
+│   │   ├── admin.py                        # Admin & diagnostics routes
 │   │   ├── ai.py                           # Gemini multimodal vision (see_json), multi-key pool rotation, per-key live health testing & OpenRouter free models
 │   │   ├── asr.py                          # Speech recognition & word-level timing (sherpa-onnx)
+│   │   ├── audio.py                        # Audio engine: background music, viral meme sounds library, path security & safe uploads
 │   │   ├── brain.py                        # Universal grounding (anti-hallucination), multimodal scene analysis, dual AI judges & SEO
 │   │   ├── config.py                       # App configuration & environment parsing
 │   │   ├── creators.py                     # Creator workspace profiles, trigger words & settings
@@ -87,8 +88,10 @@ F:\Games\GTA 6 CLIPPING\
 │   │   │   ├── layout-fit.jpg              # Full Frame on Black (16:9 Letterbox)
 │   │   │   ├── layout-blur.jpg             # Original 16:9 + Ambient Blurred Video Background
 │   │   │   └── layout-zoom.jpg             # Zoomed 16:9 + Ambient Blurred Video Background
+│   │   ├── audio\                          # Curated background tracks & viral meme sounds (.mp3)
 │   │   └── index.html                      # UI dashboard with visual layout previews, multi-key pool & live player
 │   ├── tests/                              # Automated test suites
+│   │   ├── test_bgm_and_meme_sounds.py     # Unit tests for viral background music, meme sounds & zero-latency sync preview
 │   │   ├── test_origins_chat_teaser.py     # Unit tests for clip origin badges, Twitch chat streaming & teaser cold open
 │   │   ├── test_trigger_timeline.py        # Unit tests for 12s pre-roll hook and 28s post-roll reaction
 │   │   ├── test_hook_single_yellow.py      # Unit tests for single punch keyword in hook banner

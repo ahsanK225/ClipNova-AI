@@ -1,6 +1,51 @@
 ﻿# Changelog
 All notable project changes are documented here.
 
+## [2026-11-23] — Viral Background Music & Meme Sounds Library with Zero-Latency Real-Time In-Browser Sync Preview & FFmpeg Mix Rendering
+
+### Added
+- **Viral Background Music & Meme Sounds System (`studio/audio.py`, `web/audio/`, `studio/server.py`)**:
+  - Implemented built-in library of 10 viral background music tracks and meme sound effects synthesized mathematically at 44.1kHz stereo MP3s:
+    1. `🏎️ Phonk Drift Beat` (Fast 140 BPM 808 cowbell & bass for car drifts, chases, and speed)
+    2. `🕵️ Sneaky Snitch` (Playful 120 BPM pizzicato tiptoe bounce for hilarious fails & NPC moments)
+    3. `🚨 Dramatic Suspense` (Dark pulsing heartbeat & cinematic tension swell for climax scenes)
+    4. `⚡ Hype Trap Anthem` (Aggressive 145 BPM brass stabs & rolling 808s for victory and clutch kills)
+    5. `☕ Chill Lo-Fi Breeze` (Warm Rhodes chords & vinyl crackle for relaxing cruises & chat)
+    6. `🎻 Sad Violin (L Moment)` (Melancholic minor violin phrase for tragic deaths & busted moments)
+    7. `💥 Vine Boom Impact` (Deep sub-bass explosion impact for punchlines & crazy reveals)
+    8. `🗿 Bruh Sound Effect` (Classic vocal formant drop for utter disbelief and facepalms)
+    9. `🔔 Metal Pipe Falling` (Chaotic reverberant metallic ringing clang on crashes and sudden hits)
+    10. `🎺 MLG Airhorn Blast` (3-shot high-energy trumpet fanfare for maximum hype moments)
+    11. `🚫 None (Original Audio Only)` (Default clean audio mode)
+  - Added REST API endpoints:
+    - `GET /api/audio/tracks`: Lists all built-in and user-uploaded custom tracks.
+    - `GET /api/audio/track/{track_id}`: High-performance audio streaming with Range request support.
+    - `POST /api/audio/upload`: Drag-and-drop / file selector upload for custom `.mp3`, `.wav`, `.m4a`, `.ogg`, `.aac` tracks (< 30MB) into `data/audio/uploads/`.
+- **Zero-Latency Real-Time In-Browser Audio Sync Preview (`web/index.html`)**:
+  - Solved problem where creators previously had to re-render the whole video just to hear audio changes.
+  - In `#clipdlg` Clip Editor:
+    - Added sleek obsidian cyber card: **`🎵 Background Music & Meme Sounds`**.
+    - **Real-Time Volume Slider**: 0% to 100% volume slider with real-time numeric display (`dlg_bgm_vol`), immediately updating `<audio>` element volume live without waiting.
+    - **Live Video Sync Engine**: Video `#stage video` play, pause, seek, and loop events automatically synchronize with `window._bgmAudio` in real-time.
+    - **Instant Track Audition**: Every card has a quick `▶️ Test` preview button to listen to any track standalone before selecting.
+    - **Category Filter Tabs**: `🔥 All`, `🎵 Beats & Music`, `💥 Meme Sounds`, `📁 My Uploads`.
+    - **Sync Toggle**: One-click button to toggle audio sync preview on/off.
+- **FFmpeg Mix Rendering Pipeline (`studio/render.py`, `studio/jobs.py`)**:
+  - `jobs.request_render` accepts `bgm_track` and `bgm_volume`.
+  - `render._render_in` loops the background music with `-stream_loop -1 -i <bgm_path>` and mixes it under the streamer's voice via `amix=inputs=2:duration=first:dropout_transition=2`.
+  - Works seamlessly with or without Climax Teasers (`teaser_enabled`).
+
+### Tests and Verification
+- Created `tests/test_bgm_and_meme_sounds.py` (6/6 tests passed 100%):
+  - Verified built-in tracks listing and path resolution.
+  - Verified path traversal protection against `../../` exploits.
+  - Verified custom audio upload validation.
+  - Verified `request_render` persistence.
+  - Verified real FFmpeg execution rendering a 1080x1920 MP4 with background music mix.
+- Verified regression suites: `test_seo_title_suggestions.py`, `test_origins_chat_teaser.py`, `test_post_text.py` (10/10 passed).
+- Validated JavaScript AST syntax in `web/index.html` with Node.js (Exit code 0).
+- Live server daemon running on port 8765 (`curl http://127.0.0.1:8765/api/audio/tracks` returned 200 OK).
+
 ## [2026-11-23] — True Video Frame-Grounded AI Viral Hooks, Title Ideas & Vision SEO
 
 ### Added
