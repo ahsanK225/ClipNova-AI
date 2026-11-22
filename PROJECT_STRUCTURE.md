@@ -37,7 +37,7 @@ F:\Games\GTA 6 CLIPPING\
 │   │   ├── accounts.py                     # Social OAuth connections, multi-client token refresh & YouTube API upload
 │   │   ├── ai.py                           # Gemini multimodal vision (see_json), multi-key pool rotation, per-key live health testing & OpenRouter free models
 │   │   ├── asr.py                          # Speech recognition & word-level timing (sherpa-onnx)
-│   │   ├── brain.py                        # Universal grounding (anti-hallucination), multimodal scene analysis, dual AI judges, viral hooks generator & SEO
+│   │   ├── brain.py                        # Universal grounding (anti-hallucination), multimodal scene analysis, dual AI judges & SEO
 │   │   ├── config.py                       # App configuration & environment parsing
 │   │   ├── creators.py                     # Creator workspace profiles, trigger words & settings
 │   │   ├── db.py                           # SQLite / SQLAlchemy persistence
@@ -46,20 +46,22 @@ F:\Games\GTA 6 CLIPPING\
 │   │   ├── games.py                        # GTA VI & gaming stream detection engine
 │   │   ├── hashtags.py                     # Non-AI fast hashtags engine (derives 3-5 tags without burning tokens)
 │   │   ├── jobs.py                         # Video processing queue, facecam resolution, multimodal SEO & Windows retry save
-│   │   ├── live.py                         # Live stream buffer, 720p lock, loudness spikes, active AI model tracking & trigger clips
+│   │   ├── live.py                         # Live stream buffer, 720p lock, loudness spikes & trigger clips
 │   │   ├── load.py                         # System load, memory, and queue worker throttle
 │   │   ├── capcut\                         # Native CapCut Desktop Draft project generator (pyJianYingDraft & template)
 │   │   │   ├── export.py                   # Multi-track CapCut draft exporter (video, hook title, subtitle tracks)
 │   │   │   ├── pyJianYingDraft\            # Pure Python CapCut desktop draft AST builder & track manager
 │   │   │   └── template\                   # Base CapCut project template (draft_info.json, draft_meta_info.json)
 │   │   ├── media.py                        # Long-video stream inspector, format resolver & Netscape cookie manager
+│   │   ├── ohnepixel.py                    # OhnePixel intelligent detection database, tiered phrases, German/English slang, false-positive protection & Mode B fallback
 │   │   ├── posting.py                      # YouTube Shorts cloud scheduling, IG, TikTok & channel exclusivity
-│   │   ├── render.py                       # FFmpeg 9:16 vertical render, split layouts, Bouncy/Hormozi/MrBeast subtitles, Hook styles (Viral Floating Yellow/Cyan Punch, Purple Whip, etc.)
-│   │   ├── server.py                       # FastAPI application & HTTP routes (viral hooks generator, CapCut export, multi-key pool, presets)
+│   │   ├── render.py                       # FFmpeg 9:16 vertical render, split layouts, Bouncy/Hormozi/MrBeast subtitles, Hook styles (Purple Whip, etc.)
+│   │   ├── server.py                       # FastAPI application & HTTP routes (CapCut export endpoints, multi-key pool, presets)
 │   │   ├── storage.py                      # Local file, clip & recording management
 │   │   └── video.py                        # FFmpeg rendering, 9:16 layout & caption burn
 │   ├── tests\                              # Test suite (31 comprehensive suites)
 │   │   ├── run.py                          # Master test runner (690+ automated checks)
+│   │   ├── test_ohnepixel_engine.py        # OhnePixel intelligent detection & false-positive suite (12 scenarios)
 │   │   ├── test_hashtags.py                # Hashtags generation tests
 │   │   ├── test_jobsave.py                 # Windows file locking resilience tests
 │   │   ├── test_longvideo.py               # 24-hour video memory efficiency tests
@@ -68,12 +70,7 @@ F:\Games\GTA 6 CLIPPING\
 │   │   ├── test_seo.py                     # YouTube Shorts SEO validation test suite
 │   │   └── test_sync.py                    # Audio/video latency, PTS normalization, and layout tests
 │   ├── web\                                # Static frontend web dashboard
-│   │   ├── brand\                          # Brand assets, 3D app icons & layout visual previews
-│   │   │   ├── app-icon.png                # High-res 3D luxury squircle app icon
-│   │   │   ├── favicon.png                 # 128x128 high-res PNG favicon
-│   │   │   ├── favicon.svg                 # SVG squircle favicon with 3D emblem
-│   │   │   ├── logo-light.svg              # Official ClipNova AI logo with embedded 3D icon
-│   │   │   ├── logo.svg                    # Vector brand logo
+│   │   ├── brand\                          # Brand assets & layout visual previews (540x960 crisp JPGs)
 │   │   │   ├── layout-split_half.jpg       # Classic Split 50/50 ⭐ (Top Cam 1080x960, Bottom Game 1080x960)
 │   │   │   ├── layout-split.jpg            # Reaction Split (Top 1/3 Cam 1080x640, Bottom 2/3 Game 1080x1280)
 │   │   │   ├── layout-gameplay.jpg         # Full 9:16 Game + Top-Right Corner PIP Facecam

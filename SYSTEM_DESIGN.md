@@ -1,7 +1,7 @@
-# SYSTEM_DESIGN.md — ClipNova AI System Architecture & Gaming Workflow
+# SYSTEM_DESIGN.md — PeakCut System Architecture & Gaming Workflow
 
 ## 1. System Goals and Scope
-ClipNova AI is an autonomous, open-source pipeline designed to process gaming livestreams (Twitch, YouTube, Kick) and long videos into viral, captioned 9:16 vertical clips. The system operates locally without subscriptions or watermarks, using on-device speech models (`sherpa-onnx`) or user-configured AI APIs (Gemini, OpenAI, Claude, Ollama).
+PeakCut is an autonomous, open-source pipeline designed to process gaming livestreams (Twitch, YouTube, Kick) and long videos into viral, captioned 9:16 vertical clips. The system operates locally without subscriptions or watermarks, using on-device speech models (`sherpa-onnx`) or user-configured AI APIs (Gemini, OpenAI, Claude, Ollama).
 
 ---
 
@@ -292,7 +292,39 @@ Integrated directly in `studio/brain.py` and `studio/posting.py`:
 
 ---
 
-## 20. Bouncy Word-Level Pop Captions & Hook Banner Visual Customizer
+## 21. OhnePixel Intelligent Livestream Clipping Engine (Multimodal AI & Tiered Fallback)
+1. **Intelligent Detection Without "Clip It"**:
+   - Upgraded detection engine to discover genuinely entertaining livestream moments without requiring streamers to command "clip it".
+   - Automatically detects peaks across emotional reactions, uncontrollable laughter, unusual conversations, clutch gameplay moments, and skin unboxes.
+2. **Automatic Dual Mode Capability Selection**:
+   - **Mode A (AI Intelligent Scoring)**:
+     - Combined weighted multi-signal scoring:
+       - **Signal 1: Keyword Relevance (25%)**: Creator-specific vocabulary, expressions, semantic conversation meaning (`studio/ohnepixel.py`).
+       - **Signal 2: Excitement and Reaction Intensity (35%)**: Running audio amplitude z-scores, laughter patterns, shock, voice cracks, and chat message velocity spikes.
+       - **Signal 3: Actual Visual & Event Evidence (40%)**: Multimodal AI frame inspection via `ai.see_json` verifying real on-screen gameplay events, clutch plays, vehicle physics glitches, or item unbox reveals.
+     - **Dynamic Weight Redistribution**: When video frames are unavailable (audio-only or fast stream capture), redistributes 40% weight to Keyword (40%) and Reaction (60%).
+     - **Event-Quality Validation Guardrails**:
+       - Casual common words alone ("bro", "no", "wait") -> Strictly SKIP.
+       - Reaction phrase spoken calmly without visual/audio evidence -> SKIP.
+       - Incredible clutch or rare event without loud shouting -> HIGH PRIORITY based on visual evidence.
+       - Uncontrollable laughter or "GOLD GOLD GOLD" + skin evidence -> HIGH PRIORITY.
+   - **Mode B (Keyword-Only Fallback)**:
+     - Automatically active when multimodal AI is unavailable.
+     - Tiered phrase prioritization:
+       - **Level 1**: High-priority phrases ("WHAT THE FUCK IS THAT", "NO FUCKING WAY", "HOLY SHIT", "ARE YOU SERIOUS", "LET'S FUCKING GO").
+       - **Level 2**: Community slang ("MA DRILLA", "REJUICER", "NAUR", "VAS?!", "NEIN", "GOLD GOLD GOLD") requiring reaction spike or chat velocity > 1.5 to clip.
+       - **Level 3**: Common words ("BRO", "NO", "OKAY", "WAIT", "WHAT", "GOLD", "KNIFE", "WOW") never clipped alone.
+3. **Continuous Moment Discovery & Smart Clip Boundaries**:
+   - Natural narrative boundary structure:
+     - Pre-roll: 18s (captures setup / anticipation).
+     - Post-roll: 25s (captures reaction / payoff).
+     - Total clip length clamped between 20s and 60s.
+   - Multi-trigger candidate merging: overlapping triggers within 15 seconds are merged into a single continuous clip instead of fractured fragments.
+4. **Review Feedback API & UI Indicators**:
+   - Live dashboard cards display prominent Active Detection Mode badge (`⚡ MODE A (AI INTELLIGENT SCORING)` vs `🎯 MODE B (KEYWORD FALLBACK)`).
+   - Clip dialog and badges surface score breakdown (`Score: 88 · KW 25% | RX 32% | VIS 31%`).
+   - 1-click review feedback rating endpoint (`POST /api/jobs/{jid}/clips/{cid}/review`) supporting `great`, `good`, `bad`, `missed`, `duplicate`, `false_reaction`.
+
 1. **Physics-Based ASS Subtitle Keyframing (`studio/render.py`)**:
    - Extracted physics keyframing algorithms from `Beautiful-Captions` and `ai-video-captions`.
    - Implemented word-by-word pop and wipe animations natively inside ASS subtitle dialogue tags rendered via `libass`:
@@ -304,21 +336,6 @@ Integrated directly in `studio/brain.py` and `studio/posting.py`:
    - Added badge themes: `purple_whip` (Purple card `#2A0845` with hot pink neon glowing border `#FF007F`), `cyber_red` (Action red badge), and `gold_luxury` (Gold border with black backdrop).
    - Real-time sliders in Visual Layout Studio for vertical placement (`hook_y`), width (`hook_w`), font size, and badge theme.
    - Real-time 9:16 phone mockup canvas renders the exact Hook Banner pill with drop shadow, border, and title text, alongside live sample bouncy subtitles.
-
----
-
-## 21. Viral Floating Hook Banners without Box, AI Viral Hooks Generation & Active Model Tracking
-1. **Viral Floating Headline Styles (`viral_yellow` & `viral_cyan`)**:
-   - Replicates viral TikTok / Shorts headline formatting without distracting background boxes.
-   - Heavy typography in Archivo Black, 7px solid black outline stroke (`\bord7\3c&H000000&`), and 4px 3D drop shadow (`\shad4\4c&H000000&`).
-   - Keyword punch highlighting: automatically extracts the most salient non-stopword or words marked with `*word*` and paints them in vibrant canary yellow (`#FFE500` / `&H00E5FF&`) or neon cyan (`#00F0FF`), while surrounding words remain pure white (`#FFFFFF`).
-2. **AI Viral Hooks Generator Engine (`studio/brain.py`, `studio/server.py`)**:
-   - `brain.generate_viral_hooks(text, title, uploader, game, count=5)` uses structured JSON generation with Gemini to produce 5 viral headline options under 4–7 words with emojis and asterisk keyword markers.
-   - `POST /api/jobs/{jid}/clips/{cid}/hooks` provides immediate 1-click generation from the Clip Editor dialog.
-3. **Active Model Indicator & Verification**:
-   - Model switching verification: eliminated deprecated Gemini models (`gemini-2.0-flash`, `gemini-2.5-flash`) that triggered HTTP 404 and silent fallback.
-   - Verified active models: `gemini-3.5-flash-lite`, `gemini-flash-lite-latest`, `gemini-3-flash-preview`, `gemini-3.8-flash`.
-   - Real-time active model tracking (`ai.last_active_model()`) shown in Live Stream stats, decisions header, and verdict tags.
 
 
 

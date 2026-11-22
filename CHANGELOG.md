@@ -1,147 +1,46 @@
 ﻿# Changelog
 All notable project changes are documented here.
 
-## [2026-11-22] — Viral Floating Hook Banners, AI Viral Hooks Generator, Active Model Audit & Compact Studio Panel Redesign
+## [2026-11-22] — Master Upgrade: OhnePixel Intelligent Livestream Clipping Engine
 
-### Added & Improved
-- **Viral Floating Hook Banners without Background Box (`studio/render.py`, `web/index.html`)**:
-  - Replicated viral TikTok & YouTube Shorts headline format (`viral_yellow` & `viral_cyan`) featuring high-contrast Archivo Black typography, deep 7px solid black outline stroke (`\bord7\3c&H000000&`), and 4px 3D drop shadow (`\shad4\4c&H000000&`) without clumsy background boxes.
-  - Implemented dynamic inline color highlighting (`_format_hook_line_no_box`): automatically highlights the key punch word (or words explicitly wrapped in asterisks like `*influencers*`) in vibrant canary yellow (`#FFE500` / `&H00E5FF&`) or radiant neon cyan (`#00F0FF`), keeping surrounding text in crisp white (`#FFFFFF`).
-  - Added `viral_yellow` and `viral_cyan` options across Creator Settings, Clip Editor dialog, and Visual Layout Studio.
-  - Updated Visual Layout Studio Canvas phone preview to render floating text with yellow punch highlight.
-- **AI Viral Hooks Generator (`studio/brain.py`, `studio/server.py`, `web/index.html`)**:
-  - Implemented `brain.generate_viral_hooks(text, title, uploader, game, count=5)` utilizing Google Gemini structured schema to generate 5 punchy, viral headline hook banner options (with asterisk keyword highlighting).
-  - Added new REST API endpoint `POST /api/jobs/{jid}/clips/{cid}/hooks` with throttling and creator context tracking.
-  - Added `✨ AI Viral Hooks` button in the Clip Editor dialog right above the hook input, enabling 1-click generation and instant clickable pill selection.
-- **Active AI Model Indicator & Model Switch Audit (`studio/ai.py`, `studio/live.py`, `studio/usage.py`, `web/index.html`)**:
-  - Diagnosed and resolved the root cause of the model switching issue: Google AI had deprecated `gemini-2.0-flash`, `gemini-2.5-flash`, and `gemini-2.5-flash-lite` (returning `HTTP 404: model no longer available to new users`), which previously caused `brain.py` to silently fall back to `gemini-3.5-flash-lite`.
-  - Updated Gemini model catalog and fallback lists to exclusively offer verified, active models (`gemini-3.5-flash-lite`, `gemini-flash-lite-latest`, `gemini-3-flash-preview`, `gemini-3.8-flash`).
-  - Added real-time active model tracking (`ai.last_active_model()`) displayed prominently in the Live Stream card stats row (`Active AI Model`), in the `Latest AI decisions` card header, and inline with each AI decision verdict.
-- **Clip Editor Right Panel Clean Redesign (`web/index.html`)**:
-  - Completely redesigned the bloated, overly long clip editor panel into structured, compact Cyber Obsidian cards:
-    - **Card 1 (Viral Hook & Captions)**: Hook input, `✨ AI Viral Hooks` button, clickable pills, Hook Style and Caption Style dropdowns, and caption/outro toggle switches.
-    - **Card 2 (Visual Layout & Studio)**: Compact side-by-side layout preview (52x92), Layout & Webcam Position dropdowns, Custom Studio and Compare buttons, and Creator Preset chips.
-    - **Card 3 (Advanced Timing & Sync)**: Collapsible `<details>` section housing Voice Sync (Audio Delay), Webcam Sync (Facecam Delay), Start/End trim numbers, Outro text, and visual framing sliders (facecam vertical shift, game crop shift, zoom).
-    - **Card 4 (SEO & Publishing)**: Compact title, description, tags, YouTube Shorts SEO, and action buttons.
-  - Reduced vertical height by ~45%, eliminating scroll fatigue while keeping all advanced controls 1-click away.
+### Added
+- **Dedicated OhnePixel Keyword & Reaction Database (`studio/ohnepixel.py`)**:
+  - German + English speech recognition support, community slang, pronunciation and spelling variants (`naur`, `ma drilla`, `vas?!`, `nein`, `auuug`, `rejuicer`, `fish dish`, `gold gold gold`).
+  - Tiered classification:
+    - Level 1: Strong Reaction Phrases (35+ phrases e.g. "WHAT THE FUCK IS THAT", "NO FUCKING WAY", "HOLY SHIT", "ARE YOU SERIOUS", "LET'S FUCKING GO", "WHAT JUST HAPPENED").
+    - Level 2: OhnePixel Community Expressions & CS2 Skin Terms (Contextual signals, require reaction or event context).
+    - Level 3: Common Words ("bro", "no", "okay", "wait", "what", "gold", "knife", "wow") with strict false-positive prevention.
+  - Laughter and non-verbal reaction detection patterns (`hahaha`, `wheezing`, `crying laughing`, `[laughter]`).
+  - Category profiles for Counter-Strike 2, GTA VI, Just Chatting, and Story Games.
+- **Intelligent Multimodal AI Scoring (Mode A) in `studio/brain.py`**:
+  - `judge_multimodal_moment` combining 3 primary signals:
+    - Signal 1: Keyword Relevance (25%) via `ohnepixel.classify_transcript`.
+    - Signal 2: Streamer Excitement & Reaction Intensity (35%) via audio loudness z-scores, laughter patterns, and chat velocity.
+    - Signal 3: Actual Visual / Gameplay Event Evidence (40%) via candidate frame analysis with multimodal AI (`ai.see_json`).
+  - Dynamic weight redistribution when visual frames are absent (Keyword 40%, Reaction 60%).
+  - Event-quality validation rules ensuring casual "BRO" or quiet non-events are strictly skipped, while genuine clutches, uncontrollable laughter, and unboxes achieve High Priority.
+- **Keyword-Only Fallback Engine (Mode B) in `studio/ohnepixel.py`**:
+  - Automatically activated when AI models or keys are unavailable.
+  - Tiered evaluation with false-positive guardrails.
+- **Continuous Moment Discovery & Smart Clip Boundaries in `studio/live.py`**:
+  - Natural event windowing: 18s pre-roll (setup), 25s post-roll (reaction/payoff), 20–60s total clip duration.
+  - Multi-trigger candidate merging: overlapping triggers within 15 seconds are consolidated into a single unified clip instead of fragmented clips.
+  - Automated video frame extraction via `ffmpeg` from rolling `.src.mp4` buffer for visual verification.
+- **Review Feedback API & Frontend Controls (`studio/server.py`, `web/index.html`)**:
+  - Endpoint `POST /api/jobs/{jid}/clips/{cid}/review` supporting `great`, `good`, `bad`, `missed`, `duplicate`, `false_reaction`.
+  - High-contrast Active Detection Mode badge (`⚡ MODE A (AI INTELLIGENT SCORING)` vs `🎯 MODE B (KEYWORD FALLBACK)`) in live session header.
+  - Score breakdown pills (`Score: 88 · KW 25% | RX 32% | VIS 31%`) in clip dialog and badges.
+  - 1-click review action buttons in the clip dialog.
+- **Comprehensive Unit & Integration Test Suite (`tests/test_ohnepixel_engine.py`)**:
+  - Tested all 12 requested scenarios: casual bro skipped, shouting no fucking way high priority, 8s uncontrollable laughter, quiet knife unbox visual detection, wait wait wait with reaction, repeated gold gold gold, just chatting funny conversation, GTA 6 physics glitch, story game jumpscare, chat spam burst, 15s candidate merging, and Mode B fallback. All 12 passed 100%.
 
-### Tests & Verification
-- Unit and integration tests in `tests/test_capcut_and_styles.py` executed and passed 100% across all 8 hook styles and all caption styles.
-- FFmpeg real video frame rendering on `clip014.mp4` verified with `viral_yellow_preview.png`.
-- Full end-to-end verification script `tools/verify_all.py` executed successfully.
+### Tests and Verification
+- Executed `& '.\\.venv\\Scripts\\python.exe' tests/test_ohnepixel_engine.py` -> 12 tests passed (OK).
+- Executed `& '.\\.venv\\Scripts\\python.exe' tests/test_live.py` -> ALL PASSED.
+- Executed `& '.\\.venv\\Scripts\\python.exe' tests/test_live_times.py` -> All checks passed.
+- Validated JavaScript syntax in `web/index.html` via Node.js AST check -> OK.
+- Tested `POST /api/jobs/{jid}/clips/{cid}/review` on live server -> HTTP 200 OK (`{"ok": true, "feedback": "great"}`).
 
-## [2026-11-22] — Smart Clip Badges (AI vs Keyword Trigger vs Manual) & Explorer File Highlight Fix
-
-### Added & Improved
-- **Smart Origin Badges for Clips (`web/index.html`)**:
-  - Implemented `clipBadgeInfo(c)` helper to dynamically classify clips into 3 distinct, high-contrast visual categories:
-    - 🎯 **Speech / Chat Trigger Clips**: When clips are generated from creator chat triggers ("Always clip when someone says..."), extracts the exact keyword/phrase (e.g., `"oh my god"`, `"what the fuck"`, `"no way"`) and displays a radiant Amber / Gold badge (`🎯 "phrase"`) with detailed tooltip and hover glow (`#D97706` to `#B45309`, border `#FDE68A`).
-    - ⚡ **AI Highlights**: Displays an unmistakable Neon Cyan / Indigo badge (`⚡ AI 85`) with score-tiered styling (`s-hi` for 80+, `s-mid` for 60+) and tooltips detailing AI judges' verbal and reaction scores.
-    - 👆 **Manual Clips**: Displays a sleek slate grey badge (`👆 Manual`) with neutral dark styling (`#1E293B`, border `#475569`).
-  - Replaced the confusing legacy `"Hand"` text badge that mistakenly showed on all chat trigger clips due to `c.score || "Hand"`.
-  - Updated Clip Editor modal dialog (`drawClipDlg`) to display corresponding rich status badges and trigger origin reasons.
-  - Removed aggressive global `!important` overriding badge backgrounds in dark theme.
-
-### Fixed
-- **Show Clip Video File Explorer Opener (`studio/server.py`)**:
-  - Fixed `HTTP 500: name 'subprocess' is not defined` bug by adding missing `import subprocess` import at top of `studio/server.py`.
-  - Fixed Windows Explorer command execution where spaces in folder paths (e.g. `GTA 6 CLIPPING`) caused Python's `subprocess.list2cmdline` to erroneously quote `/select` flag, preventing Explorer from selecting the video.
-  - Refactored `open_clip_folder` to check `clip.get("file")` and `clip.get("src")`, execute `explorer.exe /select,"<path>"` directly, and fall back to `os.startfile(target.parent)` on any error.
-  - Verified endpoint `/api/jobs/{jid}/clips/{cid}/open-folder` returning HTTP 200 OK with exact clip file path.
-
-## [2026-11-22] — Broadcast-Grade 1080p60 Video Quality & High-Bitrate Ingestion Upgrade
-
-### Added & Improved
-- **True 60 FPS Render Pipeline (`studio/config.py`, `studio/render.py`)**:
-  - Upgraded target output frame rate from 30 FPS to **60 FPS** (`OUT_FPS = 60`).
-  - Gaming livestreams and high-motion gameplay (GTA 6 cars, drifting, camera panning) are now rendered with silky-smooth 60fps fluid motion instead of 30fps stutter.
-  - Automatically triggers YouTube's **`1080p60`** high-bandwidth tier upon upload.
-- **Master Quality Constrained Encoding Profile**:
-  - Upgraded video encoder to `libx264` high-profile with visually lossless **CRF 15** and **16 Mbps target bitrate** (24 Mbps burst cap, 32 Mbps buffer size).
-  - Switched encoder preset to `medium` for deep subpixel motion estimation and clean macroblock reduction in dark night scenes.
-  - Added Rec.709 color space flags (`-color_primaries bt709 -color_trc bt709 -colorspace bt709 -color_range tv`) to ensure YouTube decodes vibrant neons and rich blacks without color degradation.
-  - Verified on re-rendered `clip014.mp4`: 1080x1920 @ 60fps, 13.56 Mbps.
-- **Posting Checkboxes & Forms Dark Obsidian Theme (`web/index.html`)**:
-  - Resolved white-on-white text illegibility in Creator Setup "Posting" accounts (`label.ck`) and Clip Dialog (`data-pacc`).
-  - Styled checkboxes with dark obsidian background (`var(--bg-2)`), cyan hover border (`#00F0FF`), glowing checked state (`rgba(0,240,255,0.3)`), and `#FFFFFF` text.
-  - Updated switches, warning banners (`.vb`), savebar, and form textareas.
-
-## [2026-11-22] — Total Contributors Purge on GitHub & Direct 3D App Icon Sidebar Fix
-
-### Fixed & Improved
-- **Permanent Purge of GitHub Upstream Contributors**:
-  - Successfully purged cached upstream contributor records on GitHub by recreating `ClipNova-AI` repository and pushing exclusively clean commits.
-  - Verified via GitHub API (`/repos/ahsanK225/ClipNova-AI/contributors`): Count is strictly **1** (sole author: `ahsanK225`).
-- **Sidebar 3D App Icon Native Rendering (`web/index.html`)**:
-  - Resolved browser SVG sub-resource security restriction that caused a blank/black squircle box when SVG was loaded via `<img>`.
-  - Upgraded `.side-head` to render the authentic 3D app icon directly as a native `<img>` (`/brand/app-icon.png?v=5`) alongside CSS gradient typography (`Clip<span class="nova">Nova</span><span class="badge">AI</span>`).
-  - Added Base64 data URI fallbacks to `logo-light.svg`, `logo.svg`, and `favicon.svg`.
-  - Added smooth hover micro-interaction (`transform: scale(1.06)`) and glowing cyan neon box shadow (`0 0 14px rgba(0, 240, 255, 0.45)`).
-
-## [2026-11-22] — 3D Luxury App Icon, Complete Removal of Upstream Contributors & Official ClipNova AI Documentation
-
-### Added & Improved
-- **Futuristic 3D Luxury App Icon (`web/brand/app-icon.png`, `app-icon.jpg`, `favicon.png`)**:
-  - Generated and rendered a premium 3D Octane-style squircle app icon for **ClipNova AI**.
-  - Features holographic electric cyan and purple scissors cutting through a vertical 9:16 film reel amidst supernova sparkle bursts and glossy dark obsidian glassmorphism.
-  - Sized and deployed across high-resolution formats (`app-icon.png`, `app-icon.jpg`, `favicon.png` 128x128).
-  - Integrated 3D icon directly into vector logos (`logo-light.svg`, `logo.svg`, `favicon.svg`) and added versioned cachebusters (`?v=3`) in `web/index.html` and all secondary HTML pages.
-- **Complete Removal of 13 Upstream Contributors on GitHub**:
-  - Rewrote git history using a clean orphan root commit authored solely by `ahsanK225 <ahsank225@gmail.com>`.
-  - Force-pushed clean `main` branch to `https://github.com/ahsanK225/ClipNova-AI.git`.
-  - Triggered GitHub stats re-indexing (`/stats/contributors`), completely eliminating all 13 external authors from the repository so `ahsanK225` is verified as the 100% sole author and contributor.
-- **Comprehensive ClipNova AI Documentation (`README.md`)**:
-  - Overhauled root `README.md` with official ClipNova AI branding, 3D app icon showcase, and author badges.
-  - Linked official GitHub profile (`ahsanK225`) and Instagram (`@itz_ahsan.iqbal`).
-  - Documented features, multi-model AI configuration (Gemini, OpenAI, Grok, Groq, Claude, Ollama), offline speech transcription, and installation steps.
-- **Consistent Brand Names across All Pages**:
-  - Updated all HTML files (`admin.html`, `auth.html`, `landing.html`, `reset.html`, `legal.html`) to ClipNova AI with new favicons.
-
-## [2026-11-22] — Official ClipNova AI Vector Logo, Fix Dropdown Overflow & GitHub Live Push
-
-### Added & Improved
-- **Official ClipNova AI Vector Branding (`web/brand/logo-light.svg`, `logo.svg`, `favicon.svg`)**:
-  - Replaced legacy orange "Peak Cut" graphic with official, modern **ClipNova AI** vector branding.
-  - Designed glowing cyan & purple gradient emblem with 9:16 vertical smartphone frame and supernova star play-triangle.
-  - Sized at `viewBox="0 0 797 220"` with crisp white typography and high-tech `AI` neon pill capsule.
-  - Updated `favicon.svg` with matching app icon emblem.
-- **Fixed Creator Dropdown Clipping & Stacking (`web/index.html`)**:
-  - Removed `overflow: hidden;` from `.hero` and set `#heroSlot { position: relative; z-index: 35; }`.
-  - Creator dropdown (`.pick-menu`) now extends gracefully over the hero boundary and floats smoothly above dashboard cards without being clipped.
-  - Upgraded `.pick-menu` to solid obsidian dark background (`#121726`), glowing cyan accents, and eliminated the bright white scrollbar thumb.
-- **GitHub Repository Live & Pushed (`github.com/ahsanK225/ClipNova-AI`)**:
-  - Created public repository `ahsanK225/ClipNova-AI` via GitHub API with user authentication.
-  - Pushed full codebase to `https://github.com/ahsanK225/ClipNova-AI.git` on branch `main`.
-  - Clicking "Star on GitHub" now links directly to the live, working GitHub repository (404 error resolved).
-
-## [2026-11-22] — Fix Canvas Vertical Stretch & Auto-Fade Floating Cards on Options Drawer Open
-
-### Fixed
-- **Canvas Vertical Distortion & Aspect Ratio Preservation (`web/index.html`)**:
-  - Attached a native `ResizeObserver` to the hero section so that when `.composer-opts` expands or collapses, `canvas.width` and `canvas.height` buffer dimensions are recalculated immediately.
-  - Eliminated vertical stretching of timeline waveforms, circles, play buttons, and laser scissor head icons.
-- **Floating Cards Collision & Form Obstruction (`web/index.html`)**:
-  - Added dynamic detection for `.composer-opts.open`: floating 9:16 cards smoothly fade out (`cardFade -> 0`) when Options are opened so they never collide with or distract from the configuration form.
-  - Reduced opacity of background timeline tracks and scrubber when options are open to maintain clean focus on the controls.
-  - Automatically fades cards back in when Options are closed.
-- **Options Panel Luxury Dark Theme (`web/index.html`)**:
-  - Replaced hardcoded `#fff` white background blocks on stepper controls (`How many`, `Shortest`, `Longest`), caption styles, language segments, and layout cards with cohesive obsidian dark styling (`var(--bg-2)` / `var(--muted)`).
-  - Styled inputs, buttons, and textareas with neon borders, crisp white `#FFFFFF` text, and brand-line hover transitions.
-
-## [2026-11-22] — Animated Cyber Video Clipping Hero Background & Flanking 9:16 Shorts Cards
-
-### Added & Improved
-- **Custom-Engineered 60fps Video Clipping Hero Animation (`web/index.html`)**:
-  - Replaced dull brown `GradientASCII` dots with a dynamic HTML5 Canvas animation themed around video clipping, shorts creation, and audio waveforms.
-  - **Dual Cyber Video Timelines**: Renders two animated horizontal tracks with filmstrip perforations, live oscillating audio waveforms in cyber cyan (`#00F0FF`) and violet (`#A855F7`), and timecode markers (`00:15`, `00:30`, etc.).
-  - **Dynamic Laser Scrubber & Cutting Scissors (`✂️`)**: A glowing neon laser playhead sweeps across the tracks with a rotating scissors badge; triggers bursts of 12 glowing spark particles and circular shockwaves at cut points.
-  - **Floating 9:16 Shorts Video Cards**: Four floating vertical shorts phone cards ("⚡ 98 SCORE", "✂️ AUTO SPLIT", "🔥 VIRAL 96%", "🎬 SMART CROP") with live bouncing audio equalizer bars, miniature facecam/gameplay split previews, play buttons, and subtle sinusoidal floating physics.
-  - **Flanking Responsive Alignment**: Cards automatically flank the central composer box with mathematical precision on wide and narrow viewports so search/link inputs and headings remain 100% clean, unobstructed, and clickable.
-  - **Interactive Mouse Parallax & Spotlight**: Cursor movements smoothly cast an ambient cyber spotlight across the timeline and apply subtle 3D parallax shifts to the floating cards.
-  - **Cosmic Radial Backdrop & Grid**: High-tech obsidian backdrop with electric purple/cyan radial glow and subtle 36px perspective cyber grid overlay.
-  - **Safe Lifecycle Management**: Clean RAF loop cleanup on view changes (`window._gaStop`) to free GPU/CPU resources when switching between tabs.
-- **Brand Consistency Update**:
-  - Updated update banner and modals in `web/index.html` from `PeakCut` to `ClipNova AI`.
 
 ## [2026-11-22] — Official Rebranding to ClipNova AI & Remote Repository Configuration
 
@@ -194,62 +93,6 @@ All notable project changes are documented here.
 - `GET http://127.0.0.1:8765/api/status`: Verified `links` returns `{'repo': 'https://github.com/ahsanK225', 'follow': 'https://www.instagram.com/itz_ahsan.iqbal/?__pwa=1'}`.
 - `tests/test_capcut_and_styles.py`: ALL PASSED (12/12 caption and hook styles + CapCut export verified).
 
-
-## [2026-11-22] — Custom Presets Direct Re-Render, Batch 'Apply to All Clips' & Preset Edit/Update Mode
-
-### Added & Improved
-- **Direct 1-Click Preset Apply & Instant Re-Render (`web/index.html`)**:
-  - In Clip Dialog, clicking a preset chip (`[ ⭐ gg (This Clip) ]`) now automatically applies the preset layout, hook style, and caption style AND immediately triggers clip re-rendering. Users no longer need to manually scroll and click "Save and re-make clip".
-  - Added **`[ 🚀 All Clips ]`** button next to each custom preset in the Clip Dialog: 1-click applies the preset to every clip in the stream and queues all of them for background re-rendering automatically.
-- **Batch Preset Application Endpoint (`POST /api/jobs/{jid}/apply-preset`) (`studio/server.py`)**:
-  - New backend route that updates all clips in a job with a chosen custom preset or layout and queues them for asynchronous re-rendering in FFmpeg.
-- **Visual Layout Studio: Edit & Overwrite Saved Presets (`web/index.html`)**:
-  - When clicking any saved preset chip (e.g. `[ 🏷️ gg ]`), the Studio sets active edit state, populates the name field, and displays a prominent **`[ 💾 Update "gg" ]`** button.
-  - Users can now freely drag and fine-tune facecam or gameplay crop boxes on an existing preset and overwrite it directly with one click.
-  - Added **`[ 🚀 Apply to ALL Clips in this Stream & Re-Render All ]`** button in the Visual Layout Studio modal.
-- **Automatic Creator Preset Inheritance for Future Clips (`studio/jobs.py`)**:
-  - When a creator has an active custom preset (e.g. `active_preset: "gg"`), all newly recorded clips automatically inherit the preset's bounding boxes, split ratio, hook style, and caption style without needing manual intervention.
-
-### Tests and Verification
-- Tested `POST /api/jobs/20261122-010702-ea60ceadfa/apply-preset`: 14 clips updated and queued for re-render in one call (`PASS`).
-- Verified AST script syntax across all blocks via Node.js: Code 0 (Zero errors).
-- Unit tests `test_capcut_and_styles.py`, `test_facecam.py`, `test_captions.py` ALL PASSED.
-
-## [2026-11-22] — AI-Caught Clip Cooldown Bypass & Port Conflict Resolution (PeakCut 8765 vs ClipNova 8766)
-
-### Added & Changed
-- **Bypass 'Too close to the last clip' Cooldown for All AI Highlights (`studio/live.py`)**:
-  - Identified and removed the artificial block where high-scoring AI viral moments (e.g., words 85, reaction 85) were discarded if within `min_gap_min` (2 minutes) of a prior clip.
-  - Implemented smart duplicate protection: clips are only skipped if they substantially overlap the exact same footage (> 8s or > 35% overlap).
-  - All verified AI moments (`both` judges agreed, `is_funny` tag, or `score >= min_score`) are now guaranteed to be clipped immediately regardless of gap.
-  - Added helpful label in Creator Setup (`web/index.html`) explaining that AI moments bypass the cooldown.
-- **Port Conflict Resolution Between PeakCut & ClipNova (`F:\3d movies\naeeewww`)**:
-  - Discovered that PID 18168 was running ClipNova from `F:\3d movies\naeeewww` on port 8765, masking PeakCut's real database.
-  - Reconfigured ClipNova to port `8766` in `F:\3d movies\naeeewww\.env` and `Start ClipNova.cmd`.
-  - Terminated the conflicting process and started PeakCut cleanly from `F:\Games\GTA 6 CLIPPING\PeakCut` on port `8765`.
-  - Confirmed 100% restoration of all 5 creators (`Ducky Reloaded`, `IShowSpeed`, `Jenkins Clips`, `MrBeast`, `ohnepixel`) and all 52 recorded jobs and clips.
-
-### Tests and Verification
-- `GET http://127.0.0.1:8765/api/creators`: Verified all 5 creators returned.
-- `GET http://127.0.0.1:8765/api/jobs`: Verified all 52 jobs returned with full clips history.
-- `tests/test_live.py`: ALL PASSED.
-- `tests/test_live_times.py`: ALL PASSED.
-
-## [2026-11-22] — Frontend Blank Screen Syntax Fix & Validation Audit
-
-### Fixed
-- **JavaScript Syntax Crash in `clsSaveNewNamedPreset` (`web/index.html`)**:
-  - Resolved an unexpected `SyntaxError: await is only valid in async functions and the top level bodies of modules` caused by a duplicate closing bracket `};` on lines 3869-3870 that prematurely terminated `clsSaveNewNamedPreset()`.
-  - Executed automated AST / syntax validation using Node.js across all script blocks in `web/index.html` (both scripts verified with Return Code 0).
-  - Confirmed UI mounts and renders without errors, and local studio daemon serves HTTP 200 cleanly on `http://127.0.0.1:8765/app`.
-
-### Tests and Verification
-- Node.js syntax check on all `<script>` tags: Code 0 (Zero errors).
-- HTTP GET `http://127.0.0.1:8765/app` -> Status 200 OK.
-- `tests/test_capcut_and_styles.py`: 100% Passed.
-- `tests/test_facecam.py`: 100% Passed.
-- `tests/test_captions.py`: 100% Passed.
-- `tests/test_static.py`: 100% Passed.
 
 ## [2026-11-22] — CapCut Desktop Export, Bouncy / Hormozi Subtitles, Purple Whip Hook Styling & Visual Studio Controls
 

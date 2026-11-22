@@ -7,7 +7,7 @@ import time
 
 import numpy as np
 
-from . import ai, config, games, usage, roman
+from . import ai, config, games, usage, roman, ohnepixel
 
 WINDOW_SEC, OVERLAP_SEC = 15 * 60, 60
 
@@ -1003,6 +1003,191 @@ def judge_signals(z, chat, start, now, unit="messages", timeout=None):
     moments = [{"start": float(m["start"]), "end": float(m["end"]), "score": int(m.get("score", 0)),
                 "reason": str(m.get("reason", ""))} for m in out if isinstance(m, dict)]
     return moments, spent
+
+
+MOMENT_VISUAL_SCHEMA = {
+    "type": "OBJECT",
+    "properties": {
+        "event_detected": {"type": "BOOLEAN"},
+        "event_type": {"type": "STRING"},
+        "visual_score": {"type": "INTEGER"},
+        "description": {"type": "STRING"},
+        "is_entertaining": {"type": "BOOLEAN"},
+        "reason": {"type": "STRING"},
+    },
+    "required": ["event_detected", "event_type", "visual_score", "description", "is_entertaining", "reason"],
+}
+
+
+def judge_multimodal_moment(
+    words: list[dict] | str,
+    z_scores: list[float] | np.ndarray | None = None,
+    frame_bytes: bytes | list[bytes] | None = None,
+    title: str = "",
+    uploader: str = "ohnePixel",
+    game: str | None = None,
+    chat: list[int] | None = None,
+    timeout: float | None = None,
+) -> dict:
+    """Intelligent Livestream Moment Judge (Mode A & Mode B).
+    Combines three signals:
+    - Signal 1: Keyword Relevance (25%) via ohnepixel.classify_transcript
+    - Signal 2: Streamer Excitement & Reaction Intensity (35%) via audio z-scores, laughter, voice emotion & chat
+    - Signal 3: Actual Visual / Event Evidence (40%) via AI vision (frame analysis)
+
+    If AI / multimodal vision is unavailable, cleanly falls back to Mode B (Keyword-based fallback).
+    Enforces event-quality validation so casual words like 'bro' or non-events never produce clips.
+    """
+    # 0. Check Mode Selection
+    if not ai.ready():
+        max_z = float(np.max(z_scores)) if z_scores is not None and len(z_scores) else 0.0
+        chat_vel = (max(chat) / max(1.0, sum(chat) / max(1, len(chat)))) if chat and sum(chat) > 0 else 0.0
+        return ohnepixel.evaluate_keyword_fallback(words, audio_zscore=max_z, chat_velocity=chat_vel, game=game)
+
+    # 1. Signal 1: Keyword Relevance (25%)
+    cls = ohnepixel.classify_transcript(words, game=game)
+    kw_score = cls["score"]
+    tier = cls["tier"]
+    matches = cls["matches"]
+    is_only_common = not cls["eligible"] and cls.get("tier") == 3
+
+    # 2. Signal 2: Excitement and Reaction Intensity (35%)
+    if z_scores is not None and len(z_scores):
+        max_z = float(np.max(z_scores))
+    else:
+        max_z = 0.0
+
+    if max_z >= 3.5:
+        rx_score = 95
+    elif max_z >= 2.5:
+        rx_score = 85
+    elif max_z >= 1.8:
+        rx_score = 75
+    elif max_z >= 1.2:
+        rx_score = 60
+    elif max_z >= 0.5:
+        rx_score = 45
+    else:
+        rx_score = 25
+
+    # Laughter boost
+    if cls.get("laughter_detected"):
+        rx_score = min(100, rx_score + 25)
+
+    # Community phrase repetition boost (e.g. "GOLD GOLD GOLD")
+    if cls.get("has_repetition"):
+        rx_score = min(100, rx_score + 15)
+
+    # Chat velocity boost
+    if chat and sum(chat) > 0:
+        avg_c = sum(chat) / max(1, len(chat))
+        max_c = max(chat)
+        if max_c >= 2.0 * avg_c and max_c >= 5:
+            rx_score = min(100, rx_score + 15)
+
+    rx_score = min(100, max(0, rx_score))
+
+    # 3. Signal 3: Actual Visual / Event Evidence (40%)
+    vis_score = 0
+    event_detected = False
+    event_type = "gameplay"
+    vis_reason = ""
+    has_visual = False
+
+    if frame_bytes:
+        prompt = (
+            f"You are an expert livestream clipping judge analyzing a candidate video frame from {uploader}'s stream.\n"
+            f"Game/Category: {game or 'Gaming'} | Stream Title: {title or 'Live'}\n"
+            f"Spoken words during this moment: \"{cls.get('matches') or 'none'}\"\n\n"
+            "Analyze the on-screen visual evidence:\n"
+            "1. Did an actual gameplay event happen? (e.g. skin unboxed/revealed, gold item, clutch, kill, car crash, hilarious NPC interaction, physics glitch, boss kill, death, jumpscare).\n"
+            "2. Was something unexpected revealed or did a visual payoff occur?\n"
+            "3. Or is it just mundane gameplay, walking in an empty street, idling in a lobby, or looking at menus?\n\n"
+            "Rate visual_score 0 to 100:\n"
+            "- 80-100: Major entertaining gameplay event, rare item/skin, unbelievable clutch, hilarious glitch or action payoff.\n"
+            "- 60-79: Interesting engagement, cutscene, action or reaction.\n"
+            "- 30-59: Normal routine gameplay.\n"
+            "- 0-29: Mundane, idle, static screen or boring menu.\n"
+            "Set event_detected to true ONLY if there is real on-screen gameplay/visual action."
+        )
+        try:
+            res, _ti, _to = ai.see_json(prompt, frame_bytes, schema=MOMENT_VISUAL_SCHEMA, timeout=timeout)
+            if isinstance(res, dict):
+                vis_score = int(res.get("visual_score", 0))
+                event_detected = bool(res.get("event_detected", False))
+                event_type = str(res.get("event_type", "gameplay"))
+                vis_reason = str(res.get("reason", ""))
+                has_visual = True
+        except Exception:
+            has_visual = False
+
+    # Dynamic Weight Redistribution
+    if has_visual:
+        w_kw = 0.25
+        w_rx = 0.35
+        w_vis = 0.40
+    else:
+        # Redistribute 40% across Keyword (40%) and Reaction (60%)
+        w_kw = 0.40
+        w_rx = 0.60
+        w_vis = 0.0
+        vis_score = 0
+
+    raw_score = w_kw * kw_score + w_rx * rx_score + w_vis * vis_score
+
+    # 4. Strict Event-Quality Validation
+    # Example E: Casual "BRO" during normal conversation -> SKIP
+    if is_only_common and vis_score < 80:
+        final_score = min(35, int(raw_score))
+        priority = "SKIP"
+        reason = "Casual common word without event or vocal excitement"
+    # Example A: "WHAT THE FUCK" said, but nothing happened visually and reaction is low -> SKIP
+    elif tier == 1 and has_visual and vis_score < 35 and rx_score < 55:
+        final_score = min(54, int(raw_score))
+        priority = "SKIP"
+        reason = "Reaction phrase spoken casually without on-screen event or vocal excitement"
+    # Example C / F: Incredible clutch or unexpected event without shouting -> HIGH PRIORITY
+    elif vis_score >= 85:
+        final_score = max(int(raw_score), 85)
+        priority = "HIGH PRIORITY"
+        reason = f"Strong visual event detected ({event_type}): {vis_reason or 'Clutch / Rare event'}"
+    # Example B: Uncontrollable laughter / genuine entertainment -> HIGH PRIORITY
+    elif cls.get("laughter_detected") and (rx_score >= 75 or max_z >= 1.8):
+        final_score = max(int(raw_score), 82)
+        priority = "HIGH PRIORITY"
+        reason = "Uncontrollable laughter & entertaining reaction"
+    # Example D: "GOLD GOLD GOLD" + skin/game clue -> HIGH PRIORITY
+    elif cls.get("has_repetition") and (tier == 2 or kw_score >= 80) and (vis_score >= 60 or rx_score >= 70):
+        final_score = max(int(raw_score), 85)
+        priority = "HIGH PRIORITY"
+        reason = f"Repeated hype reaction with verified context: {', '.join(cls.get('matches', [])[:2])}"
+    else:
+        final_score = int(round(raw_score))
+        if final_score >= 75:
+            priority = "HIGH PRIORITY"
+            reason = f"High-confidence moment ({matches[0] if matches else event_type})"
+        elif final_score >= 60:
+            priority = "REVIEW QUEUE"
+            reason = f"Candidate for review ({matches[0] if matches else 'gameplay'})"
+        else:
+            priority = "SKIP"
+            reason = "Below quality threshold"
+
+    return {
+        "mode": "MODE A (AI INTELLIGENT SCORING)",
+        "priority": priority,
+        "score": final_score,
+        "clipped": priority in ("HIGH PRIORITY", "REVIEW QUEUE"),
+        "tier": tier,
+        "signals": {
+            "keyword": {"score": kw_score, "weight": w_kw, "matches": matches, "tier": tier},
+            "reaction": {"score": rx_score, "weight": w_rx, "max_z": max_z, "laughter": cls.get("laughter_detected", False)},
+            "visual": {"score": vis_score, "weight": w_vis, "event": event_type, "detected": event_detected, "has_frame": has_visual},
+        },
+        "breakdown": f"KW {kw_score}% | RX {rx_score}% | VIS {vis_score}%",
+        "reason": reason,
+        "matches": matches,
+    }
 
 
 FIX_SCHEMA = {"type": "ARRAY", "items": {"type": "STRING"}}

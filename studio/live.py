@@ -11,7 +11,7 @@ from pathlib import Path
 
 import numpy as np
 
-from . import alerts, auth, brain, config, creators, ctx, facecam, games, hashtags, jobs, load, media, transcribe, usage
+from . import ai, alerts, auth, brain, config, creators, ctx, facecam, games, hashtags, jobs, load, media, transcribe, usage, ohnepixel
 
 # ":username!user@host PRIVMSG #channel :the message"
 _NICK = re.compile(r"(?m)^:([A-Za-z0-9_]{2,25})!")
@@ -175,6 +175,10 @@ class Session:
         self.facecam_box = None       # where the webcam is, found once the first clip is made
         self.facecam_checked = False  # the look is made once, even when it finds nothing
         self.ai_busy = 0.0            # when the AI check now running was started, 0 when none is
+
+    def active_detection_mode(self) -> str:
+        """Returns the active clipping detection mode: Mode A (AI Intelligent Scoring) or Mode B (Keyword Fallback)."""
+        return "MODE A (AI INTELLIGENT SCORING)" if ai.ready() else "MODE B (KEYWORD FALLBACK)"
 
     def _ask_ai(self, window=None, why=None):
         """Ask the AI on its own thread, so a slow answer never stops the recording.
@@ -575,12 +579,40 @@ class Session:
             self.job["ai"]["last_error"] = str(e)[-200:]
         added = 0
         for c in keep:
+            frame_bytes = None
+            try:
+                src_file = getattr(self, "src_mp4", None)
+                if src_file and src_file.is_file():
+                    frame_t = max(0.0, (c["start"] + c["end"]) / 2.0)
+                    frame_bytes = jobs._extract_frame_bytes(src_file, frame_t)
+            except Exception:
+                pass
+
+            c_text = " ".join(w["w"] for w in win if c["start"] <= w["s"] <= c["end"])
+            c_lo, c_hi = max(0, int(c["start"])), min(len(z), int(c["end"]) + 1)
+            mm = brain.judge_multimodal_moment(
+                c_text or win,
+                z_scores=z[c_lo:c_hi],
+                frame_bytes=frame_bytes,
+                title=title,
+                uploader=up,
+                game=self._game(),
+                chat=chat,
+                timeout=config.LIVE_AI_TIMEOUT,
+            )
+
+            # Strict quality check:
+            if mm["priority"] == "SKIP" and not must:
+                self.rejected += 1
+                self._verdict(verdict, f"Multimodal judge: {mm['reason']}")
+                continue
+
             match = [m for m in sig if m["end"] >= c["start"] - 10 and m["start"] <= c["end"] + 10 and m["score"] >= 50]
             rs = max((m["score"] for m in match), default=0)
             verdict["reaction"] = rs
             both = bool(match)
             is_funny = c.get("category") in ("funny", "fail") and c.get("score", 0) >= max(75, st["min_score"] - 5)
-            ok = both or is_funny or (st["decide_mode"] == "either" and c["score"] >= st["min_score"]) or (must and added == 0)
+            ok = both or is_funny or (st["decide_mode"] == "either" and c["score"] >= st["min_score"]) or (must and added == 0) or (mm["priority"] == "HIGH PRIORITY")
             if not ok:
                 self.rejected += 1
                 self._verdict(verdict, "Reaction judge said no, not clipped")
@@ -596,21 +628,34 @@ class Session:
                 continue
 
             too_close = any(abs(c["start"] - k["start"]) < st.get("min_gap_min", 0) * 60 for k in self.job["clips"])
-            ai_caught = both or is_funny or (c.get("score", 0) >= st["min_score"])
+            ai_caught = both or is_funny or (mm["priority"] == "HIGH PRIORITY") or (c.get("score", 0) >= st["min_score"])
 
             # If AI caught a verified moment (both judges agreed or high score), ALWAYS clip it even if close to last clip!
             if too_close and not ai_caught:
                 self._verdict(verdict, "Too close to the last clip")
                 continue
 
-            why = "Both judges agreed" if both else ("Funny moment detected" if is_funny else ("Words judge was sure" if c["score"] >= st["min_score"] and
-                                                     st["decide_mode"] == "either" else "Forced: no clip for a while"))
+            why = mm["reason"]
             if too_close and ai_caught:
                 why += " (viral highlight)"
-            c["judges"] = {"words": c["score"], "reaction": rs or None, "why": why, "model": ai.last_active_model()}
-            c["reason"] = f"{c['reason']} ({why.lower()}.)"
+            c["score"] = mm["score"]
+            c["priority"] = mm["priority"]
+            c["breakdown"] = mm["breakdown"]
+            c["detection_mode"] = mm["mode"]
+            c["signals"] = mm.get("signals")
+            c["judges"] = {
+                "mode": mm["mode"],
+                "score": mm["score"],
+                "priority": mm["priority"],
+                "breakdown": mm["breakdown"],
+                "why": why,
+                "words": c.get("score", 0),
+                "reaction": rs or None,
+                "model": ai.last_active_model(),
+            }
+            c["reason"] = f"{c['reason']} [{mm['mode']}: {mm['breakdown']}]"
             self._add_clip(c)
-            self._verdict(verdict, "Clipped: " + why.lower())
+            self._verdict(verdict, f"Clipped ({mm['priority']}): " + why[:40])
             added += 1
             must = False
             if added >= (1 if every <= 2 else 2):
@@ -673,16 +718,46 @@ class Session:
                 if self.said:
                     break
 
-        # 2. Creator's custom trigger phrases (Always clip the last 30 seconds when someone says ...)
+        # 2. OhnePixel Intelligent Detection & Creator's custom trigger phrases
+        g = self._game()
+        c_class = ohnepixel.classify_transcript(window_words, game=g)
+        pre_roll, post_roll = 18.0, 25.0
+
+        # Level 1 strong reaction phrase detection (Continuous Moment Discovery)
+        if c_class.get("tier") == 1 and c_class.get("level1_matches"):
+            matched_p = c_class["level1_matches"][0]
+            match_t = window_words[-1]["s"]
+            norm_pat = ohnepixel.normalize_text(matched_p).split()
+            plen = len(norm_pat)
+            words_n = [self._normalize_trigger_text(w.get("w", "")) for w in window_words]
+            for idx in range(len(words_n) - plen + 1):
+                if words_n[idx:idx + plen] == norm_pat:
+                    match_t = window_words[idx]["s"]
+                    break
+
+            if match_t >= earliest_new - 8.0:
+                # Merge overlapping triggers within 15 seconds
+                if match_t - self.last_trigger <= 15.0 and self.manual:
+                    self.manual[-1]["end"] = max(self.manual[-1]["end"], match_t + post_roll)
+                    if self.manual[-1]["end"] - self.manual[-1]["start"] > 60.0:
+                        self.manual[-1]["start"] = max(0.0, self.manual[-1]["end"] - 60.0)
+                    self.last_trigger = match_t
+                elif match_t - self.last_trigger > 15.0:
+                    self.last_trigger = match_t
+                    s = max(0.0, match_t - pre_roll)
+                    e = match_t + post_roll
+                    self.manual.append({
+                        "start": s, "end": e,
+                        "why": f'"{matched_p}"',
+                        "tier": 1,
+                        "trigger_type": "reaction_phrase"
+                    })
+                return
+
+        # Creator's custom trigger phrases
         raw_phrases = [p.strip() for p in self.settings.get("trigger_words", "").split(",") if p.strip()]
         if not raw_phrases:
             return
-
-        banned_singles = {
-            "bro", "bruh", "man", "dude", "yo", "guys", "boys", "bhai", "yaar", "yar", "oye", "abe", "kya",
-            "shit", "fuck", "damn", "what", "wait", "dead", "easy", "free", "perfect", "clutch", "clean",
-            "sick", "nice", "omg", "wtf", "lol", "lmao", "rofl", "haha", "hahaha", "hasi", "mazak", "mazaq"
-        }
 
         norm_phrases = []
         for rp in raw_phrases:
@@ -690,10 +765,10 @@ class Session:
             parts = np_text.split()
             if not parts:
                 continue
-            # Single common words should be evaluated by AI judges, not trigger auto-clips
-            if len(parts) == 1 and (parts[0] in banned_singles or len(parts[0]) < 4):
+            # Single common words should NEVER trigger auto-clips directly without multimodal validation
+            if len(parts) == 1 and (parts[0] in ohnepixel.COMMON_WORDS or len(parts[0]) < 4):
                 continue
-            if len(np_text) >= 4:
+            if len(np_text) >= 3:
                 norm_phrases.append((rp, np_text, parts))
 
         if not norm_phrases:
@@ -710,27 +785,99 @@ class Session:
                 window_no_apos = words_no_apos[i:i + plen]
                 if window == parts or window_no_apos == parts_no_apos:
                     t = window_words[i]["s"]
-                    # Must be recent (touching latest audio chunk or near boundary) and respect cooldown
-                    if t >= earliest_new - 6.0 and (t - self.last_trigger > 25.0):
-                        self.last_trigger = t
-                        self.manual.append({"start": max(0.0, t - 14.0), "end": t + 12.0, "why": f'Someone said "{orig_p}"'})
+                    if t >= earliest_new - 6.0:
+                        # Candidate merging if within 15s
+                        if t - self.last_trigger <= 15.0 and self.manual:
+                            self.manual[-1]["end"] = max(self.manual[-1]["end"], t + post_roll)
+                            if self.manual[-1]["end"] - self.manual[-1]["start"] > 60.0:
+                                self.manual[-1]["start"] = max(0.0, self.manual[-1]["end"] - 60.0)
+                            self.last_trigger = t
+                        elif t - self.last_trigger > 20.0:
+                            self.last_trigger = t
+                            self.manual.append({
+                                "start": max(0.0, t - pre_roll),
+                                "end": t + post_roll,
+                                "why": f'"{orig_p}"',
+                                "tier": 2,
+                                "trigger_type": "custom_phrase"
+                            })
 
     def _manual_step(self):
         for req in [m for m in self.manual if m["end"] <= self.t_done or self.ended]:
             text = " ".join(w["w"] for w in self.words if req["start"] <= w["s"] <= req["end"])
             usage.set_context(self.job["creator"], self.job["title"] or "Live stream")
+
+            # Extract video frame for multimodal evaluation
+            fbytes = None
+            try:
+                src_file = getattr(self, "src_mp4", None)
+                if src_file and src_file.is_file():
+                    frame_t = max(0.0, (req["start"] + req["end"]) / 2.0)
+                    fbytes = jobs._extract_frame_bytes(src_file, frame_t)
+            except Exception:
+                fbytes = None
+
+            # Audio z-score slice & chat
+            lo = max(0, int(req["start"]))
+            hi = min(len(self.db), int(req["end"]) + 1)
+            z = brain.loud_zscore(np.array(self.db, dtype=np.float32)) if len(self.db) > 10 else []
+            z_slice = z[lo:hi] if len(z) >= hi else []
+            chat_slice = [self.chat.get(t, 0) for t in range(lo, hi)] if (self.chat_on or self.chat_total) else None
+
+            # Run multimodal intelligent scoring (Mode A or Mode B fallback)
+            mm = brain.judge_multimodal_moment(
+                text,
+                z_scores=z_slice,
+                frame_bytes=fbytes,
+                title=self.job["title"],
+                uploader=self.job["uploader"],
+                game=self._game(),
+                chat=chat_slice,
+                timeout=config.LIVE_AI_TIMEOUT,
+            )
+
+            # False-positive guardrail:
+            # If not an explicit UI button click ("Clip last 30s") and priority is SKIP:
+            is_button = req.get("trigger_type") is None and req.get("why") in (None, "Hand")
+            if not is_button and mm["priority"] == "SKIP":
+                self.manual.remove(req)
+                verdict = {"t": round(req["end"]), "transcript": mm["score"], "reaction": None,
+                           "trigger": req.get("why"), "model": ai.last_active_model()}
+                self._verdict(verdict, f"Skipped: {mm['reason']}")
+                continue
+
             try:
                 c = brain.describe(text, self.job["title"], self.job["uploader"], game=self._game(),
                                    timeout=config.LIVE_AI_TIMEOUT)
             except Exception as e:  # noqa: BLE001
-                # Someone asked for this clip by hand. A slow or broken AI costs it its hook, not the clip.
                 self.job["ai"]["last_error"] = str(e)[-200:]
-                c = {"score": 0, "category": "other", "hook": "", "title": self.job["title"],
+                c = {"score": mm["score"], "category": "other", "hook": "", "title": self.job["title"],
                      "description": "", "hashtags": [], "highlight_words": []}
+
             self.manual.remove(req)
-            c.update(start=round(req["start"], 2), end=round(min(req["end"], self.samples / SR), 2), score=0)
+            c.update(
+                start=round(req["start"], 2),
+                end=round(min(req["end"], self.samples / SR), 2),
+                score=mm["score"],
+                priority=mm["priority"],
+                breakdown=mm["breakdown"],
+                detection_mode=mm["mode"],
+                signals=mm.get("signals"),
+            )
+            c["judges"] = {
+                "mode": mm["mode"],
+                "score": mm["score"],
+                "priority": mm["priority"],
+                "breakdown": mm["breakdown"],
+                "why": mm["reason"],
+                "model": ai.last_active_model(),
+            }
             if req.get("why"):
-                c["reason"] = req["why"]
+                c["trigger_label"] = req["why"]
+                c["reason"] = f"{req['why']} — {mm['reason']}"
+            else:
+                c["reason"] = mm["reason"]
+
             self._add_clip(c)
 
     def _add_clip(self, c):
@@ -921,6 +1068,8 @@ class Session:
                       "rejected": self.rejected, "verdicts": list(reversed(self.verdicts)),
                       "every_min": int(self.settings.get("ai_every_min", 3)) or 3,
                       "auto": None,
+                      "detection_mode": self.active_detection_mode(),
+                      "model": ai.last_active_model(),
                       "pending_clips": len(self.manual)})
         jobs.save(self.job)
 

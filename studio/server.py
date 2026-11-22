@@ -1022,6 +1022,24 @@ def rerender(jid: str, cid: str, body: dict = Body(...)):
     return jobs.public(job)
 
 
+@app.post("/api/jobs/{jid}/clips/{cid}/review")
+def review_clip(jid: str, cid: str, body: dict = Body(...)):
+    """Set review feedback rating for a clip (great, good, bad, missed, duplicate, false_reaction)."""
+    job = _job_or_404(jid)
+    clip = next((c for c in job["clips"] if c["id"] == cid), None)
+    if not clip:
+        raise HTTPException(404, "No such clip")
+    rating = str(body.get("rating", "")).strip().lower()
+    valid_ratings = {"great", "good", "bad", "missed", "duplicate", "false_reaction"}
+    if rating not in valid_ratings:
+        raise HTTPException(400, f"Invalid rating. Must be one of: {', '.join(sorted(valid_ratings))}")
+    clip["feedback"] = rating
+    clip["feedback_at"] = time.time()
+    jobs.save(job)
+    return {"ok": True, "feedback": rating}
+
+
+
 @app.post("/api/jobs/{jid}/apply-preset")
 def apply_preset_to_job(jid: str, body: dict = Body(...)):
     """Apply a custom preset or layout to all clips in a job, and optionally re-render all."""
@@ -1110,6 +1128,24 @@ def clip_text(jid: str, cid: str, body: dict = Body(...)):
     except (ValueError, TypeError) as e:
         raise HTTPException(400, str(e))
     return jobs.public(job)
+
+
+@app.post("/api/jobs/{jid}/clips/{cid}/review")
+def review_clip(jid: str, cid: str, body: dict = Body(...)):
+    """Set review feedback rating for a clip (great, good, bad, missed, duplicate, false_reaction)."""
+    job = _job_or_404(jid)
+    clip = next((c for c in job["clips"] if c["id"] == cid), None)
+    if not clip:
+        raise HTTPException(404, "No such clip")
+    rating = str(body.get("rating", "")).strip().lower()
+    valid_ratings = {"great", "good", "bad", "missed", "duplicate", "false_reaction"}
+    if rating not in valid_ratings:
+        raise HTTPException(400, f"Invalid rating. Must be one of: {', '.join(sorted(valid_ratings))}")
+    clip["feedback"] = rating
+    clip["feedback_at"] = time.time()
+    jobs.save(job)
+    return {"ok": True, "feedback": rating}
+
 
 
 @app.post("/api/jobs/{jid}/clips/{cid}/write")
