@@ -505,3 +505,22 @@ Integrated directly in `studio/brain.py` and `studio/posting.py`:
    - Redundant Popout Chat button removed from `.cta` and chat header.
    - `.cta` buttons compacted into a 2-column grid (`height: 34px`).
    - `.sinfo-chat-box` height reduced to `min-height: 115px; max-height: 165px;` and `.stream` aligned to `align-items: start;`, ensuring `.player` (16:9) and `.sinfo` match height with zero void space below.
+
+---
+
+## 29. Cyber-Glass Calendar Theme, Day Timeline & Micro-Animations
+1. **Visual Depth & Elevation**:
+   - Layered multi-stop radial gradient background: `radial-gradient(120% 120% at 0% 0%, rgba(30, 41, 59, 0.45) 0%, rgba(15, 23, 42, 0.9) 55%, rgba(10, 15, 30, 0.98) 100%)`.
+   - Seamless glassmorphism with `backdrop-filter: blur(20px)` and soft glowing rim highlight (`box-shadow: 0 20px 48px -12px rgba(0, 0, 0, 0.65), inset 0 1px 0 rgba(255, 255, 255, 0.1)`).
+   - Eliminates rough dashed borders in favor of sleek solid cards with smooth hover lift (`transform: translateY(-3px); box-shadow: 0 16px 36px -8px rgba(0,240,255,0.22)`).
+2. **Micro-Animations & Interaction Models**:
+   - `@keyframes calPulse`: Continuous concentric radar waves around the green engine status dot (`● Auto Engine Active`).
+   - `@keyframes calFlowArrow`: Gentle shimmer and horizontal motion on the automated publishing pipeline arrows.
+   - `@keyframes calFadeInUp`: Smooth 300ms cubic-bezier entry animation when switching views or loading creator calendar.
+3. **Structured Day Timeline Grouping**:
+   - Slots are organized into intuitive Day blocks (Today, Tomorrow, Day 3) with daily usage counters (`0/3 slots claimed`).
+   - Each slot clearly displays PKT publishing time, USA audience window (Morning Drive, Afternoon Peak, Prime Evening in EST/PST), and connected Community Post node (+30m).
+4. **Multi-View Switcher**:
+   - Supports 3 view modes: `📅 Day Timeline` (grouped calendar), `⚡ USA Slots` (sequential windows list), and `🎬 Queued Videos` (active video cards), switchable with zero page reload.
+5. **Segmented Daily Quota Gauge**:
+   - Segmented 3-dot visual meter in the header tracking today's 3-video ceiling with real-time status.

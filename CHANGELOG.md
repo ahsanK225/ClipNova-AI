@@ -1,6 +1,33 @@
 ﻿# Changelog
 All notable project changes are documented here.
 
+## [2026-11-23] — Cyber-Glass USA Content Calendar, Day Timeline & Micro-Animations
+
+### Added
+- **World-Class Cyber-Dark Glassmorphic Calendar Theme (`web/index.html`)**:
+  - Replaced rough dashed borders with sleek production SaaS glassmorphic cards (`backdrop-filter: blur(20px)`, subtle inset rim highlight, layered ambient depth shadows).
+  - High-contrast Inter-aligned typography with distinct electric cyan (`#00F0FF`), emerald (`#10B981`), and royal purple (`#A855F7`) semantic accents.
+- **Micro-Animations & Smooth Interactions (`web/index.html`)**:
+  - Added `@keyframes calPulse` creating a realistic pulsing radar wave on the green engine status dot (`● Auto Engine Active · USA Peaks`).
+  - Added `@keyframes calFlowArrow` with gentle shimmer and slide motion on pipeline flow arrows.
+  - Added `@keyframes calFadeInUp` for smooth fade-in entry when switching views.
+  - Added smooth card hover lift and glowing rim light (`transform: translateY(-3px); box-shadow: 0 16px 36px -8px rgba(0,240,255,0.22)`).
+- **Structured Day Timeline Grouping (`web/index.html`)**:
+  - Slots are now grouped cleanly by day (`⚡ Today`, `🗓️ Tomorrow`, `🗓️ Day 3`) with daily usage counters (e.g. `0/3 slots claimed`).
+  - Each slot clearly displays its PKT publishing time, USA target audience window (Morning Drive, Afternoon Peak, Prime Evening in EST/PST), and connected Community Post (+30m).
+- **Interactive Multi-View Switcher (`web/index.html`)**:
+  - Integrated 3 view modes: `📅 Day Timeline` (default structured calendar), `⚡ USA Slots` (sequential windows list), and `🎬 Queued Videos` (active video cards).
+  - Toggles dynamically without full-page reloads.
+- **Segmented Daily Capacity Meter (`web/index.html`)**:
+  - 3-dot visual indicator in topbar reflecting the strict daily limit (Slots 1, 2, 3) with filled vs open states.
+- **Automated Publishing Pipeline Infographic (`web/index.html`)**:
+  - Replaced plain empty state with a sleek visual pipeline: `[ ✂️ Clip Video ] ➔ [ 📅 3/Day Limit ] ➔ [ 🇺🇸 USA Peaks ] ➔ [ 📢 Community (+30m) ] ➔ [ 🔄 Auto-Roll ]`.
+
+### Tests and Verification
+- Node.js full AST validation: **100% CLEAN** (466,524 characters inline JavaScript).
+- Automated tests in `tests/test_usa_publishing_calendar.py` and `tests/test_creators_trigger_words.py`: **13/13 PASSED** in 1.475s.
+- Verified visual quality in browser subagent.
+
 ## [2026-11-23] — Creator Trigger Keywords Deletion & Pure AI Clipping Support
 
 ### Added
