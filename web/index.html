@@ -1313,6 +1313,11 @@ details.card[open] > summary .accordion-chevron {
   box-shadow: 0 0 10px rgba(0, 240, 255, 0.8) !important;
   z-index: 6;
 }
+@keyframes hookPopIn {
+  0% { opacity: 0; transform: translateX(-50%) scale(0.75); }
+  70% { opacity: 1; transform: translateX(-50%) scale(1.06); }
+  100% { opacity: 1; transform: translateX(-50%) scale(1); }
+}
 </style>
 
 </head>
@@ -3822,6 +3827,55 @@ async function drawVideoStudioTab() {
   renderStudioWorkspace();
 }
 
+
+window.launchOpenCutNewTab = async function(jid, cid) {
+  const currentJid = jid || window._studioClip?.jid || D.jid;
+  const currentCid = cid || window._studioClip?.cid || D.cid;
+  
+  // 1. Open OpenCut in a fresh browser tab
+  window.open("https://opencut.app", "_blank");
+  
+  // 2. Highlight the video file in Windows Explorer for drag & drop
+  if (currentJid && currentCid) {
+    try {
+      await send(`/api/jobs/${encodeURIComponent(currentJid)}/clips/${encodeURIComponent(currentCid)}/open-folder`, {});
+      toast("🚀 OpenCut opened in new tab! Clip video file is highlighted in Explorer. Drag it into OpenCut!", "ok");
+    } catch {
+      toast("🚀 OpenCut opened in new tab! Import your clip into OpenCut.", "ok");
+    }
+  } else {
+    toast("🚀 OpenCut opened in new tab!", "ok");
+  }
+};
+
+window.studioOpenClipFolder = async function() {
+  const jid = window._studioClip?.jid || D.jid;
+  const cid = window._studioClip?.cid || D.cid;
+  if (!jid || !cid) return toast("No clip selected.", "bad");
+  try {
+    await send(`/api/jobs/${encodeURIComponent(jid)}/clips/${encodeURIComponent(cid)}/open-folder`, {});
+    toast("📂 Clip file highlighted in Windows Explorer!", "ok");
+  } catch (err) {
+    toast("Could not open folder: " + err.message, "bad");
+  }
+};
+
+window.studioCopyVideoUrl = function() {
+  if (!_studioProj || !_studioProj.video_url) return toast("No video URL available.", "bad");
+  const fullUrl = window.location.origin + _studioProj.video_url;
+  navigator.clipboard.writeText(fullUrl).then(() => {
+    toast("📋 Clip video URL copied to clipboard: " + fullUrl, "ok");
+  }).catch(() => {
+    prompt("Copy this direct video URL:", fullUrl);
+  });
+};
+
+window.toggleEmbedOpenCut = function() {
+  window._embedOpenCut = !window._embedOpenCut;
+  renderStudioWorkspace();
+  studioSwitchTab("opencut");
+};
+
 function renderStudioWorkspace() {
   const box = $("#creator_studio_view");
   if (!box || !_studioProj) return;
@@ -3848,6 +3902,9 @@ function renderStudioWorkspace() {
           </button>
         </div>
         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <button type="button" class="btn sm" onclick="launchOpenCutNewTab()" style="background:linear-gradient(135deg,#6366F1,#00F0FF);color:#020617;font-weight:900;border:none;box-shadow:0 0 16px rgba(0,240,255,0.45);padding:6px 14px;border-radius:8px;display:inline-flex;align-items:center;gap:6px;cursor:pointer" title="Open full OpenCut CapCut-style video editor in a new browser tab with your clip file">
+            <span>🌐</span> Open in OpenCut (New Tab)
+          </button>
           <button type="button" class="btn sm" id="studio_btn_render" onclick="saveStudioExport(false)" style="background:#1E293B;border:1px solid #334155;color:#E2E8F0;font-weight:600">
             💾 Save &amp; Re-render MP4
           </button>
@@ -3890,12 +3947,13 @@ function renderStudioWorkspace() {
           <!-- Drawer Navigation Bar -->
           <div style="display:flex;gap:6px;border-bottom:1px solid rgba(255,255,255,0.08);padding-bottom:12px;margin-bottom:14px;flex-wrap:wrap">
             ${[
+              ["opencut", "🌐 OpenCut Web Studio"],
+              ["capcut", "🚀 CapCut Desktop Bridge"],
               ["filters", "🎨 Visual Filters"],
               ["vfx", "⚡ Viral VFX"],
               ["audio", "🎵 Audio & BGM"],
               ["subtitles", "💬 Subtitles"],
-              ["layout", "🎭 Layout"],
-              ["capcut", "🚀 CapCut Desktop Bridge"]
+              ["layout", "🎭 Layout"]
             ].map(([id, label]) => `
               <button class="tabbtn ${_studioDrawerTab === id ? 'on' : ''}" onclick="studioSwitchTab('${id}')" style="font-size:12px;padding:6px 12px">
                 ${label}
@@ -4055,6 +4113,77 @@ function renderStudioWorkspace() {
 function renderStudioDrawerContent() {
   if (!_studioProj) return "";
   const dur = _studioProj.duration || 30.0;
+
+  if (_studioDrawerTab === "opencut") {
+    return `
+      <div style="background:linear-gradient(135deg, rgba(99,102,241,0.08), rgba(0,240,255,0.08));border:1px solid rgba(0,240,255,0.3);border-radius:14px;padding:18px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:10px">
+          <div style="display:flex;align-items:center;gap:12px">
+            <div style="width:48px;height:48px;border-radius:12px;background:linear-gradient(135deg,#6366F1,#00F0FF);display:flex;align-items:center;justify-content:center;font-size:24px;color:#020617;font-weight:900;box-shadow:0 4px 18px rgba(0,240,255,0.35)">
+              🌐
+            </div>
+            <div>
+              <h4 style="margin:0;font-size:16px;color:#F8FAFC;font-weight:800">OpenCut Web Video Editor (CapCut Alternative)</h4>
+              <p style="margin:3px 0 0;font-size:12px;color:#94A3B8">Full NLE web video editor with timeline, VFX, transitions, audio &amp; text</p>
+            </div>
+          </div>
+          <div style="display:flex;gap:8px">
+            <button type="button" class="btn primary" onclick="launchOpenCutNewTab()" style="background:linear-gradient(135deg,#6366F1,#00F0FF);color:#020617;font-weight:800;border:none;padding:8px 16px;border-radius:8px;font-size:12px;box-shadow:0 0 16px rgba(0,240,255,0.4);display:inline-flex;align-items:center;gap:6px">
+              <span>🚀</span> Open in New Tab (opencut.app)
+            </button>
+            <button type="button" class="btn" onclick="toggleEmbedOpenCut()" style="background:#1E293B;border:1px solid #334155;color:#E2E8F0;font-size:12px;display:inline-flex;align-items:center;gap:6px">
+              <span>🖥️</span> ${window._embedOpenCut ? 'Hide Embedded Editor' : 'Embed in this Page'}
+            </button>
+          </div>
+        </div>
+
+        <!-- Quick Workflow Guide -->
+        <div style="background:rgba(15,23,42,0.7);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:12px 14px;margin-bottom:16px">
+          <div style="font-size:12px;font-weight:700;color:#00F0FF;margin-bottom:8px">
+            💡 How to Edit with OpenCut (CapCut Style):
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));gap:10px;font-size:11.5px;color:#CBD5E1">
+            <div style="background:rgba(0,0,0,0.25);padding:8px 10px;border-radius:6px;border:1px solid rgba(255,255,255,0.04)">
+              <b>1. Launch Editor:</b> Click <b>"Open in New Tab"</b> (opens in fresh tab).
+            </div>
+            <div style="background:rgba(0,0,0,0.25);padding:8px 10px;border-radius:6px;border:1px solid rgba(255,255,255,0.04)">
+              <b>2. Drag &amp; Drop:</b> Your clip MP4 file is highlighted in Windows Explorer. Drag it into OpenCut!
+            </div>
+            <div style="background:rgba(0,0,0,0.25);padding:8px 10px;border-radius:6px;border:1px solid rgba(255,255,255,0.04)">
+              <b>3. Full CapCut Editing:</b> Add transitions, filters, audio, text &amp; export video!
+            </div>
+          </div>
+        </div>
+
+        <!-- Direct Clip Actions -->
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+          <button type="button" class="btn sm" onclick="studioOpenClipFolder()" style="background:#2563EB;border:none;color:#FFF;font-weight:700;display:inline-flex;align-items:center;gap:6px">
+            <span>📂</span> Show Clip File in Windows Explorer
+          </button>
+          <a class="btn sm" href="${_studioProj.video_url}?download=1" style="background:#1E293B;border:1px solid #334155;color:#E2E8F0;display:inline-flex;align-items:center;gap:6px">
+            <span>⬇️</span> Download Clip MP4
+          </a>
+          <button type="button" class="btn sm" onclick="studioCopyVideoUrl()" style="background:#1E293B;border:1px solid #334155;color:#E2E8F0;display:inline-flex;align-items:center;gap:6px">
+            <span>📋</span> Copy Direct Video URL
+          </button>
+          <button type="button" class="btn sm" onclick="window.open('https://new.opencut.app', '_blank')" style="background:rgba(99,102,241,0.2);border:1px solid rgba(99,102,241,0.4);color:#818CF8;display:inline-flex;align-items:center;gap:6px">
+            <span>⚡</span> Next-Gen Rewrite (new.opencut.app)
+          </button>
+        </div>
+
+        ${window._embedOpenCut ? `
+          <div style="margin-top:16px;border:1px solid #334155;border-radius:12px;overflow:hidden;background:#000">
+            <div style="background:#0F172A;padding:8px 14px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #1E293B">
+              <span style="font-size:12px;font-weight:700;color:#00F0FF">🖥️ Live Embedded OpenCut Editor</span>
+              <button class="btn sm ghost" onclick="toggleEmbedOpenCut()">✕ Close Embedded View</button>
+            </div>
+            <iframe src="https://opencut.app" style="width:100%;height:680px;border:none" allow="autoplay; fullscreen; clipboard-read; clipboard-write"></iframe>
+          </div>
+        ` : ''}
+      </div>
+    `;
+  }
+
 
   if (_studioDrawerTab === "filters") {
     const filters = _studioProj.available_filters || [];
@@ -5400,7 +5529,13 @@ function drawClipDlg(full) {
     : `<span class="making">${c.status === "rendering" ? "Making this clip…" : "Waiting its turn…"}</span>`;
   if (full) {
     const bInfo = clipBadgeInfo(c);
-    dlg.innerHTML = `<div class="editor"><div class="stage" id="stage">${stage}</div>
+    dlg.innerHTML = `<div class="editor"><div class="stage" id="stage" style="position:relative;background:#000;border-radius:10px;overflow:hidden;display:flex;align-items:center;justify-content:center">
+        ${stage}
+        <div id="dlg_hook_live_overlay" style="position:absolute;top:10%;left:50%;transform:translateX(-50%);width:92%;max-width:340px;pointer-events:none;z-index:20;display:none;text-align:center"></div>
+        <button type="button" id="btn_dlg_replay_hook" onclick="replayDlgHookAnimation()" style="position:absolute;top:10px;right:10px;z-index:25;background:rgba(0,0,0,0.65);backdrop-filter:blur(6px);border:1px solid rgba(255,255,255,0.2);color:#fff;font-size:10px;font-weight:700;padding:3px 9px;border-radius:12px;cursor:pointer;display:inline-flex;align-items:center;gap:4px" title="Replay Hook Animation">
+          <span>🎣</span> Replay Hook
+        </button>
+      </div>
       <div class="panel">
         <div class="job-head" style="margin:0"><div>
           <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
@@ -5418,6 +5553,17 @@ function drawClipDlg(full) {
             <button type="button" class="btn sm ghost" data-act="rateclip" data-val="duplicate" style="padding:2px 6px;font-size:11px;${c.feedback === 'duplicate' ? 'background:rgba(180,100,255,0.2);color:#B464FF;font-weight:700' : ''}">🔁 Duplicate</button>
           </div>
           <p class="sub" style="margin-top:4px">${esc(c.reason || bInfo.desc)}</p></div><button class="btn icon ghost" data-act="closedlg" aria-label="Close">${ic("x")}</button></div>
+        <div style="display:flex;gap:8px;align-items:center;margin:8px 0 10px 0;flex-wrap:wrap">
+          <button type="button" class="btn sm" onclick="launchOpenCutNewTab('${j.id}', '${esc(c.id)}')" style="background:linear-gradient(135deg,#6366F1,#00F0FF);color:#020617;font-weight:800;border:none;display:inline-flex;align-items:center;gap:5px;box-shadow:0 0 10px rgba(0,240,255,0.25);border-radius:6px;padding:4px 10px;cursor:pointer" title="Open full OpenCut CapCut-style video editor in a new browser tab with your clip file">
+            <span>🌐</span> Open in OpenCut (New Tab)
+          </button>
+          <button type="button" class="btn sm" data-act="export_capcut" data-j="${j.id}" data-c="${esc(c.id)}" style="background:linear-gradient(135deg,#00F0FF,#0088FF);color:#050505;font-weight:800;border:none;display:inline-flex;align-items:center;gap:5px;border-radius:6px;padding:4px 10px" title="Export this clip into a full native CapCut desktop project">
+            <span>🚀</span> CapCut Desktop Bridge
+          </button>
+          <button type="button" class="btn sm" data-act="open_studio_from_dlg" data-j="${j.id}" data-c="${esc(c.id)}" style="background:var(--bg-3);border:1px solid var(--line);color:var(--text);display:inline-flex;align-items:center;gap:5px;border-radius:6px;padding:4px 10px" title="Open Layout & Timing in Video Studio">
+            <span>🎨</span> Layout &amp; Timing Studio
+          </button>
+        </div>
         <!-- Card 1: Viral Hook & Captions (Collapsible Accordion) -->
         <details class="card" open style="margin:0 0 10px 0;background:var(--bg-2);border:1px solid var(--line);border-radius:10px;padding:12px">
           <summary style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;list-style:none">
@@ -5431,7 +5577,7 @@ function drawClipDlg(full) {
           </summary>
           <div style="margin-top:10px">
             <label class="f" style="margin-bottom:6px">
-              <input data-f="hook" value="${esc(c.hook)}" placeholder="e.g. GTA 6 *influencers* are insane 😳" style="font-weight:600">
+              <input data-f="hook" value="${esc(c.hook)}" oninput="updateDlgLiveHookOverlay()" placeholder="e.g. WHAT IS THAT TATTOO 💀" style="font-weight:600">
             </label>
             <div id="dlg_hook_pills" style="display:flex;flex-wrap:wrap;gap:6px;margin:2px 0 10px 0">
               ${(c.hooks || []).map((h, i) => `
@@ -5441,7 +5587,7 @@ function drawClipDlg(full) {
               `).join("")}
             </div>
             <div class="two" style="margin-bottom:6px">
-              <label class="f">Hook banner style<select data-f="hook_style">
+              <label class="f">Hook banner style<select data-f="hook_style" onchange="updateDlgLiveHookOverlay()">
                 <option value="viral_yellow" ${c.hook_style === "viral_yellow" ? "selected" : ""}>⚡ Viral Floating (Yellow Punch) [No Box]</option>
                 <option value="viral_cyan" ${c.hook_style === "viral_cyan" ? "selected" : ""}>💎 Viral Floating (Cyan Punch) [No Box]</option>
                 <option value="neon" ${(!c.hook_style || c.hook_style === "neon") ? "selected" : ""}>Neon Dark (Gaming Box)</option>
@@ -5456,53 +5602,6 @@ function drawClipDlg(full) {
             <div style="display:flex;align-items:center;gap:18px;margin-top:4px">
               <label class="sw" style="margin:0;font-size:11px"><input type="checkbox" data-f="captions" data-caption-toggle ${(c.captions === false || (!('captions' in c) && j.options?.captions === false)) ? "" : "checked"}>Generate captions</label>
               <label class="sw" style="margin:0;font-size:11px"><input type="checkbox" data-f="outro_cta" ${c.outro_cta === false ? "" : "checked"}>End support badge (Outro)</label>
-            </div>
-          </div>
-        </details>
-
-        <!-- Card: Viral Climax Teaser Hook (Collapsible Accordion) -->
-        <details class="card" ${c.teaser_enabled ? 'open' : ''} style="margin:0 0 10px 0;background:linear-gradient(135deg, rgba(236,72,153,0.08), rgba(99,102,241,0.08));border:1px solid rgba(236,72,153,0.35);border-radius:10px;padding:12px">
-          <summary style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;list-style:none">
-            <h3 style="margin:0;font-size:13px;display:flex;align-items:center;gap:6px">
-              <span>🎬</span> Viral Climax Teaser (Cold Open Hook)
-            </h3>
-            <div style="display:flex;align-items:center;gap:8px">
-              <span class="pill" style="font-size:10px;padding:2px 8px;border-radius:10px;background:rgba(236,72,153,0.18);color:#F472B6;border:1px solid rgba(236,72,153,0.4);font-weight:800">🔥 Viral Retention</span>
-              <span class="accordion-chevron">▾</span>
-            </div>
-          </summary>
-          <div style="margin-top:10px">
-            <p class="sub" style="font-size:11px;margin:0 0 8px 0;line-height:1.4">
-              Video ke aakhri 3-5 seconds (reaction / punchline) ko shuru mein cold open teaser bana kar play karein. Hook banner isi teaser par pop-in hoga!
-            </p>
-            <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
-              <label class="sw" style="margin:0;font-size:12px;font-weight:700;color:#F8FAFC">
-                <input type="checkbox" data-f="teaser_enabled" id="dlg_teaser_enabled" ${c.teaser_enabled ? "checked" : ""} onchange="const el=$('#dlg_teaser_opts');if(el)el.style.display=this.checked?'block':'none'">
-                <span>Prepend Climax Teaser at Beginning</span>
-              </label>
-            </div>
-            <div id="dlg_teaser_opts" style="display:${c.teaser_enabled ? 'block' : 'none'};margin-top:10px;padding-top:10px;border-top:1px dashed rgba(255,255,255,0.12)">
-              <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-                <label class="f" style="margin:0;flex:1;min-width:140px">
-                  <span style="font-size:11px;font-weight:600">Teaser Duration:</span>
-                  <select data-f="teaser_dur" id="dlg_teaser_dur" style="font-size:12px">
-                    <option value="3" ${Number(c.teaser_dur) === 3 ? "selected" : ""}>3.0 Seconds</option>
-                    <option value="4" ${(!c.teaser_dur || Number(c.teaser_dur) === 4) ? "selected" : ""}>4.0 Seconds (Recommended)</option>
-                    <option value="5" ${Number(c.teaser_dur) === 5 ? "selected" : ""}>5.0 Seconds (Extra Punch)</option>
-                    <option value="6" ${Number(c.teaser_dur) === 6 ? "selected" : ""}>6.0 Seconds</option>
-                  </select>
-                </label>
-                <div style="flex:1;min-width:200px">
-                  <span style="font-size:11px;font-weight:600;display:block;margin-bottom:4px">Grab Position From Video:</span>
-                  <button type="button" class="btn sm" onclick="grabVideoPlayheadForTeaser()" style="background:rgba(0,240,255,0.12);border:1px solid rgba(0,240,255,0.4);color:#00F0FF;font-size:11px;font-weight:700;padding:5px 12px;border-radius:6px;width:100%;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:6px">
-                    <span>🎯</span> Use Current Video Playhead
-                  </button>
-                  <input type="hidden" data-f="teaser_start" id="dlg_teaser_start" value="${c.teaser_start ?? ''}">
-                </div>
-              </div>
-              <div id="dlg_teaser_status" style="margin-top:8px;font-size:11px;color:#94A3B8;background:rgba(0,0,0,0.3);padding:6px 10px;border-radius:6px;border:1px solid rgba(255,255,255,0.06)">
-                ${c.teaser_enabled ? `✓ Active: Aakhri ${c.teaser_dur || 4}s ka teaser 0:00 par shuru hoga Hook title ke sath.` : 'Tip: Left side par video chala kar aakhri reaction par pause karein aur "Use Current Video Playhead" dabayein!'}
-              </div>
             </div>
           </div>
         </details>
@@ -5594,106 +5693,17 @@ function drawClipDlg(full) {
           </div>
         </details>
 
-        <!-- Card 2: Layout & Framing Studio (Collapsible Accordion) -->
-        <details class="card" open style="margin:0 0 10px 0;background:var(--bg-2);border:1px solid var(--line);border-radius:10px;padding:12px">
-          <summary style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;list-style:none">
-            <h3 style="margin:0;font-size:13px;display:flex;align-items:center;gap:6px"><span>🎨</span> Layout &amp; Framing Studio</h3>
-            <div style="display:flex;align-items:center;gap:8px">
-              <span class="sub" style="font-size:10px">(Split, PIP, Framing &amp; Presets)</span>
-              <span class="accordion-chevron">▾</span>
-            </div>
-          </summary>
-          <div style="margin-top:10px">
-          <div style="display:flex;gap:12px;align-items:center;margin-bottom:8px">
-            <div style="position:relative;width:52px;height:92px;border-radius:10px;border:2px solid var(--line,#2a221d);background:#000;overflow:hidden;flex-shrink:0;box-shadow:0 4px 12px rgba(0,0,0,0.4)">
-              <img id="dlg_layout_img" src="${getLayoutPreviewImg(c.layout || 'split_half', c.facecam_pos)}" style="width:100%;height:100%;object-fit:cover;display:block" alt="Preview">
-            </div>
-            <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:6px">
-              <div class="two" style="margin:0">
-                <label class="f" style="margin:0">Layout<select data-f="layout">${opts(S.status.layouts, c.layout || "split_half")}</select></label>
-                <label class="f" style="margin:0">Webcam Position<select data-f="facecam_pos">
-                  <option value="top-right" ${(!c.facecam_pos || c.facecam_pos === "top-right") ? "selected" : ""}>Top / Split Screen</option>
-                  <option value="top-left" ${c.facecam_pos === "top-left" ? "selected" : ""}>Top Left (PIP)</option>
-                  <option value="bottom-left" ${c.facecam_pos === "bottom-left" ? "selected" : ""}>Bottom Left (Above UI)</option>
-                  <option value="bottom-right" ${c.facecam_pos === "bottom-right" ? "selected" : ""}>Bottom Right (Above UI)</option>
-                </select></label>
-              </div>
-              <div style="display:flex;gap:6px;align-items:center">
-                <button type="button" class="btn sm" data-act="open_custom_layout_studio_clip" style="background:linear-gradient(135deg,#00F0FF,#0099FF);color:#050505;border:none;padding:3px 10px;font-size:11px;font-weight:800;border-radius:6px;cursor:pointer;flex:1">🎨 Custom Studio</button>
-                <button type="button" class="btn sm" data-act="open_layout_gallery" style="padding:3px 10px;font-size:11px;height:auto">🖼️ Compare</button>
-              </div>
-            </div>
-          </div>
-          <!-- Creator's Saved Presets Row -->
-          ${(() => {
-            const cr = creator() || (j.creator ? S.creators.find(x => x.id === j.creator) : null);
-            const presets = cr?.custom_presets || {};
-            const pnames = Object.keys(presets);
-            if (!pnames.length) return '';
-            return `
-              <div style="background:#161210;border:1px solid #3A2C24;border-radius:8px;padding:6px 10px;margin-top:6px">
-                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
-                  <span style="font-size:10px;font-weight:700;color:#00F0FF;display:flex;align-items:center;gap:4px">
-                    <span>🎨</span> Presets:
-                  </span>
-                  <span class="sub" style="font-size:9px">Click to apply</span>
-                </div>
-                <div style="display:flex;flex-wrap:wrap;gap:6px">
-                  ${pnames.map(pn => {
-                    const isSel = (c.active_preset === pn) || (c.layout === 'custom' && c.active_preset === pn);
-                    return `
-                      <div style="display:inline-flex;align-items:center;gap:3px;background:${isSel ? '#14282D' : '#221A15'};border:1px solid ${isSel ? '#00F0FF' : '#443226'};border-radius:6px;padding:2px 5px">
-                        <button type="button" onclick="applyPresetToClip('${esc(pn)}', true)" title="Apply '${esc(pn)}'" style="border:none;background:transparent;color:${isSel ? '#00F0FF' : '#F1F5F9'};font-size:10px;font-weight:700;cursor:pointer;padding:0;display:inline-flex;align-items:center;gap:3px">
-                          ${isSel ? '⭐' : '🏷️'} <b>${esc(pn)}</b>
-                        </button>
-                        <button type="button" onclick="applyPresetToAllClips('${esc(pn)}')" title="Apply to ALL clips" style="background:#FF8C00;color:#000;border:none;border-radius:3px;font-size:9px;font-weight:800;padding:1px 4px;cursor:pointer">
-                          🚀 All
-                        </button>
-                      </div>
-                    `;
-                  }).join('')}
-                </div>
-              </div>
-            `;
-          })()}
-          </div>
-        </details>
-
-        <!-- Card 3: Advanced Timing, Sync & Framing (Collapsible) -->
-        <details class="card" style="margin:0 0 10px 0;background:var(--bg-2);border:1px solid var(--line);border-radius:10px;padding:10px 12px">
-          <summary style="cursor:pointer;font-size:12px;font-weight:700;color:var(--brand-ink);display:flex;align-items:center;justify-content:space-between;list-style:none">
-            <span style="display:flex;align-items:center;gap:6px">⚙️ Advanced Timing, Sync &amp; Framing</span>
-            <div style="display:flex;align-items:center;gap:8px">
-              <span class="sub" style="font-size:10px">(Audio delay, cam offset, trim)</span>
-              <span class="accordion-chevron">▾</span>
-            </div>
-          </summary>
-          <div style="display:flex;flex-direction:column;gap:8px;margin-top:10px">
-            <div class="two">
-              <label class="f" style="margin:0">Voice Sync (Audio Delay)<select data-f="audio_delay">${syncOpts(c.audio_delay ?? j.options?.audio_delay ?? 0.0, SYNC_AUDIO_OPTIONS)}</select></label>
-              <label class="f" style="margin:0">Webcam Sync (Facecam Delay)<select data-f="facecam_delay">${syncOpts(c.facecam_delay ?? j.options?.facecam_delay ?? 0.0, SYNC_CAM_OPTIONS)}</select></label>
-            </div>
-            <div class="two">
-              <label class="f" style="margin:0">Start (seconds)<input data-f="start" type="number" step="0.5" value="${c.start}"></label>
-              <label class="f" style="margin:0">End (seconds)<input data-f="end" type="number" step="0.5" value="${c.end}"></label>
-            </div>
-            <label class="f" style="margin:0">Outro badge text (Last 3s)<input data-f="outro_text" value="${esc(c.outro_text || "")}"></label>
-            <div style="background:var(--bg-1,#120e0c);border:1px solid var(--line);border-radius:8px;padding:8px 10px;display:flex;flex-direction:column;gap:6px">
-              <label class="f" style="margin:0">
-                <span style="display:flex;justify-content:space-between;font-size:10px"><span>Facecam Vertical Shift (Trim sweater / move face higher)</span><b id="lbl_fc_offset">${c.facecam_offset_y || 0}px</b></span>
-                <input type="range" data-f="facecam_offset_y" min="-80" max="80" step="5" value="${c.facecam_offset_y || 0}" oninput="$('#lbl_fc_offset').textContent=this.value+'px'">
-              </label>
-              <label class="f" style="margin:0">
-                <span style="display:flex;justify-content:space-between;font-size:10px"><span>Game Area Crop Shift (Avoid in-game cam leak)</span><b id="lbl_game_offset">${c.game_offset_x || 0}px</b></span>
-                <input type="range" data-f="game_offset_x" min="-120" max="120" step="5" value="${c.game_offset_x || 0}" oninput="$('#lbl_game_offset').textContent=this.value+'px'">
-              </label>
-              <label class="f" style="margin:0">
-                <span style="display:flex;justify-content:space-between;font-size:10px"><span>Zoom Scale</span><b id="lbl_zoom">${c.zoom || 1.0}x</b></span>
-                <input type="range" data-f="zoom" min="1.0" max="1.4" step="0.05" value="${c.zoom || 1.0}" oninput="$('#lbl_zoom').textContent=this.value+'x'">
-              </label>
-            </div>
-          </div>
-        </details>
+        <!-- Preserved Clip Layout & Timing Parameters (Managed in Video Studio) -->
+        <input type="hidden" data-f="layout" value="${esc(c.layout || 'split_half')}">
+        <input type="hidden" data-f="facecam_pos" value="${esc(c.facecam_pos || 'top-right')}">
+        <input type="hidden" data-f="start" value="${c.start}">
+        <input type="hidden" data-f="end" value="${c.end}">
+        <input type="hidden" data-f="audio_delay" value="${c.audio_delay ?? 0.0}">
+        <input type="hidden" data-f="facecam_delay" value="${c.facecam_delay ?? 0.0}">
+        <input type="hidden" data-f="facecam_offset_y" value="${c.facecam_offset_y || 0}">
+        <input type="hidden" data-f="game_offset_x" value="${c.game_offset_x || 0}">
+        <input type="hidden" data-f="zoom" value="${c.zoom || 1.0}">
+        <input type="hidden" data-f="outro_text" value="${esc(c.outro_text || '')}">
         <div class="row" style="justify-content:space-between;align-items:center"><h3>Post text</h3>
           <button type="button" class="btn sm" data-act="writetext">Write again with AI</button></div>
         ${(() => {
@@ -5771,16 +5781,12 @@ function drawClipDlg(full) {
             <label class="f" style="margin-bottom:0">Pinned Comment Hook<input data-f="pinned_comment" value="${esc(autoComment)}"></label>
           </div>`;
         })()}
-        <div style="display:flex;gap:8px;align-items:center;margin:12px 0 16px 0;flex-wrap:wrap">
-          <button class="btn" data-act="remake" style="flex:1;min-width:180px">${ic("scissors")}Save and re-make clip</button>
-          <button type="button" class="btn" data-act="open_web_studio" data-j="${j.id}" data-c="${esc(c.id)}" style="background:linear-gradient(135deg,#6366F1,#00F0FF);color:#020617;font-weight:800;border:none;display:inline-flex;align-items:center;gap:6px;box-shadow:0 0 14px rgba(0,240,255,0.35)" title="Open in OpenCut Web Studio timeline editor">
-            <span>🌐</span> Open in OpenCut Web Studio
+        <div style="display:flex;gap:10px;align-items:center;margin:14px 0 16px 0;flex-wrap:wrap">
+          <button type="button" class="btn primary" data-act="save_seo_instant" data-j="${j.id}" data-c="${esc(c.id)}" style="background:linear-gradient(135deg,#10B981,#059669);color:#fff;font-weight:800;border:none;font-size:12.5px;padding:9px 18px;border-radius:8px;box-shadow:0 2px 10px rgba(16,185,129,0.3);cursor:pointer;display:inline-flex;align-items:center;gap:6px;flex:1;min-width:220px;justify-content:center" title="Save Title, SEO tags, Description and Hook without re-rendering (~1ms)">
+            <span>💾</span> Save SEO &amp; Title (Instant - No Re-render)
           </button>
-          <button type="button" class="btn" data-act="export_capcut" data-j="${j.id}" data-c="${esc(c.id)}" style="background:linear-gradient(135deg,#00F0FF,#0088FF);color:#050505;font-weight:800;border:none;display:inline-flex;align-items:center;gap:6px" title="Export this clip into a full native CapCut desktop project">
-            <span>🚀</span> Open in CapCut Desktop
-          </button>
-          <button type="button" class="btn sm" data-act="open_capcut_project" data-j="${j.id}" data-c="${esc(c.id)}" style="background:#221A15;border:1px solid #443226;color:#CBD5E1;display:inline-flex;align-items:center;gap:4px" title="Open the CapCut draft folder in Explorer">
-            <span>📁</span> CapCut Project Folder
+          <button class="btn" data-act="remake" style="font-size:11.5px;padding:8px 14px;border:1px solid var(--line);background:var(--bg-3);color:var(--text);display:inline-flex;align-items:center;gap:6px" title="Burn edits into a newly rendered MP4 video file (~15s)">
+            ${ic("scissors")} Re-make MP4 Video (~15s)
           </button>
         </div>
         <h3>Post it</h3>
@@ -5808,7 +5814,7 @@ function drawClipDlg(full) {
           <button class="btn" data-act="copycomm" data-j="${j.id}" data-c="${esc(c.id)}" style="background:linear-gradient(135deg,rgba(168,85,247,0.2),rgba(147,51,234,0.3));border-color:rgba(168,85,247,0.5);color:#d8b4fe" title="Copy YouTube Community Post text and open Community tab">${ic("copy")}📢 Copy Community Post</button>
           <button class="btn danger ghost" data-act="delclip" data-j="${j.id}" data-c="${esc(c.id)}">${ic("trash")}Delete from disk</button></div>
       </div></div>`;
-    setTimeout(() => { loadBgmTracks(c.bgm_track || "none", c.bgm_volume ?? 0.18, c.bgm_offset ?? 0); }, 40);
+    setTimeout(() => { loadBgmTracks(c.bgm_track || "none", c.bgm_volume ?? 0.18, c.bgm_offset ?? 0); if (typeof updateDlgLiveHookOverlay === "function") updateDlgLiveHookOverlay(); if (typeof setupDlgHookSync === "function") setupDlgHookSync(); }, 40);
   } else if (D.sig !== sig) {
     const stageEl = $("#stage");
     if (stageEl) {
@@ -5830,10 +5836,159 @@ function drawClipDlg(full) {
   put($("#dposts"), postPills(c));
   updateClipDlgLayoutPreview();
 }
-function postText() {   // the post text as it is in the clip editor right now
-  const v = k => $(`#clipdlg [data-f="${k}"]`).value;
-  return {title: v("title"), description: v("description"), hashtags: v("hashtags").split(/\s+/).map(h => h.replace(/^#+/, "")).filter(Boolean)};
+function postText() {   // the post text and SEO as it is in the clip editor right now
+  const v = k => {
+    const el = $(`#clipdlg [data-f="${k}"]`);
+    if (!el) return undefined;
+    if (el.type === "checkbox") return el.checked;
+    if (el.type === "number") return Number(el.value);
+    return el.value;
+  };
+  const htRaw = v("hashtags") || "";
+  const tagsRaw = v("seo_tags") || "";
+  return {
+    title: v("title") || "",
+    description: v("description") || "",
+    hashtags: htRaw.split(/[\s,]+/).map(h => h.replace(/^#+/, "")).filter(Boolean),
+    seo_title: v("seo_title") || "",
+    seo_tags: tagsRaw.split(/,\s*/).map(t => t.trim()).filter(Boolean),
+    pinned_comment: v("pinned_comment") || "",
+    hook: v("hook") || "",
+    hook_style: v("hook_style") || "viral_yellow",
+    captions: v("captions") ?? true,
+    style: v("style") || "bounce",
+    outro_cta: v("outro_cta") ?? true,
+    bgm_track: $("#dlg_bgm_track")?.value || "none",
+    bgm_volume: Number($("#dlg_bgm_vol")?.value || 18) / 100,
+    bgm_offset: Number($("#dlg_bgm_offset_slider")?.value || 0)
+  };
 }
+
+window.renderHookBannerHtml = function(rawHook, hookStyle) {
+  if (!rawHook) return "";
+  let cleanHook = rawHook.trim();
+  let punchWord = "";
+  const starMatch = cleanHook.match(/\*([^\*]+)\*/);
+  if (starMatch) {
+    punchWord = starMatch[1];
+    cleanHook = cleanHook.replace(/\*/g, "");
+  } else {
+    const words = cleanHook.split(/\s+/);
+    const punchList = ["INSANE", "CRAZY", "TATTOO", "DRIP", "4K", "ROAST", "CLUTCH", "BANNED", "GLITCH", "HEIST", "CAUGHT", "SECRET", "EXPOSED", "RAGE", "CRYING", "DIES", "WINS", "LOSES", "RARE", "KNIFE", "DRAGON", "SCREAMS", "EPIC", "SHOCKING", "UNREAL", "WILD", "INFLUENCERS", "FAILS", "FAILED", "PULLED", "CLUTCHED", "COOKED", "SCAM"];
+    for (const w of words) {
+      const u = w.toUpperCase().replace(/[^\w]/g, "");
+      if (punchList.includes(u)) {
+        punchWord = w;
+        break;
+      }
+    }
+    if (!punchWord && words.length > 0) {
+      const candidate = words.slice().reverse().find(w => w.replace(/[^\w]/g, "").length >= 3);
+      if (candidate) punchWord = candidate;
+    }
+  }
+
+  const highlightHtml = (text, hlColor) => {
+    if (!punchWord) return esc(text);
+    const idx = text.indexOf(punchWord);
+    if (idx === -1) return esc(text);
+    const before = text.slice(0, idx);
+    const match = text.slice(idx, idx + punchWord.length);
+    const after = text.slice(idx + punchWord.length);
+    return `${esc(before)}<span style="color:${hlColor};font-weight:900">${esc(match)}</span>${esc(after)}`;
+  };
+
+  const style = hookStyle || "viral_yellow";
+  if (style === "viral_yellow") {
+    return `<div style="font-family:'Archivo Black',system-ui,sans-serif;font-size:16px;line-height:1.2;color:#ffffff;text-shadow:0 2px 0 #000,-2px 0 0 #000,0 -2px 0 #000,2px 0 0 #000,2px 2px 0 #000,-2px -2px 0 #000,2px -2px 0 #000,-2px 2px 0 #000,0 4px 6px rgba(0,0,0,0.8);text-transform:uppercase;letter-spacing:0.5px">
+      ${highlightHtml(cleanHook, "#00E5FF")}
+    </div>`;
+  }
+  if (style === "viral_cyan") {
+    return `<div style="font-family:'Archivo Black',system-ui,sans-serif;font-size:16px;line-height:1.2;color:#ffffff;text-shadow:0 2px 0 #000,-2px 0 0 #000,0 -2px 0 #000,2px 0 0 #000,2px 2px 0 #000,-2px -2px 0 #000,2px -2px 0 #000,-2px 2px 0 #000,0 4px 6px rgba(0,0,0,0.8);text-transform:uppercase;letter-spacing:0.5px">
+      ${highlightHtml(cleanHook, "#00F0FF")}
+    </div>`;
+  }
+  if (style === "neon") {
+    return `<div style="background:#141210;border:2px solid #00F0FF;border-radius:8px;padding:6px 12px;box-shadow:0 4px 14px rgba(0,0,0,0.7),0 0 10px rgba(0,240,255,0.4);color:#ffffff;font-family:Anton,sans-serif;font-size:16px;text-transform:uppercase;letter-spacing:1px">
+      ${esc(cleanHook)}
+    </div>`;
+  }
+  if (style === "purple_whip") {
+    return `<div style="background:#3B0764;border:2px solid #A855F7;border-radius:8px;padding:6px 12px;box-shadow:0 4px 14px rgba(0,0,0,0.7),0 0 12px rgba(168,85,247,0.5);color:#ffffff;font-family:Anton,sans-serif;font-size:16px;text-transform:uppercase;letter-spacing:1px">
+      ${esc(cleanHook)}
+    </div>`;
+  }
+  if (style === "yellow") {
+    return `<div style="background:#FFDD00;border:2px solid #000000;border-radius:8px;padding:6px 12px;box-shadow:0 4px 12px rgba(0,0,0,0.6);color:#000000;font-family:Anton,sans-serif;font-size:16px;font-weight:900;text-transform:uppercase;letter-spacing:0.5px">
+      ${esc(cleanHook)}
+    </div>`;
+  }
+  if (style === "pill") {
+    return `<div style="background:#ffffff;border-radius:24px;padding:6px 16px;box-shadow:0 4px 12px rgba(0,0,0,0.5);color:#0a0a0a;font-family:Poppins,sans-serif;font-size:14px;font-weight:800;letter-spacing:0.3px">
+      ${esc(cleanHook)}
+    </div>`;
+  }
+  if (style === "cyber_red") {
+    return `<div style="background:#7F1D1D;border:2px solid #EF4444;border-radius:8px;padding:6px 12px;box-shadow:0 4px 14px rgba(0,0,0,0.7),0 0 10px rgba(239,68,68,0.5);color:#ffffff;font-family:Anton,sans-serif;font-size:16px;text-transform:uppercase;letter-spacing:1px">
+      ${esc(cleanHook)}
+    </div>`;
+  }
+  if (style === "gold_luxury") {
+    return `<div style="background:#0D0D0D;border:2px solid #FFDF00;border-radius:8px;padding:6px 12px;box-shadow:0 4px 14px rgba(0,0,0,0.8),0 0 10px rgba(255,223,0,0.3);color:#FFDF00;font-family:Anton,sans-serif;font-size:16px;text-transform:uppercase;letter-spacing:1px">
+      ${esc(cleanHook)}
+    </div>`;
+  }
+  return `<div style="font-family:'Archivo Black',system-ui,sans-serif;font-size:16px;color:#fff">${esc(cleanHook)}</div>`;
+};
+
+window.updateDlgLiveHookOverlay = function() {
+  const overlay = $("#dlg_hook_live_overlay");
+  if (!overlay) return;
+  const hookInput = $("#clipdlg [data-f='hook']");
+  const styleSelect = $("#clipdlg [data-f='hook_style']");
+  const rawHook = (hookInput ? hookInput.value : "") || "";
+  const hookStyle = (styleSelect ? styleSelect.value : "") || "viral_yellow";
+  if (!rawHook.trim()) {
+    overlay.style.display = "none";
+    return;
+  }
+  overlay.style.display = "block";
+  overlay.innerHTML = renderHookBannerHtml(rawHook, hookStyle);
+};
+
+window.setupDlgHookSync = function() {
+  const vid = $("#stage video");
+  const overlay = $("#dlg_hook_live_overlay");
+  if (!vid || !overlay) return;
+  vid.ontimeupdate = () => {
+    const cur = vid.currentTime;
+    if (cur <= 3.8) {
+      overlay.style.opacity = "1";
+      overlay.style.transform = "translateX(-50%) scale(1)";
+    } else {
+      overlay.style.opacity = "0";
+      overlay.style.transform = "translateX(-50%) scale(0.92)";
+    }
+  };
+};
+
+window.replayDlgHookAnimation = function() {
+  const vid = $("#stage video");
+  const overlay = $("#dlg_hook_live_overlay");
+  if (vid) {
+    vid.currentTime = 0;
+    vid.play().catch(() => {});
+  }
+  if (overlay) {
+    overlay.style.display = "block";
+    overlay.style.opacity = "1";
+    overlay.style.transform = "translateX(-50%) scale(1)";
+    overlay.style.animation = "none";
+    void overlay.offsetWidth;
+    overlay.style.animation = "hookPopIn 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275)";
+  }
+};
 window.grabVideoPlayheadForTeaser = function() {
   const vid = $("#stage video");
   const j = jobOf(D.jid);
@@ -8340,17 +8495,10 @@ document.addEventListener("click", async e => {
       }
       return;
     }
-    if (a === "open_web_studio") {
+    if (a === "open_web_studio" || a === "launch_opencut_new_tab") {
       const jid = d.j || D.jid;
       const cid = d.c || D.cid;
-      if (!jid || !cid) return toast("Job or clip ID not found.", "bad");
-      const j = S.jobs.find(x => x.id === jid);
-      if (j && j.creator && (!S.view.startsWith("c:") || S.view !== "c:" + j.creator)) {
-        go("c:" + j.creator, "studio");
-      }
-      window._studioClip = { jid, cid };
-      if ($("#clipdlg") && $("#clipdlg").open) $("#clipdlg").close();
-      setTab("studio");
+      launchOpenCutNewTab(jid, cid);
       return;
     }
     if (a === "studio_pick_clip") {
@@ -8446,13 +8594,44 @@ document.addEventListener("click", async e => {
       const input = $("#clipdlg [data-f='hook']");
       if (input && h) {
         input.value = h;
+        const j = jobOf(D.jid);
+        const clp = j?.clips.find(x => x.id === D.cid);
+        if (clp) clp.hook = h;
         $$(".hook-pill-btn").forEach(btn => {
           const match = (btn.dataset.hook === h);
           btn.style.border = match ? "1px solid var(--accent, #00f0ff)" : "1px solid var(--line)";
           btn.style.color = match ? "var(--accent, #00f0ff)" : "var(--text)";
         });
+        if (typeof updateDlgLiveHookOverlay === "function") updateDlgLiveHookOverlay();
+        if (typeof replayDlgHookAnimation === "function") replayDlgHookAnimation();
         toast(`Hook set: ${h}`, "ok");
       }
+      return;
+    }
+    if (a === "save_seo_instant") {
+      const btn = e.target.closest("button");
+      const origHtml = btn ? btn.innerHTML : "";
+      if (btn) { btn.disabled = true; btn.innerHTML = `<span>💾</span> Saving instantly…`; }
+      try {
+        const payload = postText();
+        const res = await send(`/api/jobs/${D.jid}/clips/${D.cid}/text`, payload, "PUT");
+        const j = jobOf(D.jid);
+        const clp = j?.clips.find(x => x.id === D.cid);
+        if (clp) {
+          if (res?.clip) Object.assign(clp, res.clip);
+          else Object.assign(clp, payload);
+        }
+        toast("✅ SEO, Title & Hook saved instantly! (No re-render needed)", "ok");
+      } catch (err) {
+        toast(`Save failed: ${err.message}`, "bad");
+      } finally {
+        if (btn) { btn.disabled = false; btn.innerHTML = origHtml; }
+      }
+      return;
+    }
+    if (a === "open_studio_from_dlg") {
+      $("#clipdlg").close();
+      if (typeof openWebStudio === "function") openWebStudio(d.j, d.c);
       return;
     }
     if (a === "pick_title") {
@@ -8462,6 +8641,12 @@ document.addEventListener("click", async e => {
       if (titleIn && t) titleIn.value = t;
       const seoT = t.includes("#Shorts") ? t : `${t} #Shorts`;
       if (seoIn && t) seoIn.value = seoT;
+      const j = jobOf(D.jid);
+      const clp = j?.clips.find(x => x.id === D.cid);
+      if (clp) {
+        clp.title = t;
+        clp.seo_title = seoT;
+      }
       $$(".title-pill-btn, .seo-title-pill-btn").forEach(btn => {
         const match = (btn.dataset.title === t || btn.dataset.title === seoT);
         btn.style.border = match ? "1px solid var(--accent, #00f0ff)" : "1px solid var(--line)";

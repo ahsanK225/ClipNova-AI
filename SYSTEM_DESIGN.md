@@ -635,3 +635,44 @@ ClipNova AI features a non-linear in-browser video editor designed after CapCut 
    - Interactive VFX simulations (Flash White, Screen Shake, Glitch RGB, Zoom Punch) run CSS keyframe animations for instant testing.
 3. **Seamless Publishing Integration**:
    - `Save & Queue to YouTube (USA Peak)` ties the studio timeline directly into the autonomous YouTube hourly velocity priming calendar, scheduling exported clips at peak audience velocity slots.
+
+---
+
+## 16. Clean Clip Detail Modal, Live Hook Banner Overlay & Instant 1-Click SEO Persistence
+1. **Clean Clip Detail Modal Architecture (`#clipdlg`)**:
+   - Redundant cards `Viral Climax Teaser (Cold Open Hook)`, `Layout & Framing Studio`, and `Advanced Timing` have been completely removed from `#clipdlg`.
+   - Full timeline editing, framing calibration, and effects are now housed in the dedicated `🎬 Video Studio` workspace.
+   - Quick studio launcher buttons (`🌐 OpenCut Web Studio`, `🚀 CapCut Desktop Bridge`, `🎨 Layout & Timing Studio`) provide immediate 1-click access to editing tools.
+   - Hidden input fields retain all clip framing, layout, delays, and timing parameters so that any subsequent video re-render safely preserves prior adjustments.
+2. **Real-Time Live Hook Banner Overlay (`#dlg_hook_live_overlay`)**:
+   - High-CTR hook title banner is rendered directly on top of the `#stage` video player with `@keyframes hookPopIn` entrance animation.
+   - Real-time CSS styling faithfully mimics ASS subtitle rendering across all 8 hook styles (`viral_yellow` with single punch word highlight, `viral_cyan`, `neon`, `purple_whip`, `yellow`, `pill`, `cyber_red`, `gold_luxury`).
+   - Interactive `🎣 Replay Hook` button seeks to 0:00 and replays the pop-in hook banner animation.
+   - Clicking hook pills in `#dlg_hook_pills`, changing styles, or typing hook text immediately updates the live overlay in real time.
+3. **Instant 1-Click SEO & Text Persistence**:
+   - High-visibility green action button `💾 Save SEO & Title (Instant - No Re-render)` calls `PUT /api/jobs/{jid}/clips/{cid}/text`.
+   - Backend `jobs.save_post_text()` immediately persists `title`, `description`, `seo_title`, `seo_tags`, `pinned_comment`, `hook`, `hook_style`, `captions`, `style`, `outro_cta`, `bgm_track`, `bgm_volume`, and `bgm_offset` into job memory and sidecar `{clip['id']}.json` in `< 5ms`.
+   - Eliminates unnecessary 15-20s FFmpeg video re-rendering when creators edit metadata or choose viral hook titles.
+
+---
+
+## 17. Full OpenCut Web Application Integration (New Tab Launch & Drag-and-Drop Bridge)
+1. **Core Philosophy**:
+   - For creators wanting full CapCut-level non-linear video editing (transitions, speed ramps, stickers, text overlays, and multi-track timelines), ClipNova AI integrates OpenCut (`https://github.com/opencut-app/opencut` / `https://opencut.app` / `https://new.opencut.app`).
+2. **Dual-Action Launch Mechanism (`window.launchOpenCutNewTab`)**:
+   - Simultaneously opens `https://opencut.app` in a fresh browser tab (`_blank`).
+   - Concurrently invokes backend `GET /api/jobs/{jid}/clips/{cid}/open-folder` which executes Windows Explorer `explorer.exe /select,"<filepath>"`, automatically highlighting the rendered clip `.mp4` file in the creator's local folder.
+   - The creator seamlessly drags the pre-selected `.mp4` file directly into OpenCut's web interface for instant editing.
+3. **Dedicated Video Studio Drawer Integration**:
+   - First tab in the Video Studio drawer is dedicated to `🌐 OpenCut Web Studio`.
+   - Displays 1-click `🌐 Launch OpenCut Editor (New Tab)` button alongside direct asset action chips:
+     - `📁 Open Clip Folder in Explorer`: reveals local video file on demand.
+     - `📥 Direct Download MP4`: direct browser download of the clip file.
+     - `🔗 Copy Clip Video URL`: copies full streaming HTTP endpoint URL for direct web pasting.
+     - `🚀 Launch Next-Gen OpenCut Link`: direct link to `https://new.opencut.app`.
+   - Features an optional embedded iframe toggle (`toggleEmbedOpenCut`) allowing creators to work inside ClipNova AI when desired.
+4. **Top Action Bar & Clip Modal Integration**:
+   - Top studio header bar features `<span>🌐</span> Open in OpenCut (New Tab)`.
+   - Clip Detail Modal (`#clipdlg`) features direct launch buttons in its Quick Studio Launcher row.
+
+

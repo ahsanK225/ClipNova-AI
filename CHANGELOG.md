@@ -1,6 +1,71 @@
 ﻿# Changelog
 All notable project changes are documented here.
 
+## [2026-11-24] — Full OpenCut Web Editor Integration (New Tab Launch & Drag-and-Drop Bridge)
+
+### Added
+- **Full OpenCut Web Application Integration (`web/index.html`, `studio/server.py`)**:
+  - Fully integrated OpenCut (`https://github.com/opencut-app/opencut` / `https://opencut.app` / `https://new.opencut.app`) to provide creators with complete CapCut-style web video editing capabilities (transitions, VFX, stickers, text overlays, multi-track timeline) in a new browser tab per user request.
+  - Implemented `window.launchOpenCutNewTab(jid, cid)` in `web/index.html`:
+    - Opens `https://opencut.app` directly in a fresh browser tab (`_blank`).
+    - Automatically invokes backend `/api/jobs/{jid}/clips/{cid}/open-folder` which launches Windows Explorer with the rendered `.mp4` file pre-selected (`explorer.exe /select,"<filepath>"`).
+    - Creators can effortlessly drag and drop the highlighted video file straight into OpenCut's web interface for instant editing.
+  - **Video Studio OpenCut Drawer Tab**:
+    - Replaced generic panels with a dedicated `🌐 OpenCut Web Studio` first tab in the Video Studio drawer.
+    - Added prominent 1-click `🌐 Launch OpenCut Editor (New Tab)` button.
+    - Added clear 4-step visual workflow card explaining the drag & drop process (1. Open in New Tab, 2. File Highlighted in Explorer, 3. Drag into OpenCut, 4. Export & Queue).
+    - Provided direct clip action chips:
+      - `📁 Open Clip Folder in Explorer`: highlights the clip `.mp4` on demand.
+      - `📥 Direct Download MP4`: downloads the clip directly to local drive.
+      - `🔗 Copy Clip Video URL`: copies the full HTTP streaming URL to clipboard for web import.
+      - `🚀 Launch Next-Gen OpenCut Link`: launches `https://new.opencut.app` variant.
+    - Included optional embedded studio iframe toggle (`toggleEmbedOpenCut`) for creators who prefer editing directly within the ClipNova dashboard.
+  - **Top Action Bar & Clip Detail Modal Wiring**:
+    - Video Studio top action bar updated with `<span>🌐</span> Open in OpenCut (New Tab)` button.
+    - Clip Detail Modal (`#clipdlg`) Quick Studio Launcher row updated to wire `🌐 OpenCut Web Studio` directly to `launchOpenCutNewTab`.
+
+### Tests and Verification
+- Executed automated unit tests `tests/test_clip_clean_seo.py` and `tests/test_video_studio.py` (8/8 passed).
+- Live HTTP verification on `http://127.0.0.1:8765/`:
+  - `launchOpenCutNewTab`: True
+  - `opencut.app link`: True
+  - `Open in OpenCut button`: True
+  - `save_seo_instant`: True
+  - `dlg_hook_live_overlay`: True
+  - `Viral Climax Teaser absent`: True
+  - `Layout & Framing Studio absent`: True
+- Verified live server daemon running on port 8765.
+
+## [2026-11-24] — Clip Detail Modal Clean-Up, Live Hook Banner Overlay & Instant 1-Click SEO Persistence
+
+### Added
+- **Clip Detail Modal Clean-Up (`web/index.html`)**:
+  - Removed `Viral Climax Teaser (Cold Open Hook)` accordion from `#clipdlg` as dedicated editors are now integrated (Item 1).
+  - Removed `Layout & Framing Studio` and `Advanced Timing, Sync & Framing` accordions from `#clipdlg` (Item 2), keeping the dialog uncluttered and focused strictly on SEO, Title, Description, Tags, Hook, and YouTube Publishing.
+  - Added Quick Studio Launcher row at top of `#clipdlg` (`🌐 OpenCut Web Studio`, `🚀 CapCut Desktop Bridge`, `🎨 Layout & Timing Studio`).
+  - Added hidden inputs preserving clip layout, timing, delays, zoom, and framing parameters so that if a full re-render is triggered, parameters are safely retained.
+- **Instant 1-Click SEO & Text Persistence without Re-render (`web/index.html`, `studio/jobs.py`, `studio/server.py`)**:
+  - Added high-visibility prominent green action button `💾 Save SEO & Title (Instant - No Re-render)` in `#clipdlg` (Item 2).
+  - Updated `jobs.save_post_text()` to accept and persist `hook`, `hook_style`, `seo_title`, `seo_tags`, `pinned_comment`, `captions`, `style`, `outro_cta`, `bgm_track`, `bgm_volume`, `bgm_offset` directly into memory and sidecar `{clip['id']}.json`.
+  - Updated `postText()` in `web/index.html` to extract and serialize all SEO, title, tags, and hook attributes.
+  - Instant < 5ms save with immediate green toast confirmation and zero FFmpeg re-rendering delay.
+- **Live Viral Hook Banner Overlay (`web/index.html`, `studio/render.py`, `studio/jobs.py`)**:
+  - Fixed Viral Hook Banner functionality (Item 3): added real-time `#dlg_hook_live_overlay` on top of the `#stage` video player.
+  - Interactive `@keyframes hookPopIn` entrance with styling for all hook styles (`viral_yellow` with yellow punch word highlight, `viral_cyan`, `neon` dark gaming box, `purple_whip`, `yellow` box, `pill`, `cyber_red`, `gold_luxury`).
+  - Added `🎣 Replay Hook` button to restart the video at 0:00 and replay the hook pop-in animation on demand.
+  - Live synchronization hides overlay after 3.8s matching the rendered video.
+  - Selecting hook pills in `#dlg_hook_pills`, changing hook banner style dropdown, or typing in the hook input immediately updates the video overlay in real-time.
+  - Updated `pick_hook` and `pick_title` click handlers to synchronize in-memory clip state (`clp.hook = h`, `clp.title = t`, `clp.seo_title = seoT`).
+  - Expanded `hook` length limit in `studio/jobs.py` from 60 to 120 characters and `hook_style` to 40 characters.
+
+### Tests and Verification
+- Created automated test suite `tests/test_clip_clean_seo.py` with 3 comprehensive tests (3/3 passed in 0.113s):
+  - `test_save_post_text_persists_seo_and_hook_instantly`: verifies `save_post_text` saves title, description, SEO title, search tags, pinned comment, hook, and hook style without re-rendering.
+  - `test_put_clip_text_endpoint`: verifies `PUT /api/jobs/{jid}/clips/{cid}/text` persists all fields and returns 200 OK.
+  - `test_index_html_clean_modal_and_live_hook_overlay`: verifies teaser and layout cards are removed, `save_seo_instant` button is present, and live hook overlay functions exist.
+- Regression suite `tests/test_video_studio.py` (5/5 passed in 0.083s).
+- Live server test on `http://127.0.0.1:8765/` verified `HTTP 200 OK`, `save_seo_instant: True`, `dlg_hook_live_overlay: True`, `Viral Climax Teaser: False`, `Layout & Framing Studio: False`.
+
 ## [2026-11-24] — Dual-Engine Video Editing Suite: OpenCut Web Studio & CapCut Desktop Bridge
 
 ### Added

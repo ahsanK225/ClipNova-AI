@@ -411,7 +411,7 @@ def request_render(jid, cid, changes: dict):
         raise ValueError("A clip can be 3 to 180 seconds long.")
     for k in ("hook", "title", "description", "style", "layout", "seo_title", "pinned_comment", "hook_style", "outro_text", "facecam_pos", "bgm_track", "video_filter"):
         if k in changes:
-            new[k] = str(changes[k])[:{"hook": 60, "title": 100, "description": 2000, "seo_title": 100, "pinned_comment": 500, "hook_style": 20, "outro_text": 100, "facecam_pos": 20, "bgm_track": 50, "video_filter": 50}.get(k, 20)]
+            new[k] = str(changes[k])[:{"hook": 120, "title": 100, "description": 2000, "seo_title": 100, "pinned_comment": 500, "hook_style": 40, "outro_text": 100, "facecam_pos": 20, "bgm_track": 50, "video_filter": 50}.get(k, 20)]
     if "bgm_volume" in changes:
         try:
             new["bgm_volume"] = max(0.0, min(1.0, round(float(changes["bgm_volume"]), 2)))
@@ -604,14 +604,35 @@ def clean_hashtags(v) -> list:
 
 
 def save_post_text(job, clip, changes: dict):
-    """Change a clip's title, description and hashtags without making the clip again. Posting reads them
+    """Change a clip's title, description, SEO, hook and tags without making the clip again. Posting reads them
     from the clip when it uploads, so the next post (or one still waiting in the queue) uses the new text."""
-    text = {k: str(changes[k] or "")[:{"title": 100, "description": 2000}[k]] for k in ("title", "description") if k in changes}
+    text = {}
+    for k in ("title", "description", "seo_title", "pinned_comment", "hook", "hook_style", "style", "outro_text", "bgm_track", "video_filter"):
+        if k in changes:
+            max_len = {"title": 100, "description": 2000, "seo_title": 100, "pinned_comment": 500, "hook": 120, "hook_style": 40, "style": 30, "outro_text": 100, "bgm_track": 50, "video_filter": 50}.get(k, 100)
+            text[k] = str(changes[k] or "")[:max_len]
     if "hashtags" in changes:
         text["hashtags"] = clean_hashtags(changes["hashtags"])
-    if clip.get("hashtags_in_description") and not clip.get("fixed_description") and text:
-        # This clip's description ends with its hashtags, and posting does not add them again. So the
-        # description is put back together from the Hashtags box: the words, then one line of tags.
+    if "seo_tags" in changes:
+        st = changes["seo_tags"]
+        if isinstance(st, str):
+            text["seo_tags"] = [t.strip() for t in st.split(",") if t.strip()][:30]
+        elif isinstance(st, list):
+            text["seo_tags"] = [str(t).strip() for t in st if str(t).strip()][:30]
+    for b in ("captions", "outro_cta"):
+        if b in changes:
+            text[b] = bool(changes[b])
+    if "bgm_volume" in changes:
+        try:
+            text["bgm_volume"] = max(0.0, min(1.0, round(float(changes["bgm_volume"]), 2)))
+        except (ValueError, TypeError):
+            pass
+    if "bgm_offset" in changes:
+        try:
+            text["bgm_offset"] = max(0.0, min(3600.0, round(float(changes["bgm_offset"]), 3)))
+        except (ValueError, TypeError):
+            pass
+    if clip.get("hashtags_in_description") and not clip.get("fixed_description") and "description" in text:
         desc = hashtags._TAG_IN_TEXT.sub("", text.get("description", clip.get("description") or "")).strip()
         line = " ".join("#" + t for t in text.get("hashtags", clip.get("hashtags") or []))
         text["description"] = ((desc + "\n\n" + line).strip() if desc else line)[:2000]
