@@ -1,6 +1,36 @@
 ﻿# Changelog
 All notable project changes are documented here.
 
+## [2026-11-24] — Elimination of Duplicate Hook Banner in Video Stage Player
+
+### Fixed
+- **Duplicate Hook Banner Display (`web/index.html`, `studio/jobs.py`)**:
+  - Resolved user-reported issue ("2 bar hooks Q show kr raha he") where `#clipdlg` displayed two hook banners simultaneously:
+    1. Top hook: HTML DOM overlay (`#dlg_hook_live_overlay` at `top: 10%`).
+    2. Bottom hook: The hook already permanently burned into the MP4 video by FFmpeg at `y = 1010` (~52% height / split seam).
+  - Root cause: On modal open, `updateDlgLiveHookOverlay()` unconditionally set `overlay.style.display = "block"` even though the video playing was already rendered with the exact same hook banner.
+  - Implemented smart display & preview state logic in `window.updateDlgLiveHookOverlay()`:
+    - Automatically checks if clip is rendered (`c.status === "done" && c.file`) and compares current input (`rawHook`) and `hookStyle` against what is actually burned into the MP4 file (`c.rendered_hook` and `c.rendered_hook_style`).
+    - If they match, the video already contains the burned-in hook -> `#dlg_hook_live_overlay` is hidden (`display: none; dataset.previewActive = "false"`), completely eliminating the second duplicate banner!
+    - If the user types a new hook into `[data-f="hook"]` or selects a different AI hook pill, the overlay activates as a live preview (`display: block; dataset.previewActive = "true"`).
+  - Dynamic Layout Alignment (`calcDlgHookTopPos`):
+    - Replaced hardcoded `top: 10%` with layout-adaptive centering:
+      - `split_half`: `top: 52.5%; transform: translate(-50%, -50%)` (seamlessly aligns with and overlays the middle seam hook area).
+      - `split`: `top: 36%; transform: translate(-50%, -50%)`.
+      - `blur` / `fit` / `crop`: `top: 16%; transform: translate(-50%, -50%)`.
+  - Replay Animation & Sync Safeguards (`replayDlgHookAnimation`, `setupDlgHookSync`):
+    - `replayDlgHookAnimation()` and `setupDlgHookSync()` now only animate or un-hide `#dlg_hook_live_overlay` when in active preview mode (`dataset.previewActive === "true"`), preventing the overlay from inadvertently reappearing during playback.
+  - Backend Metadata Persistence (`studio/jobs.py`):
+    - Added `rendered_hook` and `rendered_hook_style` tracking upon clip render completion.
+
+### Tests and Verification
+- Unit test suite `tests/test_hook_overlay_no_duplicate.py` passed (4/4).
+- Full test suites `tests/test_hook_banner_sync.py`, `tests/test_h264_converter.py`, `tests/test_capcut_and_styles.py` passed (7/7).
+- Visual browser verification via subagent `f46f4243-6523-48ce-9d2e-4d1636ec6db1`:
+  - Verified on `http://localhost:8765/`: `#dlg_hook_live_overlay` confirmed `display: none` on open, single hook visible.
+  - Verified preview activation upon selecting a different hook pill (`display: block` at `top: 16%` / `52.5%`).
+  - High-res verification screenshot saved to `hook_duplicate_fixed_verified.png`.
+
 ## [2026-11-24] — CapCut Desktop Auto-Registration in root_meta_info.json & Process Auto-Launcher
 
 ### Fixed

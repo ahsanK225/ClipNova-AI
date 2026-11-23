@@ -762,7 +762,7 @@ def render_one(job, clip, words):
         local = dict(clip, start=clip["start"] - off, end=clip["end"] - off, hook=roman.to_roman(clip.get("hook") or ""))
         near = _caption_words(job, clip, words, off, src=src, local_start=local["start"], local_end=local["end"]) if use_caps else []
         out = render.render_clip(src, d / "clips", clip["id"], local, near, job["width"], job["height"])
-        clip.update(out, status="done", version=clip.get("version", 0) + 1, error=None)
+        clip.update(out, status="done", version=clip.get("version", 0) + 1, error=None, rendered_hook=local.get("hook", ""), rendered_hook_style=clip.get("hook_style", ""))
         post = {k: clip[k] for k in ("title", "description", "hashtags", "hook", "start", "end", "score", "seo_title", "seo_tags", "pinned_comment", "hook_style", "outro_cta", "outro_text", "audio_delay", "facecam_pos", "facecam_delay") if k in clip}
         (d / "clips" / f"{clip['id']}.json").write_text(json.dumps(post, indent=1), encoding="utf-8")
         if clip["version"] == 1:

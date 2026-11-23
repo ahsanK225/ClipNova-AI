@@ -134,6 +134,11 @@ flowchart TD
      - Top Facecam (1080x640): Fills edge-to-edge horizontally at y=0. Streamer is fully visible with natural proportions and zero voids.
      - Bottom Gameplay (1080x1280): Massive game area with subtitle-safe zoom-out framing (`crop=min(in_w\,1040):in_h:(in_w-min(in_w\,1040))/2:0`). In-game dialogue subtitles fit screen boundaries without edge clipping, while keeping streamer borders/overlays cleanly cropped out.
      - Broadcast divider: 6px dark bar + 2px glowing cyan line (`color=0x00F0FF@0.9`). Hook banner positioned at y=690.
+   - **Single-Hook Display & Duplicate Overlay Suppression Contract**:
+     - When a clip has finished rendering (`c.status === "done"`), the hook banner is permanently burned into the MP4 video by FFmpeg.
+     - The HTML DOM preview overlay (`#dlg_hook_live_overlay`) detects if the clip is already rendered and current input matches `c.rendered_hook` and `c.rendered_hook_style`.
+     - When matched, the overlay is hidden (`display: none; dataset.previewActive = "false"`), preventing duplicate hook banners from appearing simultaneously on the player.
+     - When the user modifies the hook or selects a different pill, the overlay activates as a live preview at the exact layout-calculated height (`calcDlgHookTopPos`).
 
 ## 8. Speech Trigger Recognition Engine ("Always clip the last 30 seconds when someone says")
 The live speech trigger engine (`studio/live.py:Session._triggers`) continuously monitors real-time streaming transcripts and queues a 30-second highlight immediately when a trigger phrase is detected, bypassing AI score thresholds:
