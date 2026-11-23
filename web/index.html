@@ -3894,7 +3894,8 @@ function renderStudioWorkspace() {
               ["vfx", "⚡ Viral VFX"],
               ["audio", "🎵 Audio & BGM"],
               ["subtitles", "💬 Subtitles"],
-              ["layout", "🎭 Layout"]
+              ["layout", "🎭 Layout"],
+              ["capcut", "🚀 CapCut Desktop Bridge"]
             ].map(([id, label]) => `
               <button class="tabbtn ${_studioDrawerTab === id ? 'on' : ''}" onclick="studioSwitchTab('${id}')" style="font-size:12px;padding:6px 12px">
                 ${label}
@@ -4152,6 +4153,14 @@ function renderStudioDrawerContent() {
           <h4 style="margin:0;font-size:14px;color:#F8FAFC">Transcript &amp; Subtitles (${_studioWords.length} words)</h4>
           <span style="font-size:11px;color:#94A3B8">Click word to seek; edit text to fix typos</span>
         </div>
+        <div style="background:#1E293B;border:1px solid #334155;border-radius:8px;padding:8px 12px;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
+          <span style="font-size:11px;font-weight:700;color:#00F0FF">📍 Subtitle Position on Video:</span>
+          <div style="display:flex;gap:6px">
+            <button type="button" class="chip sm" onclick="studioSetSubPos(240)">⬆️ Top</button>
+            <button type="button" class="chip sm" onclick="studioSetSubPos(130)">🎯 Center</button>
+            <button type="button" class="chip sm on" onclick="studioSetSubPos(45)">⬇️ Bottom (Default)</button>
+          </div>
+        </div>
         <div style="max-height:360px;overflow-y:auto;display:flex;flex-direction:column;gap:6px;padding-right:4px">
           ${_studioWords.map((w, idx) => `
             <div style="background:#1E293B;border:1px solid #334155;border-radius:8px;padding:6px 10px;display:flex;align-items:center;gap:10px">
@@ -4161,6 +4170,52 @@ function renderStudioDrawerContent() {
               <input value="${esc(w.text)}" onchange="studioEditWord(${idx}, this.value)" style="background:#0F172A;color:#FFF;border:1px solid #334155;border-radius:6px;padding:4px 8px;font-size:12px;font-weight:700;flex:1">
             </div>
           `).join("")}
+        </div>
+      </div>
+    `;
+  }
+
+  let _studioSubPos = window._studioSubPos || 45;
+
+  if (_studioDrawerTab === "capcut") {
+    return `
+      <div style="background:linear-gradient(135deg, rgba(0,240,255,0.06), rgba(99,102,241,0.1));border:1px solid rgba(0,240,255,0.25);border-radius:14px;padding:18px">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
+          <div style="width:44px;height:44px;border-radius:12px;background:linear-gradient(135deg,#00F0FF,#0088FF);display:flex;align-items:center;justify-content:center;font-size:22px;color:#020617;font-weight:900;box-shadow:0 4px 15px rgba(0,240,255,0.35)">
+            🚀
+          </div>
+          <div>
+            <h4 style="margin:0;font-size:16px;color:#F8FAFC;font-weight:800">CapCut Desktop Native Bridge</h4>
+            <p style="margin:3px 0 0;font-size:12px;color:#94A3B8">Generates complete CapCut Desktop project draft directly on this PC</p>
+          </div>
+        </div>
+
+        <div style="background:rgba(15,23,42,0.7);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:12px 14px;margin-bottom:16px">
+          <div style="display:flex;align-items:center;gap:6px;color:#00F0FF;font-weight:700;font-size:12px;margin-bottom:6px">
+            <span>✅</span> CapCut Projects Directory Detected:
+          </div>
+          <code style="font-size:11px;color:#CBD5E1;word-break:break-all;background:rgba(0,0,0,0.3);padding:4px 8px;border-radius:6px;display:block">
+            %LOCALAPPDATA%\CapCut\User Data\Projects\com.lveditor.draft
+          </code>
+        </div>
+
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px">
+          <button type="button" class="btn primary" onclick="studioExportCapcutDesktop()" style="background:linear-gradient(135deg,#00F0FF,#0088FF);color:#020617;font-weight:800;border:none;padding:10px 18px;border-radius:10px;box-shadow:0 0 16px rgba(0,240,255,0.4);font-size:13px;display:inline-flex;align-items:center;gap:8px">
+            <span>🚀</span> Export &amp; Open in CapCut Desktop
+          </button>
+          <button type="button" class="btn" onclick="studioOpenCapcutFolder()" style="background:#1E293B;border:1px solid #334155;color:#E2E8F0;padding:10px 16px;border-radius:10px;font-size:13px;display:inline-flex;align-items:center;gap:6px">
+            <span>📁</span> Open Draft Folder in Explorer
+          </button>
+        </div>
+
+        <div style="background:rgba(30,41,59,0.4);border:1px dashed rgba(255,255,255,0.1);border-radius:10px;padding:12px;font-size:12px;color:#94A3B8;line-height:1.6">
+          <b style="color:#F8FAFC">⚡ What happens when you click:</b>
+          <ol style="margin:6px 0 0;padding-left:18px">
+            <li>ClipNova creates a native <b>CapCut project folder</b> with your 9:16 vertical video track.</li>
+            <li>All spoken dialogue is pre-mapped onto a timed <b>Text/Captions track</b>.</li>
+            <li>The viral hook banner is pre-mapped onto a <b>Hook Title track</b>.</li>
+            <li>Folder opens in Explorer; simply open CapCut Desktop to use all official trending VFX, 3D text templates, animations, and sound effects!</li>
+          </ol>
         </div>
       </div>
     `;
@@ -4338,6 +4393,36 @@ function studioSplitCut() {
   _studioCuts.push(t);
   renderStudioWorkspace();
   toast(`Split cut placed at ${t.toFixed(1)}s`, "ok", 2500);
+}
+
+async function studioExportCapcutDesktop() {
+  if (!_studioProj || !window._studioClip) return;
+  const { jid, cid } = window._studioClip;
+  toast("⏳ Exporting native CapCut Desktop draft project...", "ok", 4000);
+  try {
+    const res = await send(`/api/jobs/${encodeURIComponent(jid)}/clips/${encodeURIComponent(cid)}/export-capcut`, {});
+    toast(`🎬 CapCut Desktop draft ready! Project "${res.draft_name}" created. Folder opened in Explorer!`, "ok", 8000);
+  } catch (err) {
+    toast(`CapCut export failed: ${err.message}`, "bad", 6000);
+  }
+}
+
+async function studioOpenCapcutFolder() {
+  if (!_studioProj || !window._studioClip) return;
+  const { jid, cid } = window._studioClip;
+  try {
+    await send(`/api/jobs/${encodeURIComponent(jid)}/clips/${encodeURIComponent(cid)}/open-capcut-folder`, {});
+    toast("📂 CapCut draft folder opened in Explorer", "ok", 3000);
+  } catch (err) {
+    toast(`Could not open folder: ${err.message}`, "bad", 4000);
+  }
+}
+
+function studioSetSubPos(px) {
+  window._studioSubPos = px;
+  const el = $("#studio_sub_overlay");
+  if (el) el.style.bottom = `${px}px`;
+  toast(`Subtitles positioned at ${px}px`, "ok", 1500);
 }
 
 async function saveStudioExport(scheduleNow) {
@@ -5688,8 +5773,8 @@ function drawClipDlg(full) {
         })()}
         <div style="display:flex;gap:8px;align-items:center;margin:12px 0 16px 0;flex-wrap:wrap">
           <button class="btn" data-act="remake" style="flex:1;min-width:180px">${ic("scissors")}Save and re-make clip</button>
-          <button type="button" class="btn" data-act="open_web_studio" data-j="${j.id}" data-c="${esc(c.id)}" style="background:linear-gradient(135deg,#6366F1,#00F0FF);color:#020617;font-weight:800;border:none;display:inline-flex;align-items:center;gap:6px;box-shadow:0 0 12px rgba(0,240,255,0.3)" title="Open in Web Video Studio timeline editor">
-            <span>🎬</span> Open in Web Studio
+          <button type="button" class="btn" data-act="open_web_studio" data-j="${j.id}" data-c="${esc(c.id)}" style="background:linear-gradient(135deg,#6366F1,#00F0FF);color:#020617;font-weight:800;border:none;display:inline-flex;align-items:center;gap:6px;box-shadow:0 0 14px rgba(0,240,255,0.35)" title="Open in OpenCut Web Studio timeline editor">
+            <span>🌐</span> Open in OpenCut Web Studio
           </button>
           <button type="button" class="btn" data-act="export_capcut" data-j="${j.id}" data-c="${esc(c.id)}" style="background:linear-gradient(135deg,#00F0FF,#0088FF);color:#050505;font-weight:800;border:none;display:inline-flex;align-items:center;gap:6px" title="Export this clip into a full native CapCut desktop project">
             <span>🚀</span> Open in CapCut Desktop

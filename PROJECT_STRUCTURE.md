@@ -191,3 +191,11 @@ F:\Games\GTA 6 CLIPPING\
   - `POST /api/jobs/{jid}/clips/{cid}/studio-export`: Triggers FFmpeg re-render and optional 1-click scheduling into YouTube Publishing Calendar at USA Peak Velocity slot.
 - **FFmpeg Color Grading Engine**: `studio/render.py` (`VIDEO_FILTERS`)
   - Injects `eq` and `hue` filtergraphs directly into the video filter pipeline.
+
+### 19. CapCut Desktop Native Bridge & OpenCut Web Studio
+- **CapCut Desktop Generator**: `studio/capcut/export.py`
+  - Generates `%LOCALAPPDATA%\CapCut\User Data\Projects\com.lveditor.draft\<draft_name>\draft_info.json`
+  - Maps Video Track, Subtitle Captions Track, and Hook Title Track for native CapCut desktop editing.
+- **UI Launchers**: `web/index.html` (`#clipdlg`, `drawVideoStudioTab()`)
+  - `🌐 Open in OpenCut Web Studio` for browser-based multi-track timeline editing.
+  - `🚀 Open in CapCut Desktop` for official PC CapCut app editing with native transitions and AI effects.

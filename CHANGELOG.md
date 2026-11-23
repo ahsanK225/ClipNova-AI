@@ -1,6 +1,30 @@
 ﻿# Changelog
 All notable project changes are documented here.
 
+## [2026-11-24] — Dual-Engine Video Editing Suite: OpenCut Web Studio & CapCut Desktop Bridge
+
+### Added
+- **Dual-Engine Video Editing Suite (`web/index.html`, `studio/server.py`, `studio/capcut/export.py`)**:
+  - **Clip Detail Modal (`#clipdlg`) Differentiated Launchers**:
+    - `🌐 Open in OpenCut Web Studio`: Directly opens the in-browser multi-track editor with live timeline, filters, VFX, and audio drop sync.
+    - `🚀 Open in CapCut Desktop`: 1-click export creating a native CapCut desktop draft project (`draft_info.json`) with video, word-level captions, and hook tracks already pre-mapped.
+    - `📁 CapCut Project Folder`: Directly opens the local `%LOCALAPPDATA%\CapCut\User Data\Projects\com.lveditor.draft` folder in Windows Explorer.
+  - **Video Studio CapCut Desktop Bridge Tab**:
+    - Added dedicated `🚀 CapCut Desktop Bridge` tab in the studio drawer.
+    - Shows detected local CapCut projects directory and provides 1-click export and folder access right from inside the studio workspace.
+  - **Live Subtitle Vertical Positioning**:
+    - In the Subtitles tab, added vertical position presets (`⬆️ Top`, `🎯 Center`, `⬇️ Bottom (Default)`).
+    - Clicking any option instantly repositions the subtitle overlay on the 9:16 vertical video player in real time.
+
+### Tests and Verification
+- Unit test suite `tests/test_video_studio.py` (5/5 passed in 0.204s).
+- Native CapCut generator test suite `tests/test_capcut_and_styles.py` (15/15 passed).
+- Real browser visual verification via subagent `3d5e906e-d734-4748-b052-981d04c3470e` on `http://localhost:8765`:
+  - Verified clip detail modal with both `🌐 Open in OpenCut Web Studio` and `🚀 Open in CapCut Desktop` buttons.
+  - Verified Video Studio drawer's `🚀 CapCut Desktop Bridge` panel and tested export trigger.
+  - Verified subtitle positioning (`🎯 Center`) repositioning overlay to center.
+  - Visual evidence artifacts saved: `opencut_and_capcut_bridge_verified.png` and `capcut_desktop_bridge_panel.png`.
+
 ## [2026-11-23] — In-Browser Web Video Studio (CapCut / OpenCut Style Multi-Track Editor)
 
 ### Added

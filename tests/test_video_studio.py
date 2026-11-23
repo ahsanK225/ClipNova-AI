@@ -205,6 +205,10 @@ class TestVideoStudio(unittest.TestCase):
         self.assertIn('function drawVideoStudioTab()', html_content)
         self.assertIn('function renderStudioWorkspace()', html_content)
         self.assertIn('function saveStudioExport(', html_content)
+        self.assertIn('function studioExportCapcutDesktop()', html_content)
+        self.assertIn('function studioSetSubPos(', html_content)
+        self.assertIn('CapCut Desktop Bridge', html_content)
+        self.assertIn('OpenCut Web Studio', html_content)
         
         # Check styles
         self.assertIn('studio-track-row', html_content)
