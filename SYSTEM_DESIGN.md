@@ -464,7 +464,16 @@ Integrated directly in `studio/brain.py` and `studio/posting.py`:
    - `render._render_in` loops the background track infinitely using `-stream_loop -1 -i <bgm_path>`.
    - Mixes background audio into the master output using:
      `[bgm:a]volume={bgm_volume}[bgma];[main_audio][bgma]amix=inputs=2:duration=first:dropout_transition=2,loudnorm=I=-14:TP=-1.5:LRA=11[a]`
-   - `duration=first` guarantees the output audio ends exactly when the video clip ends, while `loudnorm` standardizes broadcast loudness.## 26. Stream Card Live Chat Elevation, Compact Stats Bar & Polling Scroll Auto-Stick/Preservation
+   - `duration=first` guarantees the output audio ends exactly when the video clip ends, while `loudnorm` standardizes broadcast loudness.
+4. **Interactive Sound Trim & Start Position Pipeline (`studio/render.py`, `studio/jobs.py`, `web/index.html`)**:
+   - **Range Scrubber (`#dlg_bgm_offset_slider`)**: When any background track or user upload is selected, creators can scrub an interactive offset slider (0.0s up to track length) to pick the exact starting segment (e.g. at 0:15 beat drop).
+   - **Live In-Browser Audition**: Moving the scrubber immediately updates the audio element playhead. During video preview playback, audio locks to `((v.currentTime + offset) % duration)`.
+   - **Quick Jump Buttons**: One-click jump buttons (`0:00 (Start)`, `+10s`, `⚡ 0:15 (Drop)`, `+30s`, `🎧 Listen from here`) allow creators to lock viral moments in seconds.
+   - **FFmpeg Seek Integration**: When remaking the clip, `-ss <bgm_offset>` is passed directly before `-i <bgm_path>` alongside `asetpts=PTS-STARTPTS`, ensuring the rendered MP4 begins at the exact audio cue.
+
+---
+
+## 26. Stream Card Live Chat Elevation, Compact Stats Bar & Polling Scroll Auto-Stick/Preservation
 1. **Stream Card Live Chat Elevation (`web/index.html`)**:
    - Live Twitch/YouTube chat is rendered directly inside the top stream card's right-hand panel (`.stream .sinfo`), directly beside the live stream video player.
    - Embeds a sleek 180–240px tall scroll container (`#stream_live_chat_list`) featuring colored username badges, message text, live channel badge (`#channel`), and 1-click `Popout ↗` window link.
@@ -584,5 +593,33 @@ Integrated directly in `studio/brain.py` and `studio/posting.py`:
    - Compacts sparkline meters to give `Latest AI Decisions` wide desktop space, eliminating text cutoff and truncation of reasons.
 4. **URL Route & Subtab Persistence Across Page Refresh**:
    - Updated `fromPath` regex to match `/calendar` tab routes.
+
+---
+
+## 32. CapCut Desktop & Open-Source Video Editor (OpenCut / OpenReel) Integration Architecture
+1. **Background & Creator Objective**:
+   - Creators often want fine-grained non-linear editing (NLE) capabilities — keyframing, multi-layer VFX, optical flow slow motion, animated stickers, color LUTs, and audio ducking — before publishing to YouTube Shorts.
+2. **Path A: Native CapCut Desktop Draft Bridge (Already Integrated in ClipNova AI)**:
+   - **Engine (`studio/capcut/export.py`)**:
+     - ClipNova AI already features an automated exporter that creates complete, valid CapCut desktop project structures directly inside `%LOCALAPPDATA%\CapCut\User Data\Projects\com.lveditor.draft\<project_id>\`.
+     - Automatically generates `draft_content.json` mapping:
+       - Video track (primary gameplay layer).
+       - Picture-in-Picture / webcam track with pre-calculated crop and position.
+       - Subtitle track with animated word timings and styles.
+       - Background audio track with volume and offset.
+     - **UI Workflow**:
+       - In `#clipdlg`, clicking `🚀 Open in CapCut Desktop` exports the draft in ~200ms and opens CapCut Desktop directly.
+       - Creators edit with CapCut's full native GPU rendering, thousands of free VFX, AI cutout, and transitions, with zero browser lag or memory limits.
+3. **Path B: In-Browser Open-Source NLE Integration (`OpenCut` / `OpenReel Video`)**:
+   - **Evaluated Repositories**:
+     - `OpenCut-app/OpenCut`: Open-source desktop/web CapCut alternative with a modern Rust core and web interface.
+     - `Augani/openreel-video`: 100% browser-based React/Next.js/Zustand multi-track video editor with WebCodecs hardware acceleration, split, ripple-delete, transitions, and text layers.
+   - **Architecture for Embedded Web Editor**:
+     - **Project Staging API (`/api/jobs/{jid}/clips/{cid}/editor-project`)**:
+       - Outputs an OpenCut/OpenReel JSON timeline contract staging video segments, audio tracks, and caption cues.
+     - **Embedded Timeline Panel / Route (`/editor/{jid}/{cid}`)**:
+       - Host OpenReel or OpenCut Web as a micro-frontend or embedded canvas view inside ClipNova AI.
+       - Supports live timeline scrubbing, trimming, multi-track layering, and instant export back into ClipNova's YouTube Publishing Calendar queue.
+
    - Guarded `go()` against early overview fallback before creators are loaded.
    - Synchronized `view` and `ctab` with `localStorage` and `history.pushState` / `replaceState`.

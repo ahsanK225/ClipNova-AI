@@ -417,6 +417,11 @@ def request_render(jid, cid, changes: dict):
             new["bgm_volume"] = max(0.0, min(1.0, round(float(changes["bgm_volume"]), 2)))
         except (ValueError, TypeError):
             new["bgm_volume"] = 0.18
+    if "bgm_offset" in changes:
+        try:
+            new["bgm_offset"] = max(0.0, min(3600.0, round(float(changes["bgm_offset"]), 3)))
+        except (ValueError, TypeError):
+            new["bgm_offset"] = 0.0
     if "hashtags" in changes:
         new["hashtags"] = clean_hashtags(changes["hashtags"])
     if "outro_cta" in changes:

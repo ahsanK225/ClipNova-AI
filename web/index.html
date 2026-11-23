@@ -4679,6 +4679,7 @@ function drawClipDlg(full) {
               <div style="display:flex;align-items:center;gap:6px">
                 <input type="hidden" data-f="bgm_track" id="dlg_bgm_track" value="${esc(c.bgm_track || 'none')}">
                 <input type="hidden" data-f="bgm_volume" id="dlg_bgm_volume_input" value="${c.bgm_volume ?? 0.18}">
+                <input type="hidden" data-f="bgm_offset" id="dlg_bgm_offset_input" value="${c.bgm_offset ?? 0}">
                 <button type="button" class="btn sm" id="btn_bgm_preview_toggle" onclick="toggleBgmSyncPreview()" style="font-size:11px;padding:3px 9px;background:rgba(255,255,255,0.06);border:1px solid var(--line);border-radius:6px;cursor:pointer">
                   <span>🔊</span> Sync: <b id="bgm_sync_status" style="color:#00FF88">ON</b>
                 </button>
@@ -4686,6 +4687,42 @@ function drawClipDlg(full) {
                   <span>➕</span> Upload
                   <input type="file" id="dlg_bgm_uploader" accept="audio/*" style="display:none" onchange="uploadCustomAudioTrack(this)">
                 </label>
+              </div>
+            </div>
+
+            <!-- Audio Trim & Start Offset Controller (CapCut-style Range Selector) -->
+            <div id="dlg_bgm_trim_box" style="display:${(c.bgm_track && c.bgm_track !== 'none') ? 'block' : 'none'};background:rgba(0,240,255,0.04);border:1px dashed rgba(0,240,255,0.25);border-radius:8px;padding:9px 12px;margin-bottom:10px">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+                <div style="display:flex;align-items:center;gap:6px">
+                  <span style="font-size:12px">✂️</span>
+                  <b style="font-size:11px;color:var(--accent,#00F0FF)">Audio Start Position (Sound Trim)</b>
+                  <span class="sub" style="font-size:10px;color:var(--text-dim)">(CapCut-style: choose which section plays)</span>
+                </div>
+                <div style="display:flex;align-items:center;gap:8px">
+                  <span style="font-size:11px;font-family:monospace;color:#F1F5F9">
+                    Start: <b id="dlg_bgm_offset_txt" style="color:var(--accent,#00F0FF)">${(() => { const o = c.bgm_offset || 0; const m = Math.floor(o / 60); const s = Math.floor(o % 60); return `${m}:${s < 10 ? '0' : ''}${s}`; })()}</b> / <span id="dlg_bgm_dur_txt" style="color:var(--text-dim)">--:--</span>
+                  </span>
+                </div>
+              </div>
+              <div style="display:flex;align-items:center;gap:10px">
+                <input type="range" id="dlg_bgm_offset_slider" min="0" max="60" step="0.5" value="${c.bgm_offset || 0}"
+                       style="flex:1;accent-color:var(--accent,#00F0FF);cursor:pointer;height:6px"
+                       oninput="onBgmOffsetScrub(this.value)"
+                       title="Scrub to choose which section of the music/sound to play in this clip">
+              </div>
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;margin-top:7px;flex-wrap:wrap">
+                <div style="display:flex;align-items:center;gap:4px">
+                  <button type="button" class="btn sm" onclick="setBgmOffset(0)" style="font-size:9.5px;padding:2px 7px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid var(--line);cursor:pointer" title="Start sound from beginning">⏮️ 0:00 (Start)</button>
+                  <button type="button" class="btn sm" onclick="setBgmOffset(10)" style="font-size:9.5px;padding:2px 7px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid var(--line);cursor:pointer" title="Start at 10 seconds">+10s</button>
+                  <button type="button" class="btn sm" onclick="setBgmOffset(15)" style="font-size:9.5px;padding:2px 7px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid var(--line);cursor:pointer" title="Start at 15 seconds (typical drop)">⚡ 0:15 (Drop)</button>
+                  <button type="button" class="btn sm" onclick="setBgmOffset(30)" style="font-size:9.5px;padding:2px 7px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid var(--line);cursor:pointer" title="Start at 30 seconds">+30s</button>
+                </div>
+                <div style="display:flex;align-items:center;gap:6px">
+                  <button type="button" class="btn sm" onclick="auditionBgmFromOffset()" style="font-size:9.5px;padding:2px 9px;border-radius:4px;background:rgba(0,255,136,0.12);border:1px solid rgba(0,255,136,0.3);color:#00FF88;cursor:pointer;font-weight:600">
+                    🎧 Listen from here
+                  </button>
+                  <span id="dlg_bgm_clip_dur_hint" style="font-size:9.5px;color:var(--text-sub)">Clip plays ${(c.end && c.start) ? Math.round(c.end - c.start) : 30}s</span>
+                </div>
               </div>
             </div>
 
@@ -4915,13 +4952,13 @@ function drawClipDlg(full) {
           <button class="btn" data-act="copycomm" data-j="${j.id}" data-c="${esc(c.id)}" style="background:linear-gradient(135deg,rgba(168,85,247,0.2),rgba(147,51,234,0.3));border-color:rgba(168,85,247,0.5);color:#d8b4fe" title="Copy YouTube Community Post text and open Community tab">${ic("copy")}📢 Copy Community Post</button>
           <button class="btn danger ghost" data-act="delclip" data-j="${j.id}" data-c="${esc(c.id)}">${ic("trash")}Delete from disk</button></div>
       </div></div>`;
-    setTimeout(() => { loadBgmTracks(c.bgm_track || "none", c.bgm_volume ?? 0.18); }, 40);
+    setTimeout(() => { loadBgmTracks(c.bgm_track || "none", c.bgm_volume ?? 0.18, c.bgm_offset ?? 0); }, 40);
   } else if (D.sig !== sig) {
     const stageEl = $("#stage");
     if (stageEl) {
       if (c.status === "done") {
         stageEl.innerHTML = `<video src="${m}${esc(c.file)}?v=${c.version}&cb=${Date.now()}" poster="${m}${esc(c.cover)}?v=${c.version}&cb=${Date.now()}" controls autoplay playsinline></video>`;
-        setTimeout(() => { setupVideoBgmSync(c.bgm_track || "none", c.bgm_volume ?? 0.18); }, 40);
+        setTimeout(() => { setupVideoBgmSync(c.bgm_track || "none", c.bgm_volume ?? 0.18, c.bgm_offset ?? 0); }, 40);
       } else {
         stageEl.innerHTML = stage;
       }
@@ -4973,7 +5010,7 @@ window._bgmSyncOn = true;
 window._bgmAuditionTimer = null;
 window._bgmCurrentCategory = "all";
 
-async function loadBgmTracks(selectedTrackId, currentVol) {
+async function loadBgmTracks(selectedTrackId, currentVol, currentOffset = 0) {
   try {
     if (!S.bgmTracks || !S.bgmTracks.length) {
       const res = await api("/api/audio/tracks");
@@ -4983,7 +5020,99 @@ async function loadBgmTracks(selectedTrackId, currentVol) {
     console.warn("Failed to fetch audio tracks:", err);
   }
   renderBgmCards(window._bgmCurrentCategory || "all", selectedTrackId);
-  setupVideoBgmSync(selectedTrackId, currentVol);
+  setupVideoBgmSync(selectedTrackId, currentVol, currentOffset);
+  updateBgmTrimUI(selectedTrackId, currentOffset);
+}
+
+function updateBgmTrimUI(trackId, offset = null) {
+  const box = $("#dlg_bgm_trim_box");
+  if (!box) return;
+  if (!trackId || trackId === "none") {
+    box.style.display = "none";
+    return;
+  }
+  box.style.display = "block";
+  const track = (S.bgmTracks || []).find(t => t.id === trackId);
+  const dur = (track && track.duration > 0) ? track.duration : 120;
+  const slider = $("#dlg_bgm_offset_slider");
+  if (slider) {
+    slider.max = Math.max(10, Math.floor(dur - 2));
+    if (offset !== null && offset !== undefined) {
+      slider.value = offset;
+    }
+  }
+  const durTxt = $("#dlg_bgm_dur_txt");
+  if (durTxt) {
+    const dm = Math.floor(dur / 60);
+    const ds = Math.floor(dur % 60);
+    durTxt.textContent = `${dm}:${ds < 10 ? '0' : ''}${ds}`;
+  }
+  const curVal = slider ? Number(slider.value) : (offset || 0);
+  const offTxt = $("#dlg_bgm_offset_txt");
+  if (offTxt) {
+    const om = Math.floor(curVal / 60);
+    const os = Math.floor(curVal % 60);
+    offTxt.textContent = `${om}:${os < 10 ? '0' : ''}${os}`;
+  }
+}
+
+function onBgmOffsetScrub(val) {
+  const v = Math.max(0, Number(val) || 0);
+  const inp = $("#dlg_bgm_offset_input");
+  if (inp) inp.value = v;
+  const j = jobOf(D.jid);
+  const c = j?.clips.find(x => x.id === D.cid);
+  if (c) c.bgm_offset = v;
+
+  const om = Math.floor(v / 60);
+  const os = Math.floor(v % 60);
+  const offTxt = $("#dlg_bgm_offset_txt");
+  if (offTxt) offTxt.textContent = `${om}:${os < 10 ? '0' : ''}${os}`;
+
+  const vid = $("#stage video");
+  if (vid && !vid.paused && window._bgmAudio && window._bgmAudio.src) {
+    if (window._bgmAudio.duration) {
+      window._bgmAudio.currentTime = ((vid.currentTime + v) % window._bgmAudio.duration);
+    }
+  }
+}
+
+function setBgmOffset(sec) {
+  const slider = $("#dlg_bgm_offset_slider");
+  if (slider) {
+    slider.value = Math.min(sec, Number(slider.max || 60));
+    onBgmOffsetScrub(slider.value);
+  }
+  toast(`Audio start position set to ${sec}s!`, "ok");
+}
+
+function auditionBgmFromOffset() {
+  const offset = Number($("#dlg_bgm_offset_input")?.value || 0);
+  const trackId = $("#dlg_bgm_track")?.value || "none";
+  const track = (S.bgmTracks || []).find(t => t.id === trackId);
+  if (!track || !track.url || track.id === "none") return toast("Select a sound first", "warn");
+  if (!window._bgmAudio) window._bgmAudio = new Audio();
+  window._bgmAudio.src = track.url;
+  const vol = (Number($("#dlg_bgm_vol")?.value || 18)) / 100;
+  window._bgmAudio.volume = vol;
+  const startPos = Math.max(0, offset);
+  if (window._bgmAudio.readyState >= 1) {
+    window._bgmAudio.currentTime = startPos;
+    window._bgmAudio.play().catch(()=>{});
+  } else {
+    window._bgmAudio.onloadedmetadata = () => {
+      window._bgmAudio.currentTime = startPos;
+      window._bgmAudio.play().catch(()=>{});
+    };
+  }
+  clearTimeout(window._bgmAuditionTimer);
+  window._bgmAuditionTimer = setTimeout(() => {
+    const vid = $("#stage video");
+    if (!vid || vid.paused) {
+      window._bgmAudio.pause();
+    }
+  }, 4000);
+  toast(`🎧 Auditioning sound from ${Math.floor(offset/60)}:${Math.floor(offset%60).toString().padStart(2, '0')}`, "ok");
 }
 
 function renderBgmCards(category = "all", selectedId = null) {
@@ -5053,13 +5182,14 @@ function selectBgmTrack(trackId) {
       window._bgmAudio.src = track.url;
       window._bgmAudio.volume = vol;
       const v = $("#stage video");
+      const offset = Number($("#dlg_bgm_offset_input")?.value || 0);
       if (v && !v.paused) {
         if (window._bgmAudio.duration) {
-          window._bgmAudio.currentTime = (v.currentTime % window._bgmAudio.duration);
+          window._bgmAudio.currentTime = ((v.currentTime + offset) % window._bgmAudio.duration);
         }
         window._bgmAudio.play().catch(()=>{});
       } else {
-        window._bgmAudio.currentTime = 0;
+        window._bgmAudio.currentTime = Math.max(0, offset);
         window._bgmAudio.play().catch(()=>{});
         clearTimeout(window._bgmAuditionTimer);
         window._bgmAuditionTimer = setTimeout(() => {
@@ -5072,6 +5202,8 @@ function selectBgmTrack(trackId) {
     }
     toast(`🎵 Selected "${track.title}"! Playing in sync with video preview.`, "ok");
   }
+  const curOff = Number($("#dlg_bgm_offset_input")?.value || 0);
+  updateBgmTrimUI(trackId, curOff);
   renderBgmCards(window._bgmCurrentCategory || "all", trackId);
 }
 
@@ -5165,7 +5297,7 @@ async function uploadCustomAudioTrack(input) {
   }
 }
 
-function setupVideoBgmSync(selectedTrackId, currentVol) {
+function setupVideoBgmSync(selectedTrackId, currentVol, currentOffset = 0) {
   const v = $("#stage video");
   if (!v) return;
   if (selectedTrackId && selectedTrackId !== "none") {
@@ -5177,8 +5309,11 @@ function setupVideoBgmSync(selectedTrackId, currentVol) {
   }
   v.onplay = () => {
     if (window._bgmSyncOn && window._bgmAudio && window._bgmAudio.src && !window._bgmAudio.src.endsWith("/none")) {
+      const offset = Number($("#dlg_bgm_offset_input")?.value || 0);
       if (window._bgmAudio.duration) {
-        window._bgmAudio.currentTime = (v.currentTime % window._bgmAudio.duration);
+        window._bgmAudio.currentTime = ((v.currentTime + offset) % window._bgmAudio.duration);
+      } else {
+        window._bgmAudio.currentTime = offset;
       }
       window._bgmAudio.play().catch(()=>{});
     }
@@ -5188,7 +5323,8 @@ function setupVideoBgmSync(selectedTrackId, currentVol) {
   };
   v.onseeking = () => {
     if (window._bgmAudio && window._bgmAudio.duration) {
-      window._bgmAudio.currentTime = (v.currentTime % window._bgmAudio.duration);
+      const offset = Number($("#dlg_bgm_offset_input")?.value || 0);
+      window._bgmAudio.currentTime = ((v.currentTime + offset) % window._bgmAudio.duration);
     }
   };
   v.onended = () => {

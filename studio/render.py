@@ -753,11 +753,13 @@ def render_clip(src: Path, out_dir: Path, name: str, clip: dict, words: list, sr
         custom_layout = clip.get("custom_layout")
         bgm_track = clip.get("bgm_track")
         bgm_volume = clip.get("bgm_volume", 0.18)
+        bgm_offset = clip.get("bgm_offset", 0.0)
         return _render_in(work, src, out_dir, name, start, end, layout, fg_h, ass, face=face,
                           facecam_pos=facecam_pos, facecam_delay=facecam_delay, audio_delay=audio_delay, meta=meta,
                           facecam_offset_y=facecam_offset_y, game_offset_x=game_offset_x, zoom=zoom,
                           custom_layout=custom_layout, teaser_enabled=teaser_enabled, teaser_dur=teaser_dur,
-                          teaser_start=teaser_start, bgm_track=bgm_track, bgm_volume=bgm_volume)
+                          teaser_start=teaser_start, bgm_track=bgm_track, bgm_volume=bgm_volume,
+                          bgm_offset=bgm_offset)
     finally:
         shutil.rmtree(work, ignore_errors=True)
 
@@ -766,7 +768,7 @@ def _render_in(work: Path, src: Path, out_dir: Path, name: str, start, end, layo
                facecam_pos="top-right", facecam_delay=0.0, audio_delay=0.0, meta=None,
                facecam_offset_y=0, game_offset_x=0, zoom=1.0, custom_layout=None,
                teaser_enabled=False, teaser_dur=0.0, teaser_start=None,
-               bgm_track=None, bgm_volume=0.18) -> dict:
+               bgm_track=None, bgm_volume=0.18, bgm_offset=0.0) -> dict:
     global _qsv_ok
     (work / f"{name}.ass").write_text(ass, encoding="utf-8")
     (work / "f").mkdir()
@@ -788,6 +790,11 @@ def _render_in(work: Path, src: Path, out_dir: Path, name: str, start, end, layo
         bgm_vol_f = max(0.0, min(1.0, float(bgm_volume)))
     except (ValueError, TypeError):
         bgm_vol_f = 0.18
+
+    try:
+        bgm_offset_f = max(0.0, float(bgm_offset))
+    except (ValueError, TypeError):
+        bgm_offset_f = 0.0
 
     # Audio filters: reset audio PTS to 0.000s first, then resample to lock clock to video
     af_filters = ["asetpts=PTS-STARTPTS", "aresample=async=1000:min_hard_comp=0.010:first_pts=0"]
@@ -811,8 +818,11 @@ def _render_in(work: Path, src: Path, out_dir: Path, name: str, start, end, layo
         concat_fc = f"[0:v]setpts=PTS-STARTPTS,fps={config.OUT_FPS}[tv];[0:a:0]asetpts=PTS-STARTPTS[ta];[1:v]setpts=PTS-STARTPTS,fps={config.OUT_FPS}[mv];[1:a:0]asetpts=PTS-STARTPTS[ma];[tv][ta][mv][ma]concat=n=2:v=1:a=1[v_raw][a_raw];"
         
         if bgm_path:
-            seek_args += ["-stream_loop", "-1", "-i", str(bgm_path)]
-            audio_filter = f";[2:a]volume={bgm_vol_f:.2f}[bgma];[a_raw][bgma]amix=inputs=2:duration=first:dropout_transition=2[a_mix];[a_mix]{af_chain}[a]"
+            if bgm_offset_f > 0.001:
+                seek_args += ["-ss", f"{bgm_offset_f:.3f}", "-stream_loop", "-1", "-i", str(bgm_path)]
+            else:
+                seek_args += ["-stream_loop", "-1", "-i", str(bgm_path)]
+            audio_filter = f";[2:a]asetpts=PTS-STARTPTS,volume={bgm_vol_f:.2f}[bgma];[a_raw][bgma]amix=inputs=2:duration=first:dropout_transition=2[a_mix];[a_mix]{af_chain}[a]"
         else:
             audio_filter = f";[a_raw]{af_chain}[a]"
 
@@ -827,10 +837,13 @@ def _render_in(work: Path, src: Path, out_dir: Path, name: str, start, end, layo
     else:
         seek_args = ["-ss", f"{start:.3f}", "-i", str(Path(src).resolve()), "-t", f"{dur:.3f}"]
         if bgm_path:
-            seek_args += ["-stream_loop", "-1", "-i", str(bgm_path)]
+            if bgm_offset_f > 0.001:
+                seek_args += ["-ss", f"{bgm_offset_f:.3f}", "-stream_loop", "-1", "-i", str(bgm_path)]
+            else:
+                seek_args += ["-stream_loop", "-1", "-i", str(bgm_path)]
             fc = _filter(layout, fg_h, face, facecam_pos=facecam_pos, facecam_delay=facecam_delay,
                          facecam_offset_y=facecam_offset_y, game_offset_x=game_offset_x, zoom=zoom,
-                         custom_layout=custom_layout) + f"[v0]ass={name}.ass:fontsdir=f[v];[1:a]volume={bgm_vol_f:.2f}[bgma];[0:a:0][bgma]amix=inputs=2:duration=first:dropout_transition=2[a_mix];[a_mix]{af_chain}[a]"
+                         custom_layout=custom_layout) + f"[v0]ass={name}.ass:fontsdir=f[v];[1:a]asetpts=PTS-STARTPTS,volume={bgm_vol_f:.2f}[bgma];[0:a:0][bgma]amix=inputs=2:duration=first:dropout_transition=2[a_mix];[a_mix]{af_chain}[a]"
             base = ["ffmpeg", "-y", "-v", "error"] + seek_args + [
                     "-filter_complex", fc, "-map", "[v]", "-map", "[a]",
                     "-avoid_negative_ts", "make_zero",

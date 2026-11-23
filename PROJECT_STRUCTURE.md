@@ -128,6 +128,8 @@ F:\Games\GTA 6 CLIPPING\
 - **`studio/render.py`**:
   - Normalizes frame PTS via `[0:v]setpts=PTS-STARTPTS,fps=30` at the very entrance of the video filter graph to eliminate initial frame drops and timestamp jitter.
   - Normalizes audio PTS via `asetpts=PTS-STARTPTS,aresample=async=1000:min_hard_comp=0.010:first_pts=0`.
+  - Background Music & Meme Sounds Mixing: Infinite loop (`-stream_loop -1`) or trimmed seek (`-ss <bgm_offset>`) combined with `asetpts=PTS-STARTPTS` and `amix=inputs=2:duration=first:dropout_transition=2`.
+  - CapCut Desktop Draft Export (`studio/capcut/export.py`): Generates full native CapCut desktop projects in `%LOCALAPPDATA%\CapCut\User Data\Projects\com.lveditor.draft\` with tracks for video, audio, captions, and PIP.
   - Calibrated subtitle lead: `CAPTION_LEAD = 0.00` for exact acoustic word onset.
   - Multi-layout support: `blur`, `zoom`, `crop`, `gameplay` (corner PIP with `top-right`, `top-left`, `bottom-left`, `bottom-right`), and `split` (1080x960 facecam top + 1080x960 gameplay bottom).
   - 3D Hook banner & 3D Outro Support Badge ('NEW CHANNEL • LIKE & SUBSCRIBE!') burned in the last 3.2 seconds.

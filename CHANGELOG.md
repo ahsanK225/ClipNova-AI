@@ -1,6 +1,34 @@
 ﻿# Changelog
 All notable project changes are documented here.
 
+## [2026-11-23] — CapCut-Style Audio Start Trim & Video Editor (OpenCut) Architecture
+
+### Added
+- **CapCut-Style Sound Trim & Audio Start Offset (`web/index.html`, `studio/render.py`, `studio/jobs.py`)**:
+  - **Interactive Range Scrubber (`#dlg_bgm_offset_slider`)**: When any background track or user-uploaded audio is selected in the Clip Editor (`#clipdlg`), an interactive sound trim box (`#dlg_bgm_trim_box`) appears allowing creators to choose the exact section of the audio track that plays during the clip.
+  - **Live Audio Sync & Auditioning**:
+    - Moving the scrubber immediately updates the audio playhead (`audio.currentTime = (video.currentTime + offset) % duration`).
+    - Added instant audition button `🎧 Listen from here` to preview the trimmed sound for 3.5 seconds.
+    - Added viral quick jump buttons: `⏮️ 0:00 (Start)`, `+10s`, `⚡ 0:15 (Drop)`, `+30s`.
+  - **FFmpeg Seek Mixing (`studio/render.py`)**:
+    - Passed `-ss <bgm_offset>` before `-stream_loop -1 -i <bgm_path>`.
+    - Applied `asetpts=PTS-STARTPTS` filter to reset audio PTS to 0.0s before mixing with the primary video voice track.
+  - **Persistence in Job Data (`studio/jobs.py`)**:
+    - Added `clip["bgm_offset"]` validation and storage in `update_clip`.
+- **Open-Source Video Editor (OpenCut / OpenReel) Evaluation & Architecture (`SYSTEM_DESIGN.md`)**:
+  - Researched and evaluated `OpenCut-app/OpenCut` (React + Rust/WASM) and `Augani/openreel-video` (React + Zustand + WebCodecs) for browser-based multi-track non-linear video editing.
+  - Documented complete architecture for bridging ClipNova AI clips with both native CapCut Desktop drafts (`studio/capcut/export.py`) and embedded web timeline editors.
+
+### Tests and Verification
+- Unit test suite `tests/test_bgm_and_meme_sounds.py`: 6/6 tests passed in 2.64s.
+  - Verified `bgm_offset` persistence in `jobs.request_render`.
+  - Verified FFmpeg rendering with audio seek offset creating valid mixed MP4.
+  - Verified HTML markup for trim box, slider, and buttons.
+- Real browser subagent visual verification on `http://127.0.0.1:8765`:
+  - Verified `#dlg_bgm_trim_box` appears when a track is selected and hides when "None" is active.
+  - Clicked `⚡ 0:15 (Drop)`, successfully updating slider to 15 and display to `0:15` out of `0:24`.
+  - Saved visual evidence artifact `sound_trim_offset_verified.png`.
+
 ## [2026-11-23] — YouTube Remote Video Deletion, Post View Counts & Setup Calendar Purge
 
 ### Fixed
