@@ -3058,7 +3058,6 @@ async function setCalendarMode(cid, mode) {
     if (res?.ok) {
       toast(`✅ Switched to ${mode === 'analytics' ? 'Auto-Optimized Analytics Peaks' : 'USA Standard'}!`, "ok");
       const cr = creator();
-      if ($("#setup_creator_calendar_card")) renderCreatorCalendarCard(cr, $("#setup_creator_calendar_card"), true);
       if ($("#creator_calendar_view")) renderCreatorCalendarCard(cr, $("#creator_calendar_view"), false);
     }
   } catch (err) {
@@ -3074,7 +3073,6 @@ async function syncChannelAnalytics(cid, btn) {
     if (res?.ok) {
       toast("✅ YouTube channel velocity synced! Publishing slots recalibrated.", "ok");
       const cr = creator();
-      if ($("#setup_creator_calendar_card")) renderCreatorCalendarCard(cr, $("#setup_creator_calendar_card"), true);
       if ($("#creator_calendar_view")) renderCreatorCalendarCard(cr, $("#creator_calendar_view"), false);
     }
   } catch (err) {
@@ -3091,7 +3089,6 @@ async function updateAnalyticsLeadTime(cid, val) {
     if (res?.ok) {
       toast(`✅ Priming lead time set to ${val} hours!`, "ok");
       const cr = creator();
-      if ($("#setup_creator_calendar_card")) renderCreatorCalendarCard(cr, $("#setup_creator_calendar_card"), true);
       if ($("#creator_calendar_view")) renderCreatorCalendarCard(cr, $("#creator_calendar_view"), false);
     }
   } catch (err) {
@@ -3106,7 +3103,6 @@ async function updateAnalyticsGap(cid, val) {
     if (res?.ok) {
       toast(`✅ Minimum spacing set to ${val} hours!`, "ok");
       const cr = creator();
-      if ($("#setup_creator_calendar_card")) renderCreatorCalendarCard(cr, $("#setup_creator_calendar_card"), true);
       if ($("#creator_calendar_view")) renderCreatorCalendarCard(cr, $("#creator_calendar_view"), false);
     }
   } catch (err) {
@@ -3408,6 +3404,10 @@ async function renderCreatorCalendarCard(c, targetEl, isCompact = false) {
                               <div style="font-size:11px;color:#38BDF8;margin-top:2px;font-weight:600">
                                 🇺🇸 ${sl.video_us_east_str} · ${sl.video_us_west_str}
                               </div>
+                              <div style="display:flex;align-items:center;gap:6px;margin-top:4px;flex-wrap:wrap">
+                                <span class="pill" style="font-size:10px;padding:1px 6px;border-radius:4px;background:rgba(56,189,248,0.15);color:#38BDF8;border:1px solid rgba(56,189,248,0.3);font-weight:700">👁️ ${matchedVideo.views != null ? Number(matchedVideo.views).toLocaleString() + ' views' : '0 views'}</span>
+                                ${matchedVideo.remote_id ? `<span class="pill" style="font-size:10px;padding:1px 6px;border-radius:4px;background:rgba(16,185,129,0.15);color:#10B981;border:1px solid rgba(16,185,129,0.3);font-weight:600">✓ On YouTube</span>` : ''}
+                              </div>
                             </div>
                           </div>
 
@@ -3429,9 +3429,15 @@ async function renderCreatorCalendarCard(c, targetEl, isCompact = false) {
                               ${ic("play")} View Clip
                             </button>
                             <span style="flex:1"></span>
-                            <button class="btn sm danger ghost" data-act="cancelpost" data-pid="${esc(matchedVideo.id)}" style="padding:3px 8px;font-size:11px" title="Cancel this scheduled upload">
-                              ${ic("x")} Cancel
-                            </button>
+                            ${matchedVideo.remote_id || matchedVideo.status === 'posted' ? `
+                              <button class="btn sm danger ghost" data-act="deletepost" data-pid="${esc(matchedVideo.id)}" data-title="${esc(matchedVideo.title || 'this video')}" style="padding:3px 8px;font-size:11px" title="Permanently delete this video from YouTube and remove from schedule">
+                                ${ic("trash")} Delete from YouTube
+                              </button>
+                            ` : `
+                              <button class="btn sm danger ghost" data-act="cancelpost" data-pid="${esc(matchedVideo.id)}" style="padding:3px 8px;font-size:11px" title="Cancel this scheduled upload">
+                                ${ic("x")} Cancel
+                              </button>
+                            `}
                           </div>
                         </div>
                       `;
@@ -3557,6 +3563,10 @@ async function renderCreatorCalendarCard(c, targetEl, isCompact = false) {
                           🇺🇸 ${p.calendar_slot.video_us_east_str} · ${p.calendar_slot.video_us_west_str}
                         </div>
                       ` : ''}
+                      <div style="display:flex;align-items:center;gap:6px;margin-top:4px;flex-wrap:wrap">
+                        <span class="pill" style="font-size:10px;padding:1px 6px;border-radius:4px;background:rgba(56,189,248,0.15);color:#38BDF8;border:1px solid rgba(56,189,248,0.3);font-weight:700">👁️ ${p.views != null ? Number(p.views).toLocaleString() + ' views' : '0 views'}</span>
+                        ${p.remote_id ? `<span class="pill" style="font-size:10px;padding:1px 6px;border-radius:4px;background:rgba(16,185,129,0.15);color:#10B981;border:1px solid rgba(16,185,129,0.3);font-weight:600">✓ On YouTube</span>` : ''}
+                      </div>
                     </div>
                   </div>
 
@@ -3573,9 +3583,15 @@ async function renderCreatorCalendarCard(c, targetEl, isCompact = false) {
                       ${ic("play")} View Clip
                     </button>
                     <span style="flex:1"></span>
-                    <button class="btn sm danger ghost" data-act="cancelpost" data-pid="${esc(p.id)}" style="padding:3px 8px;font-size:11px" title="Cancel this scheduled upload">
-                      ${ic("x")} Cancel
-                    </button>
+                    ${p.remote_id || p.status === 'posted' ? `
+                      <button class="btn sm danger ghost" data-act="deletepost" data-pid="${esc(p.id)}" data-title="${esc(p.title || 'this video')}" style="padding:3px 8px;font-size:11px" title="Permanently delete from YouTube and remove from schedule">
+                        ${ic("trash")} Delete from YouTube
+                      </button>
+                    ` : `
+                      <button class="btn sm danger ghost" data-act="cancelpost" data-pid="${esc(p.id)}" style="padding:3px 8px;font-size:11px" title="Cancel this scheduled upload">
+                        ${ic("x")} Cancel
+                      </button>
+                    `}
                   </div>
                 </div>
               `;
@@ -3744,7 +3760,6 @@ async function assignClipToCalendarSlot(cid, jid, cid_clip, slotTs, pktTimeStr) 
       const dlg = $("#cal_picker_dlg");
       if (dlg && dlg.open) dlg.close();
       const cr = creator() || (S.creators || []).find(x => x.id === cid);
-      if ($("#setup_creator_calendar_card")) renderCreatorCalendarCard(cr, $("#setup_creator_calendar_card"), true);
       if ($("#creator_calendar_view")) renderCreatorCalendarCard(cr, $("#creator_calendar_view"), false);
       await tick();
     } else {
@@ -3760,8 +3775,7 @@ $("#cal_picker_dlg")?.addEventListener("click", e => { if (e.target === e.curren
 function drawCreatorForm() {
   const c = creator(), box = $("#cform"); if (!c || !box) return;
   const A = S.accounts;
-  box.innerHTML = `<div id="setup_creator_calendar_card"></div>
-    <div class="card"><h2>Their stream</h2><p class="help">Where to record from, and whether to start by itself.</p>
+  box.innerHTML = `<div class="card"><h2>Their stream</h2><p class="help">Where to record from, and whether to start by itself.</p>
       <div class="chans">${channelRows(c)}</div>
       <div class="fields" style="margin-top:14px"><label class="sw span"><input type="checkbox" data-k="auto_watch" ${c.auto_watch ? "checked" : ""}><span>Record automatically when they go live<small>Checks straight away, then every two minutes.</small></span></label>
         <label class="f">Language they speak<select data-k="lang">${opts(Object.fromEntries(Object.keys(speechLangs()).map(k => [k, langName(k)])), c.lang || "en")}</select><small class="sub" style="font-weight:400">Used for live recordings and as the choice for their videos.${(c.lang && c.lang !== "en" && speechLangs()[c.lang]?.state !== "ready") ? " Its speech model isn't added yet: see Settings → Speech models." : ""}</small></label></div></div>
@@ -3984,7 +3998,6 @@ function drawCreatorForm() {
       <button class="btn danger" data-act="delcreator">${ic("trash")}Delete creator</button></div>
     <div class="savebar" id="savebar"><span>${ic("warn")}You have unsaved changes</span><button class="btn ghost" data-act="cdiscard">Discard</button><button class="btn primary" data-act="csave">${ic("check")}Save changes</button></div>`;
   updateCreatorLayoutPreview();
-  renderCreatorCalendarCard(c, $("#setup_creator_calendar_card"), true);
 }
 const creatorForm = () => { const d = {}; $$("#cform [data-k]").forEach(i => { if (i.type === "radio") { if (i.checked) d[i.dataset.k] = i.value; } else d[i.dataset.k] = i.type === "checkbox" ? i.checked : i.value; }); d.accounts = $$("#cform [data-acc]:checked").map(i => i.value); return d; };
 const dirty = on => $("#savebar")?.classList.toggle("on", on);
@@ -7030,7 +7043,6 @@ document.addEventListener("click", async e => {
     if (a === "cal_tab") {
       window._calViewMode = d.tab || "timeline";
       const cr = creator();
-      if ($("#setup_creator_calendar_card")) renderCreatorCalendarCard(cr, $("#setup_creator_calendar_card"), true);
       if ($("#creator_calendar_view")) renderCreatorCalendarCard(cr, $("#creator_calendar_view"), false);
       return;
     }
@@ -7836,11 +7848,29 @@ HOOKS:
         return toast("Retry failed: " + err.message, "bad");
       }
     }
+    if (a === "deletepost") {
+      const title = d.title || "this video";
+      if (!await ask("Delete from YouTube?", `Are you sure you want to delete "${title}"? This will permanently delete the video from your YouTube channel and remove it from your publishing calendar schedule.`, "Delete from YouTube", true)) return;
+      try {
+        toast("🗑️ Deleting video from YouTube...", "ok");
+        await api(`/api/posts/${encodeURIComponent(d.pid)}/delete`, {method:"POST"});
+        toast("✅ Video deleted from YouTube and removed from schedule!", "ok");
+        await tick();
+        const cr = creator();
+        if ($("#creator_calendar_view")) renderCreatorCalendarCard(cr, $("#creator_calendar_view"), false);
+        if (D.jid) drawClipDlg(true);
+        return render();
+      } catch (err) {
+        return toast("Delete failed: " + err.message, "bad");
+      }
+    }
     if (a === "cancelpost") {
       try {
         await api(`/api/posts/${encodeURIComponent(d.pid)}/cancel`, {method:"POST"});
-        toast("Scheduled post cancelled. This video will not be posted.", "ok");
+        toast("Scheduled post cancelled.", "ok");
         await tick();
+        const cr = creator();
+        if ($("#creator_calendar_view")) renderCreatorCalendarCard(cr, $("#creator_calendar_view"), false);
         if (D.jid) drawClipDlg(true);
         return render();
       } catch (err) {

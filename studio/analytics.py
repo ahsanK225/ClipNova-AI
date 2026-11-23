@@ -296,14 +296,20 @@ def record_views_snapshot(cid: str, aid: str, video_stats: Dict[str, int]) -> di
 
 
 def sync_youtube_stats(cid: str, aid: Optional[str] = None) -> dict:
-    """Connects to YouTube Data API v3 and fetches latest video views for creator's connected account."""
-    from . import accounts, creators
+    """Connects to YouTube Data API v3, refreshes post view counts, and fetches latest video views for creator's connected account."""
+    from . import accounts, creators, posting
 
     c = creators.get(cid)
     if not c:
         raise ValueError("Creator not found")
 
     target_aid = aid or (c.get("accounts", [])[0] if c.get("accounts") else None)
+    if not target_aid:
+        # Auto-detect from creator's recent posts or any connected YouTube account
+        target_aid = next((p.get("account") for p in posting._posts if p.get("creator") == cid and p.get("account")), None)
+        if not target_aid:
+            target_aid = next((a["id"] for a in accounts._all() if a.get("platform") == "youtube"), None)
+
     if not target_aid:
         # No account connected yet, return seeded profile
         return get_analytics_profile(cid)
@@ -325,10 +331,25 @@ def sync_youtube_stats(cid: str, aid: Optional[str] = None) -> dict:
             _save_data(cid, data)
         return get_analytics_profile(cid)
 
+    # 1. Update live view counts for all this creator's uploaded posts
+    try:
+        post_vids = [p["remote_id"] for p in posting._posts if p.get("creator") == cid and p.get("platform") == "youtube" and p.get("remote_id")]
+        if post_vids:
+            pviews = accounts.youtube_views(acc, post_vids)
+            updated_any = False
+            for p in posting._posts:
+                if p.get("creator") == cid and p.get("remote_id") in pviews:
+                    p["views"] = pviews[p["remote_id"]]
+                    updated_any = True
+            if updated_any:
+                posting._save()
+    except Exception as e:
+        logger.warning("Error refreshing post views for creator %s: %s", cid, e)
+
     video_stats: Dict[str, int] = {}
     try:
         headers = {"Authorization": f"Bearer {token}"}
-        # 1. Get channel uploads playlist ID
+        # 2. Get channel uploads playlist ID
         ch_resp = httpx.get("https://www.googleapis.com/youtube/v3/channels",
                             params={"part": "contentDetails", "mine": "true"},
                             headers=headers, timeout=15)
@@ -337,14 +358,14 @@ def sync_youtube_stats(cid: str, aid: Optional[str] = None) -> dict:
             if items:
                 uploads_id = items[0]["contentDetails"]["relatedPlaylists"]["uploads"]
 
-                # 2. Get last 15 uploaded videos
+                # 3. Get last 15 uploaded videos
                 pl_resp = httpx.get("https://www.googleapis.com/youtube/v3/playlistItems",
                                     params={"part": "contentDetails", "playlistId": uploads_id, "maxResults": 15},
                                     headers=headers, timeout=15)
                 if pl_resp.status_code == 200:
                     vid_ids = [it["contentDetails"]["videoId"] for it in pl_resp.json().get("items", []) if "contentDetails" in it]
                     if vid_ids:
-                        # 3. Get statistics for videos in 1 batch call (1 unit quota!)
+                        # 4. Get statistics for videos in 1 batch call (1 unit quota!)
                         v_resp = httpx.get("https://www.googleapis.com/youtube/v3/videos",
                                            params={"part": "statistics,snippet", "id": ",".join(vid_ids)},
                                            headers=headers, timeout=15)

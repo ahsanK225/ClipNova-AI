@@ -148,14 +148,14 @@ class TestUSAPublishingCalendar(unittest.TestCase):
         self.assertIn(round(float(data["min_gap_hours"])), (5, 6))
 
     def test_frontend_creator_calendar_markup(self):
-        """Verify web/index.html has Publishing Calendar tab and setup calendar card."""
+        """Verify web/index.html has Publishing Calendar tab and dedicated calendar view, and setup calendar is removed."""
         from pathlib import Path
         html = Path("web/index.html").read_text(encoding="utf-8")
         self.assertIn("Publishing Calendar", html)
         self.assertIn("renderCreatorCalendarCard", html)
-        self.assertIn("setup_creator_calendar_card", html)
         self.assertIn("creator_calendar_view", html)
         self.assertIn("copy_post_comm", html)
+        self.assertNotIn("setup_creator_calendar_card", html)
 
 
 if __name__ == "__main__":

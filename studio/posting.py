@@ -45,8 +45,11 @@ def _day(t):
 
 def _mirror(p):
     """Copy the post's state onto its clip so the clip card can show it."""
-    job = jobs.get(p["job"])
-    clip = next((c for c in job["clips"] if c["id"] == p["clip"]), None) if job else None
+    jid = p.get("job")
+    if not jid:
+        return
+    job = jobs.get(jid)
+    clip = next((c for c in job["clips"] if c["id"] == p.get("clip")), None) if job else None
     if clip is not None:
         clip.setdefault("posts", {})[p["id"]] = {
             k: p.get(k) for k in ("account_name", "platform", "status", "url", "due_at",
@@ -433,14 +436,70 @@ def _stats():
         time.sleep(1800)
 
 
+def delete_post(pid: str, delete_remote: bool = True) -> dict:
+    """Permanently deletes a post from schedule. If it was already uploaded/scheduled to YouTube,
+    also deletes the video from the user's YouTube channel via YouTube Data API v3."""
+    deleted_youtube = False
+    with _lock:
+        p = next((p for p in _mine() if p["id"] == pid), None)
+        if not p:
+            raise KeyError(f"Post {pid} not found")
+
+        # Delete from YouTube if uploaded
+        if delete_remote and p.get("platform") == "youtube" and p.get("remote_id"):
+            acc = accounts.get(p.get("account")) or next((a for a in accounts._all() if a.get("platform") == "youtube"), None)
+            if acc:
+                try:
+                    accounts.youtube_delete(acc, p["remote_id"])
+                    deleted_youtube = True
+                    creators.log(p.get("creator", ""), f"Deleted video {p['remote_id']} from YouTube: {p.get('title')}")
+                except Exception as e:
+                    if "404" in str(e):
+                        deleted_youtube = True
+                    else:
+                        creators.log(p.get("creator", ""), f"Notice deleting YouTube video {p.get('remote_id')}: {e}")
+
+        # Mark post as cancelled / deleted
+        p["status"] = "cancelled"
+        p["deleted_at"] = time.time()
+        p["error"] = "Deleted by user"
+
+        # Also cancel any paired community post
+        to_mirror = [p]
+        for cp in _mine():
+            if cp.get("video_post_id") == pid or (cp.get("job") == p.get("job") and cp.get("clip") == p.get("clip") and cp.get("kind") == "community"):
+                cp["status"] = "cancelled"
+                to_mirror.append(cp)
+
+        _save()
+    for item in to_mirror:
+        _mirror(item)
+    return {"ok": True, "deleted_youtube": deleted_youtube, "video_id": p.get("remote_id")}
+
+
 def cancel(pid):
     with _lock:
         p = next((p for p in _mine() if p["id"] == pid), None)
-        if not p or p["status"] != "scheduled":
-            raise ValueError("Only posts that are still waiting can be cancelled.")
+        if not p:
+            raise KeyError(pid)
+        # If it's already posted/cloud-scheduled on YouTube, route to delete_post
+        if p.get("remote_id") or p.get("status") == "posted":
+            return delete_post(pid, delete_remote=True)
+        if p["status"] == "cancelled":
+            return {"ok": True}
+        if p["status"] not in ("scheduled", "waiting", "queued"):
+            raise ValueError(f"Post is {p['status']} and cannot be cancelled.")
         p["status"] = "cancelled"
+
+        to_mirror = [p]
+        for cp in _mine():
+            if cp.get("video_post_id") == pid or (cp.get("job") == p.get("job") and cp.get("clip") == p.get("clip") and cp.get("kind") == "community"):
+                cp["status"] = "cancelled"
+                to_mirror.append(cp)
         _save()
-    _mirror(p)
+    for item in to_mirror:
+        _mirror(item)
+    return {"ok": True}
 
 
 def cancel_clip(job_id: str, clip_id: str) -> int:

@@ -2448,12 +2448,32 @@ def add_posts(body: dict = Body(...)):
 @app.post("/api/posts/{pid}/{action}")
 def post_action(pid: str, action: str):
     try:
-        {"cancel": posting.cancel, "retry": posting.retry}[action](pid)
+        handler = {
+            "cancel": posting.cancel,
+            "retry": posting.retry,
+            "delete": lambda p_id: posting.delete_post(p_id, delete_remote=True),
+        }.get(action)
+        if not handler:
+            raise KeyError(action)
+        res = handler(pid)
+        return {"ok": True, "result": res}
     except KeyError:
         raise HTTPException(404)
     except ValueError as e:
         raise HTTPException(400, str(e))
-    return {"ok": True}
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+
+@app.delete("/api/posts/{pid}")
+def delete_post_endpoint(pid: str):
+    try:
+        res = posting.delete_post(pid, delete_remote=True)
+        return {"ok": True, "result": res}
+    except KeyError:
+        raise HTTPException(404, "Post not found")
+    except Exception as e:
+        raise HTTPException(500, str(e))
 
 
 @app.post("/api/jobs/{jid}/clips/{cid}/unschedule")
@@ -2512,6 +2532,8 @@ def get_creator_calendar(cid: str):
     scheduled_posts = []
     seen_post_ids = set()
     for p in c_posts:
+        if p.get("status") in ("cancelled", "deleted"):
+            continue
         sched_t = float(p.get("scheduled_at") or p.get("due_at") or (p.get("calendar_slot", {}).get("video_ts") if isinstance(p.get("calendar_slot"), dict) else 0) or 0)
         is_future = sched_t > now_ts + 60
         if p.get("status") in posting.OPEN or is_future or p.get("is_scheduled"):
@@ -2526,6 +2548,8 @@ def get_creator_calendar(cid: str):
         for clip in j.get("clips", []):
             for pid, pdata in (clip.get("posts") or {}).items():
                 if pid not in seen_post_ids and isinstance(pdata, dict):
+                    if pdata.get("status") in ("cancelled", "deleted"):
+                        continue
                     sched_t = float(pdata.get("scheduled_at") or pdata.get("due_at") or (pdata.get("calendar_slot", {}).get("video_ts") if isinstance(pdata.get("calendar_slot"), dict) else 0) or 0)
                     if pdata.get("status") in posting.OPEN or sched_t > now_ts + 60 or pdata.get("is_scheduled"):
                         post_copy = dict(pdata)

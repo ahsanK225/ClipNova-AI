@@ -248,6 +248,11 @@ Integrated directly in `studio/brain.py` and `studio/posting.py`:
 2. **Streamer Overlay & Subscriber Count Bar Auto-Purge (`render.py`)**:
    - Webcam bounding box is cleanly purged of bottom overlays: bottom 12% (`fh_clean = max(10, int(fh * 0.88))`) is trimmed away in `split` and `split_half` layouts.
    - Slices away ugly half-cut live subscriber counts, ticker bars, and broadcaster desk borders while top-anchoring the streamer's face, hair, and shoulders with full visual clarity.
+3. **Remote YouTube Video Deletion & Post View Counts Pipeline (`accounts.py`, `posting.py`, `server.py`)**:
+   - `accounts.youtube_delete(acc, video_id)` invokes `DELETE https://www.googleapis.com/youtube/v3/videos?id={video_id}` via YouTube Data API v3.
+   - When canceling an uploaded or cloud-scheduled video, `posting.cancel()` and `posting.delete_post()` delete the video directly from the user's YouTube channel and cancel associated paired community posts without throwing `Only posts that are still waiting can be cancelled`.
+   - Calendar queue cards display real-time view counts (`👁️ <N> views`), `✓ On YouTube` badges, and an interactive `🗑️ Delete from YouTube` button with a confirmation modal.
+   - Creator Setup (`#cform`) is kept clean of calendar cards, while the dedicated Publishing Calendar tab manages all scheduling, view sync, and remote deletion workflows.
 
 ---
 

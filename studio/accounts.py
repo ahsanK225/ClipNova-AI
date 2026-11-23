@@ -500,6 +500,22 @@ def youtube_views(acc, ids: list) -> dict:
     return out
 
 
+def youtube_delete(acc, video_id: str) -> bool:
+    """Permanently deletes a video from the connected YouTube channel via YouTube Data API v3."""
+    if not video_id:
+        return False
+    token = _yt_token(acc)
+    url = "https://www.googleapis.com/youtube/v3/videos"
+    r = httpx.delete(url, params={"id": video_id}, headers={"Authorization": f"Bearer {token}"}, timeout=30)
+    if r.status_code in (200, 204):
+        return True
+    if r.status_code == 404:
+        # Video is already gone / deleted on YouTube
+        return True
+    raise RuntimeError(f"YouTube delete failed (HTTP {r.status_code}): {r.text[:200]}")
+
+
+
 # ------------------------------------------------------------------ Instagram (Instagram Login, professional accounts)
 def _instagram_finish(code: str) -> dict:
     cid, secret = app_keys("instagram")

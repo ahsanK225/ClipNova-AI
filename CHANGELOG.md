@@ -1,6 +1,36 @@
 ﻿# Changelog
 All notable project changes are documented here.
 
+## [2026-11-23] — YouTube Remote Video Deletion, Post View Counts & Setup Calendar Purge
+
+### Fixed
+- **Post Cancellation & Cloud Schedule Exception (`studio/posting.py`, `studio/server.py`)**:
+  - Resolved `Cancel failed: Only posts that are still waiting can be cancelled.` error when canceling already uploaded or cloud-scheduled YouTube Shorts.
+  - `posting.cancel(pid)` and `posting.delete_post(pid)` now gracefully handle posts with status `"posted"` and `remote_id`, delegating to `accounts.youtube_delete()` to permanently delete the video from YouTube and cancel associated community posts.
+  - In `studio/server.py`, `get_creator_calendar()` strictly excludes posts with status `"cancelled"` or `"deleted"` from the scheduled queue.
+- **Calendar Removed from Setup Tab (`web/index.html`)**:
+  - Completely purged `#setup_creator_calendar_card` and `renderCreatorCalendarCard` from Creator Setup (`#cform`).
+  - Creator Setup is now focused strictly on creator settings (stream links, language, trigger words, custom framing presets, and posting configurations) without vertical calendar bloat. The full Publishing Calendar remains housed in its dedicated top tab (`Publishing Calendar`).
+
+### Added
+- **YouTube Remote Video Deletion API (`studio/accounts.py`, `studio/posting.py`, `studio/server.py`)**:
+  - Implemented `accounts.youtube_delete(acc, video_id)` invoking `DELETE https://www.googleapis.com/youtube/v3/videos?id={video_id}` via YouTube Data API v3.
+  - Added backend endpoints `POST /api/posts/{pid}/delete` and `DELETE /api/posts/{pid}`.
+  - In `web/index.html`, added interactive `🗑️ Delete from YouTube` button with native confirmation prompt for all uploaded/cloud-scheduled Shorts.
+- **Live YouTube View Counts on Calendar & Queue Cards (`web/index.html`, `studio/analytics.py`)**:
+  - Both Timeline slot cards and Queued videos tab display real-time YouTube view counts: `👁️ <N> views` and `✓ On YouTube` badges.
+  - Upgraded `analytics.sync_youtube_stats(cid)` to auto-detect the creator's connected YouTube channel and query `accounts.youtube_views()` to update `p["views"]` across all uploaded clips.
+- **Unit & Integration Test Suite (`tests/test_post_delete_and_views.py`)**:
+  - Added 4 automated tests verifying `accounts.youtube_delete`, `posting.delete_post`, `posting.cancel` delegation, and cancelled posts exclusion in `get_creator_calendar()`.
+
+### Tests and Verification
+- Executed unit test suite `tests/test_post_delete_and_views.py`: 4/4 tests passed (100%).
+- Executed full calendar and trigger test suites (25 tests across 4 suites): 25/25 tests passed in 2.16s.
+- Real browser subagent visual verification on `http://127.0.0.1:8765`:
+  - Verified Setup tab (`artifacts/setup_tab_clean_no_calendar.png`) is completely clean of calendar cards.
+  - Verified Publishing Calendar Queue tab (`artifacts/calendar_views_and_delete_youtube_verified.png`) displays `👁️ 0 views`, `✓ On YouTube`, and `🗑️ Delete from YouTube` button.
+  - Verified `🔄 Sync Views` button spins and triggers live sync.
+
 ## [2026-11-23] — Creator-Scoped Trigger Words Isolation & Explicit UI Safeguards
 
 ### Fixed
