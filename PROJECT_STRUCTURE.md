@@ -40,10 +40,11 @@ F:\Games\GTA 6 CLIPPING\
 │   │   ├── accounts.py                     # Social OAuth connections, multi-client token refresh & YouTube API upload
 │   │   ├── admin.py                        # Admin & diagnostics routes
 │   │   ├── ai.py                           # Gemini multimodal vision (see_json), multi-key pool rotation, per-key live health testing & OpenRouter free models
+│   │   ├── analytics.py                    # Autonomous hourly views delta tracker (Option A), 24h rolling velocity profile & hybrid algorithm priming engine
 │   │   ├── asr.py                          # Speech recognition & word-level timing (sherpa-onnx)
 │   │   ├── audio.py                        # Audio engine: background music, viral meme sounds library, path security & safe uploads
 │   │   ├── brain.py                        # Universal grounding (anti-hallucination), multimodal scene analysis, dual AI judges & SEO
-│   │   ├── calendar.py                     # USA-focused automatic publishing calendar engine (6PM, 12AM, 6AM PKT; max 3/day; auto next-day roll; +30m Community Post pairing; US DST aware)
+│   │   ├── calendar.py                     # Dynamic publishing calendar engine (analytics-primed peaks or USA 6PM/12AM/6AM PKT; max 3/day; auto next-day roll; +30m Community Post pairing)
 │   │   ├── config.py                       # App configuration & environment parsing
 │   │   ├── creators.py                     # Creator workspace profiles, trigger words & settings
 │   │   ├── db.py                           # SQLite / SQLAlchemy persistence

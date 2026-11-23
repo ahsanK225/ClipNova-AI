@@ -24,7 +24,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Redirect
 
 from . import admin as admins
 from . import account, load
-from . import (accounts, ai, alerts, auth, brain, calendar, config, creators, ctx, db, jobs, live, media, posting,
+from . import (accounts, ai, alerts, analytics, auth, brain, calendar, config, creators, ctx, db, jobs, live, media, posting,
                profiles, render, safe, transcribe, usage)
 
 from . import tools as _tools  # noqa: E402
@@ -2560,7 +2560,8 @@ def get_creator_calendar(cid: str):
                 p["clip_status"] = clip.get("status") or "done"
 
     primary_acc = c["accounts"][0] if c.get("accounts") else None
-    upcoming_slots = calendar.assign_slots_to_videos(primary_acc, scheduled_posts + all_mine, count=9)
+    upcoming_slots = calendar.assign_slots_to_videos(primary_acc, scheduled_posts + all_mine, count=9, creator_id=cid)
+    analytics_profile = analytics.get_analytics_profile(cid)
 
     return {
         "creator": {"id": c["id"], "name": c["name"], "accounts": c.get("accounts", [])},
@@ -2568,9 +2569,45 @@ def get_creator_calendar(cid: str):
         "recent_posted": recent_posted,
         "upcoming_slots": upcoming_slots,
         "max_per_day": calendar.MAX_VIDEOS_PER_DAY,
-        "preferred_times_pkt": ["06:00 PM", "12:00 AM", "06:00 AM"],
-        "min_gap_hours": 6
+        "preferred_times_pkt": analytics_profile.get("primed_slots_pkt") or ["06:00 PM", "12:00 AM", "06:00 AM"],
+        "min_gap_hours": analytics_profile.get("min_gap_hours", 5.0),
+        "analytics": analytics_profile
     }
+
+
+@app.get("/api/creators/{cid}/analytics/velocity")
+def get_creator_velocity(cid: str):
+    """Returns 24-hour hourly view velocity profile, detected audience peaks, and priming parameters."""
+    _throttle("creatorvelocity:" + ctx.uid(), 60, 60)
+    c = creators.get(cid)
+    if not c:
+        raise HTTPException(404, "Creator not found")
+    return analytics.get_analytics_profile(cid)
+
+
+@app.post("/api/creators/{cid}/analytics/sync")
+def sync_creator_analytics(cid: str):
+    """Polls YouTube Data API v3 for latest video view snapshots and computes delta velocity."""
+    _throttle("creatoranalyticsync:" + ctx.uid(), 30, 60)
+    c = creators.get(cid)
+    if not c:
+        raise HTTPException(404, "Creator not found")
+    try:
+        profile = analytics.sync_youtube_stats(cid)
+        return {"ok": True, "profile": profile}
+    except Exception as e:
+        raise HTTPException(500, f"Sync error: {e}")
+
+
+@app.post("/api/creators/{cid}/analytics/settings")
+def update_creator_analytics_settings(cid: str, payload: dict = Body(...)):
+    """Updates analytics scheduling mode, priming offset, min gap, or manual peak hours."""
+    _throttle("creatoranalyticsettings:" + ctx.uid(), 60, 60)
+    c = creators.get(cid)
+    if not c:
+        raise HTTPException(404, "Creator not found")
+    profile = analytics.save_analytics_settings(cid, payload)
+    return {"ok": True, "profile": profile}
 
 
 @app.get("/api/creators/{cid}/ready-clips")
@@ -2652,7 +2689,7 @@ def schedule_clip_to_slot(payload: dict = Body(...)):
         raise HTTPException(400, "No connected social account found. Please connect your YouTube account in the Accounts tab first.")
 
     made = posting.enqueue(job, clip, [acc_id], target_ts=slot_ts, force=True)
-    slot_info = calendar.format_slot_info(slot_ts)
+    slot_info = calendar.format_slot_info(slot_ts, creator_id=cid)
     return {
         "ok": True,
         "slot": slot_info,

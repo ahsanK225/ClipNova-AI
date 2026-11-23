@@ -75,6 +75,26 @@ flowchart TD
      - Backend `/media/{jid}/thumb.jpg` route automatically returns the first available clip thumbnail if the stream cover was not downloaded directly.
      - Zero-clip placeholder is upgraded from a link icon to a modern cyber-dark stream badge (`🔴 LIVE STREAM` or `🎬 VIDEO`).
 
+### 3.3 YouTube Hourly Views Velocity Tracker (Option A) & Hybrid Algorithm Priming Engine
+- **Business & Algorithmic Problem**:
+  - Publishing clips at arbitrary times fails to capture peak audience activity, resulting in missed algorithmic momentum in the YouTube Shorts feed.
+  - YouTube Analytics API does not expose hourly dimensions directly; however, creators need upload scheduling synchronized to when their audience actually watches videos.
+- **Solution & Technical Design**:
+  1. **Autonomous Hourly Views Delta Tracker (`studio/analytics.py`)**:
+     - Periodically queries YouTube Data API v3 (`videos.list(part="statistics,snippet")`) using creator's connected channel OAuth credentials.
+     - Calculates differential view gains $\Delta V_t = \sum \max(0, \text{views}_t(v) - \text{views}_{t-1}(v))$ between consecutive hourly snapshots.
+     - Attributes views velocity to 24 hourly buckets across Pakistan Standard Time (PKT, UTC+5).
+  2. **Peak Discovery with Non-Maximum Suppression**:
+     - Identifies top 3 velocity peaks while enforcing a minimum spacing constraint ($\ge 4.5-5.0$ hours) on the circular 24-hour clock.
+     - Enforces the strict 3 videos per day ceiling to protect channel authority and avoid viewer fatigue.
+  3. **Hybrid Algorithm Priming**:
+     - YouTube's Shorts recommendation algorithm requires 60–120 minutes (default 90m / 1.5h) to index speech transcripts, assess visual features, evaluate audio fingerprint, and seed early impressions in test buckets.
+     - Upload slots are primed at $\text{Slot} = \text{Peak} - \text{Offset}$, ensuring the Short achieves maximal recommendation momentum precisely as audience traffic peaks.
+  4. **Dynamic Calendar Integration & UI**:
+     - `studio/calendar.py` dynamically queries the creator's analytics profile to calculate primed slot timestamps.
+     - Each slot displays rich metadata: `is_analytics_driven`, `peak_target_pkt`, and `priming_note` (`⚡ Primed 90m before audience peak`).
+     - `web/index.html` renders a 24-hour velocity histogram modeled after YouTube Studio 48-hour views analytics, complete with glowing peak indicators, 1-click mode switchers (`⚡ Auto (Analytics)` vs `🇺🇸 USA Standard`), and live sync triggers.
+
 ---
 
 ## 4. Hardware & Audio/Video Sync Architecture

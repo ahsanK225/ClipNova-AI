@@ -1,6 +1,32 @@
 ﻿# Changelog
 All notable project changes are documented here.
 
+## [2026-11-23] — Option A Autonomous Hourly Views Velocity Tracker & Hybrid Algorithm Priming Publishing Engine
+
+### Added
+- **Autonomous Hourly Views Delta Tracker (Option A) (`studio/analytics.py`, `studio/server.py`)**:
+  - Automatically queries YouTube Data API v3 (`videos.list(part="statistics,snippet")`) to record periodic snapshots of view counts across recently uploaded Shorts.
+  - Computes hourly view velocity ($\Delta \text{views}_t = \text{views}_t - \text{views}_{t-1}$) attributed to the corresponding PKT 24-hour clock buckets (00:00 to 23:00 PKT).
+  - Maintains 7-day rolling hourly velocity distribution and 48-hour views metrics.
+- **Hybrid Algorithm Priming Engine (`studio/analytics.py`, `studio/calendar.py`)**:
+  - Automatically discovers the channel's top 3 peak audience activity hours using circular non-maximum suppression (enforcing $\ge 4.5-5\text{h}$ spacing and the 3 videos/day ceiling).
+  - Offsets publishing time by $1.0 - 2.0\text{h}$ (default 1.5h / 90 minutes) *prior* to peak traffic surge, allowing YouTube Shorts recommendation engine to index, evaluate audio fingerprint, and seed impression buckets before viewer flood arrives.
+  - Formats slots with rich metadata: `is_analytics_driven`, `peak_target_pkt`, and glowing badges `⚡ Primed 90m before audience peak`.
+- **Interactive 24-Hour Velocity Histogram & Live Switcher UI (`web/index.html`)**:
+  - Renders a 24-hour visual bar chart modeled after YouTube Studio 48-hour views analytics, highlighting detected peak hours with glowing cyan/purple gradient bars.
+  - Quick-switch buttons: `⚡ Auto (Analytics)`, `🇺🇸 USA Standard`, and live `🔄 Sync Views` button.
+  - In Creator Settings (`#cform`), added dedicated card `📅 Dynamic YouTube Scheduling & Velocity Optimization` to configure engine mode, priming lead warmup (1h, 1.5h, 2h), and minimum video spacing (4h, 4.5h, 5h, 6h).
+- **Backend API Endpoints (`studio/server.py`)**:
+  - `GET /api/creators/{cid}/analytics/velocity`: returns 24-hour velocity curve, active peaks, and priming parameters.
+  - `POST /api/creators/{cid}/analytics/sync`: polls YouTube Data API v3 for latest view stats and updates velocity curve.
+  - `POST /api/creators/{cid}/analytics/settings`: updates scheduling mode, priming offset, and minimum gap.
+
+### Tests and Verification
+- Comprehensive test suite in `tests/test_analytics_calendar.py` passed 6/6 tests covering peak detection with non-maximum suppression, algorithm priming offset calculation, hourly view delta snapshots, settings persistence, dynamic slot assignment, and server API endpoints.
+- Regression test suite `tests/test_usa_publishing_calendar.py` passed 8/8 tests.
+- Total 14/14 tests passed in 0.157s.
+- Background server daemon verified healthy on `http://127.0.0.1:8765`.
+
 ## [2026-11-23] — Interactive Calendar Slot Video Picker, Refresh Route Persistence, Squeezed Meters & Collapsible Clip Editor Accordions
 
 ### Added

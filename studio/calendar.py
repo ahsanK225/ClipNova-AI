@@ -17,12 +17,14 @@ import time
 from zoneinfo import ZoneInfo
 from typing import Optional, List, Dict, Any
 
+from . import analytics
+
 PKT_TZ = ZoneInfo("Asia/Karachi")        # UTC+5
 US_EAST_TZ = ZoneInfo("America/New_York") # EDT (UTC-4) / EST (UTC-5)
 US_WEST_TZ = ZoneInfo("America/Los_Angeles") # PDT (UTC-7) / PST (UTC-8)
 
 MAX_VIDEOS_PER_DAY = 3
-MIN_GAP_SECONDS = 5 * 3600               # 5 hours minimum (prefer 6 hours)
+MIN_GAP_SECONDS = 4.5 * 3600             # 4.5 - 5 hours minimum gap
 COMMUNITY_OFFSET_SECONDS = 30 * 60       # exactly 30 minutes after video goes live
 DEFAULT_MIN_LEAD_SECONDS = 180           # 3 minutes lead time for scheduling
 
@@ -32,7 +34,7 @@ def get_tz_now() -> datetime:
     return datetime.now(PKT_TZ)
 
 
-def format_slot_info(video_ts: float, slot_num: int = 1, cycle_date: Optional[date] = None) -> Dict[str, Any]:
+def format_slot_info(video_ts: float, slot_num: int = 1, cycle_date: Optional[date] = None, creator_id: Optional[str] = None) -> Dict[str, Any]:
     """Generates rich timezone-aware human readable metadata for a scheduled slot."""
     dt_pkt = datetime.fromtimestamp(video_ts, tz=PKT_TZ)
     dt_ny = datetime.fromtimestamp(video_ts, tz=US_EAST_TZ)
@@ -41,6 +43,24 @@ def format_slot_info(video_ts: float, slot_num: int = 1, cycle_date: Optional[da
     dt_comm_pkt = datetime.fromtimestamp(comm_ts, tz=PKT_TZ)
 
     c_date = cycle_date or dt_pkt.date()
+
+    # Dynamic analytics algorithm priming metadata
+    is_analytics_driven = False
+    peak_target_pkt = ""
+    priming_note = ""
+    if creator_id:
+        try:
+            prof = analytics.get_analytics_profile(creator_id)
+            if prof.get("mode") in ("analytics", "custom"):
+                is_analytics_driven = True
+                offset_h = prof.get("priming_offset_hours", 1.5)
+                target_peak_ts = video_ts + offset_h * 3600
+                dt_target_peak = datetime.fromtimestamp(target_peak_ts, tz=PKT_TZ)
+                peak_target_pkt = dt_target_peak.strftime("%I:%M %p PKT")
+                priming_note = f"⚡ Primed {int(offset_h*60)}m before audience peak ({peak_target_pkt})"
+        except Exception:
+            pass
+
     return {
         "video_ts": round(video_ts, 1),
         "video_pkt_str": dt_pkt.strftime("%Y-%m-%d %I:%M %p PKT"),
@@ -54,15 +74,26 @@ def format_slot_info(video_ts: float, slot_num: int = 1, cycle_date: Optional[da
         "community_label": f"Community Post: {dt_comm_pkt.strftime('%I:%M %p PKT')} (+30m)",
         "cycle_date": c_date.isoformat(),
         "slot_num": slot_num,
+        "is_analytics_driven": is_analytics_driven,
+        "peak_target_pkt": peak_target_pkt,
+        "priming_note": priming_note,
+        "creator_id": creator_id or "",
     }
 
 
-def get_slots_for_cycle(base_date: date) -> List[float]:
-    """Generates the 3 preferred publishing slot timestamps for a given calendar day cycle in PKT:
+def get_slots_for_cycle(base_date: date, creator_id: Optional[str] = None) -> List[float]:
+    """Generates the 3 preferred publishing slot timestamps for a given calendar day cycle in PKT.
+    If creator_id has an analytics profile active, derives slots from channel peak velocity + priming offset.
+    Otherwise defaults to USA peak schedule:
     Slot 1: base_date at 18:00 PKT (6:00 PM PKT)
     Slot 2: (base_date + 1 day) at 00:00 PKT (12:00 AM midnight PKT)
     Slot 3: (base_date + 1 day) at 06:00 PKT (6:00 AM morning PKT)
     """
+    if creator_id:
+        try:
+            return analytics.get_primed_slot_timestamps(base_date, creator_id)
+        except Exception:
+            pass
     s1 = datetime.combine(base_date, dtime(18, 0), tzinfo=PKT_TZ).timestamp()
     s2 = datetime.combine(base_date + timedelta(days=1), dtime(0, 0), tzinfo=PKT_TZ).timestamp()
     s3 = datetime.combine(base_date + timedelta(days=1), dtime(6, 0), tzinfo=PKT_TZ).timestamp()
@@ -77,9 +108,10 @@ def _is_video_post(p: dict) -> bool:
 def find_next_available_slot(account_id: Optional[str],
                              existing_posts: List[dict],
                              from_ts: Optional[float] = None,
-                             min_lead_sec: int = DEFAULT_MIN_LEAD_SECONDS) -> Dict[str, Any]:
-    """Finds the next valid publishing slot adhering to the 3 videos/day limit and 5-6 hr gap."""
-    slots = assign_slots_to_videos(account_id, existing_posts, count=1, from_ts=from_ts, min_lead_sec=min_lead_sec)
+                             min_lead_sec: int = DEFAULT_MIN_LEAD_SECONDS,
+                             creator_id: Optional[str] = None) -> Dict[str, Any]:
+    """Finds the next valid publishing slot adhering to the 3 videos/day limit and 4.5-5 hr gap."""
+    slots = assign_slots_to_videos(account_id, existing_posts, count=1, from_ts=from_ts, min_lead_sec=min_lead_sec, creator_id=creator_id)
     return slots[0]
 
 
@@ -87,16 +119,35 @@ def assign_slots_to_videos(account_id: Optional[str],
                            existing_posts: List[dict],
                            count: int = 1,
                            from_ts: Optional[float] = None,
-                           min_lead_sec: int = DEFAULT_MIN_LEAD_SECONDS) -> List[Dict[str, Any]]:
+                           min_lead_sec: int = DEFAULT_MIN_LEAD_SECONDS,
+                           creator_id: Optional[str] = None) -> List[Dict[str, Any]]:
     """Assigns calendar publishing slots to N videos automatically across future days.
     Guarantees:
     - Never more than 3 videos per day cycle.
-    - Minimum 5-6 hours spacing between any two videos.
+    - Dynamic channel peak view velocity + algorithm priming when active.
+    - Minimum 4.5-5 hours spacing between any two videos.
     - Automatic roll to next day when today's slots are filled or passed.
     - Pair each video with an automated Community Post scheduled exactly 30 minutes later.
     """
     if count <= 0:
         return []
+
+    # Infer creator_id from existing posts if not explicitly provided
+    inferred_cid = creator_id
+    if not inferred_cid and existing_posts:
+        for p in existing_posts:
+            if p.get("creator"):
+                inferred_cid = p.get("creator")
+                break
+
+    # Determine dynamic minimum gap
+    gap_seconds = MIN_GAP_SECONDS
+    if inferred_cid:
+        try:
+            prof = analytics.get_analytics_profile(inferred_cid)
+            gap_seconds = max(3.5, float(prof.get("min_gap_hours", 5.0))) * 3600
+        except Exception:
+            pass
 
     now_ts = from_ts if from_ts is not None else time.time()
     min_valid_ts = now_ts + max(60, min_lead_sec)
@@ -120,11 +171,11 @@ def assign_slots_to_videos(account_id: Optional[str],
 
     # Search up to 365 days into the future until all slots are assigned
     for _ in range(365):
-        cycle_slot_timestamps = get_slots_for_cycle(cur_date)
+        cycle_slot_timestamps = get_slots_for_cycle(cur_date, creator_id=inferred_cid)
 
         # Count how many video posts already exist for this day cycle
-        cycle_start_ts = cycle_slot_timestamps[0] - 3600 # 17:00 PKT
-        cycle_end_ts = cycle_slot_timestamps[2] + 3600   # 07:00 PKT next morning
+        cycle_start_ts = min(cycle_slot_timestamps) - 3600
+        cycle_end_ts = max(cycle_slot_timestamps) + 3600
         existing_in_cycle = [t for t in active_videos if cycle_start_ts <= t <= cycle_end_ts]
         videos_in_cycle_count = len(existing_in_cycle)
 
@@ -141,12 +192,12 @@ def assign_slots_to_videos(account_id: Optional[str],
                 if any(abs(slot_ts - t) < 5400 for t in active_videos):
                     continue
 
-                # 3. Must respect minimum 5-hour spacing (prefer 6 hours) from any other video
-                if any(abs(slot_ts - t) < MIN_GAP_SECONDS for t in active_videos):
+                # 3. Must respect minimum spacing from any other video
+                if any(abs(slot_ts - t) < gap_seconds for t in active_videos):
                     continue
 
                 # Slot is valid! Assign it.
-                slot_info = format_slot_info(slot_ts, slot_num=slot_idx, cycle_date=cur_date)
+                slot_info = format_slot_info(slot_ts, slot_num=slot_idx, cycle_date=cur_date, creator_id=inferred_cid)
                 assigned_slots.append(slot_info)
                 active_videos.append(slot_ts)
                 active_videos.sort()

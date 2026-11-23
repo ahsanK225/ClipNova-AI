@@ -177,12 +177,13 @@ def enqueue(job, clip, account_ids, now=False, force=False, target_ts=None) -> l
                 continue  # automatic autopost won't duplicate, but manual "Post now" / force will post directly
 
             # Compute slot using USA-Focused Automatic Publishing Calendar or target_ts
+            cid_owner = job.get("creator")
             if target_ts:
                 due = float(target_ts)
-                slot_info = calendar.format_slot_info(due)
+                slot_info = calendar.format_slot_info(due, creator_id=cid_owner)
             else:
                 all_current = existing_mine + made
-                slot_info = calendar.find_next_available_slot(aid, all_current)
+                slot_info = calendar.find_next_available_slot(aid, all_current, creator_id=cid_owner)
                 due = time.time() if now else slot_info["video_ts"]
 
             p = {"id": secrets.token_hex(8), "user": ctx.uid(), "job": job["id"], "clip": clip["id"], "creator": job["creator"],
