@@ -5617,7 +5617,7 @@ function drawClipDlg(full) {
           <summary style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;list-style:none">
             <h3 style="margin:0;font-size:13px;display:flex;align-items:center;gap:6px"><span>🎣</span> Viral Hook Banner</h3>
             <div style="display:flex;align-items:center;gap:8px">
-              <button type="button" class="btn sm" data-act="ai_generate_hooks" id="btn_ai_hooks" onclick="event.stopPropagation()" style="background:linear-gradient(135deg,#F59E0B,#D97706);color:#000;border:none;font-weight:800;font-size:11px;padding:3px 10px;border-radius:14px;box-shadow:0 2px 8px rgba(245,158,11,0.25);cursor:pointer;display:inline-flex;align-items:center;gap:4px">
+              <button type="button" class="btn sm" data-act="ai_generate_hooks" id="btn_ai_hooks" onclick="event.preventDefault(); event.stopPropagation(); window.generateAiViralHooks(this);" style="background:linear-gradient(135deg,#F59E0B,#D97706);color:#000;border:none;font-weight:800;font-size:11px;padding:3px 10px;border-radius:14px;box-shadow:0 2px 8px rgba(245,158,11,0.25);cursor:pointer;display:inline-flex;align-items:center;gap:4px">
                 <span>✨</span> AI Viral Hooks
               </button>
               <span class="accordion-chevron">▾</span>
@@ -6017,6 +6017,61 @@ window.calcDlgHookTopPos = function(layout) {
   if (layout === "split") return "36%";
   if (layout === "blur" || layout === "fit") return "16%";
   return "16%";
+};
+
+window.generateAiViralHooks = async function(btnEl) {
+  const btn = btnEl || $("#btn_ai_hooks") || $("[data-act='ai_generate_hooks']");
+  const jid = D.jid || (jobOf(D.jid)?.id);
+  const cid = D.cid;
+  if (!jid || !cid) return toast("No clip selected", "bad");
+  const origHtml = btn ? btn.innerHTML : "<span>✨</span> AI Viral Hooks";
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = `<span>📸</span> Watching video…`;
+  }
+  toast("AI is watching video frames to generate grounded viral hooks…", "ok");
+  try {
+    const res = await send(`/api/jobs/${encodeURIComponent(jid)}/clips/${encodeURIComponent(cid)}/hooks`, {});
+    if (res && res.hooks && res.hooks.length) {
+      const j = jobOf(jid);
+      const c = j?.clips.find(x => x.id === cid);
+      const newTopHook = res.hook || res.hooks[0];
+      if (c) {
+        c.hooks = res.hooks;
+        c.hook = newTopHook;
+      }
+      const pills = $("#dlg_hook_pills");
+      if (pills) {
+        pills.innerHTML = res.hooks.map((h, i) => {
+          const isMatch = (i === 0);
+          return `
+            <button type="button" class="btn sm hook-pill-btn ${isMatch ? 'active-hook' : ''}" data-act="pick_hook" data-hook="${esc(h)}" title="Click to use this hook" style="font-size:10.5px;padding:3px 10px;font-weight:${isMatch ? '800' : '600'};background:${isMatch ? 'rgba(0,240,255,0.22)' : 'var(--bg-1,#120e0c)'};border:${isMatch ? '2px solid #00F0FF' : '1px solid var(--line)'};box-shadow:${isMatch ? '0 0 12px rgba(0,240,255,0.45)' : 'none'};border-radius:12px;color:${isMatch ? '#00F0FF' : 'var(--text)'};cursor:pointer;transition:all 0.15s ease">
+              #${i+1}: ${esc(h)}
+            </button>
+          `;
+        }).join("");
+      }
+      const hookInput = $("#clipdlg [data-f='hook']");
+      if (hookInput) {
+        hookInput.value = newTopHook;
+      }
+      if (typeof updateDlgLiveHookOverlay === "function") updateDlgLiveHookOverlay();
+      if (typeof replayDlgHookAnimation === "function") replayDlgHookAnimation();
+      if (D.jid && D.cid && typeof postText === "function") {
+        send(`/api/jobs/${D.jid}/clips/${D.cid}/text`, postText(), "PUT").catch(() => {});
+      }
+      toast(`✨ ${res.hooks.length} fresh viral hooks generated from video frames!`, "ok");
+    } else {
+      toast("AI returned no hooks. Please try again.", "bad");
+    }
+  } catch (err) {
+    toast("Failed to generate hooks: " + (err.message || err), "bad");
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = origHtml;
+    }
+  }
 };
 
 window.updateDlgLiveHookOverlay = function() {
@@ -8664,52 +8719,7 @@ document.addEventListener("click", async e => {
       await navigator.clipboard.writeText([c.title, c.description, tags].filter(Boolean).join("\n\n")); return toast("Post text copied", "ok");
     }
     if (a === "ai_generate_hooks") {
-      const btn = b;
-      const jid = D.jid || (jobOf(D.jid)?.id);
-      const cid = D.cid;
-      if (!jid || !cid) return toast("No clip selected", "bad");
-      const origHtml = btn.innerHTML;
-      btn.disabled = true;
-      btn.innerHTML = `<span>📸</span> Watching video…`;
-      toast("AI is watching video frames to generate grounded viral hooks…", "ok");
-      try {
-        const res = await send(`/api/jobs/${encodeURIComponent(jid)}/clips/${encodeURIComponent(cid)}/hooks`, {});
-        if (res && res.hooks && res.hooks.length) {
-          const j = jobOf(jid);
-          const c = j?.clips.find(x => x.id === cid);
-          if (c) {
-            c.hooks = res.hooks;
-            if (res.hook) c.hook = res.hook;
-          }
-          const pills = $("#dlg_hook_pills");
-          if (pills) {
-            pills.innerHTML = res.hooks.map((h, i) => `
-              <button type="button" class="btn sm hook-pill-btn ${i === 0 ? 'active-hook' : ''}" data-act="pick_hook" data-hook="${esc(h)}" title="Click to use this hook" style="font-size:10.5px;padding:3px 10px;font-weight:${i === 0 ? '800' : '600'};background:${i === 0 ? 'rgba(0,240,255,0.22)' : 'var(--bg-1,#120e0c)'};border:${i === 0 ? '2px solid #00F0FF' : '1px solid var(--line)'};box-shadow:${i === 0 ? '0 0 12px rgba(0,240,255,0.45)' : 'none'};border-radius:12px;color:${i === 0 ? '#00F0FF' : 'var(--text)'};cursor:pointer;transition:all 0.15s ease">
-                #${i+1}: ${esc(h)}
-              </button>
-            `).join("");
-          }
-          const hookInput = $("#clipdlg [data-f='hook']");
-          if (hookInput) {
-            hookInput.value = res.hooks[0];
-            if (c) c.hook = res.hooks[0];
-          }
-          if (typeof updateDlgLiveHookOverlay === "function") updateDlgLiveHookOverlay();
-          if (typeof replayDlgHookAnimation === "function") replayDlgHookAnimation();
-          if (D.jid && D.cid && typeof postText === "function") {
-            send(`/api/jobs/${D.jid}/clips/${D.cid}/text`, postText(), "PUT").catch(() => {});
-          }
-          toast("✨ 5 grounded viral hooks generated from video frames!", "ok");
-        } else {
-          toast("AI returned no hooks. Please try again.", "bad");
-        }
-      } catch (err) {
-        toast("Failed to generate hooks: " + (err.message || err), "bad");
-      } finally {
-        btn.disabled = false;
-        btn.innerHTML = origHtml;
-      }
-      return;
+      return window.generateAiViralHooks(b);
     }
     if (a === "pick_hook") {
       const h = d.hook;

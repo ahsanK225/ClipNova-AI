@@ -160,6 +160,10 @@ Integrated directly in `studio/brain.py` and `studio/posting.py`:
   - Allows creators to re-scan any clip's visual frame with AI via `POST /api/jobs/{jid}/clips/{cid}/ai_seo`.
   - Instantly populates and refreshes Hook, Title, Description, YouTube search tags, and Pinned comment in the editor dialog.
   - Re-burning the hook is executed seamlessly via "Save and re-make clip".
+- **On-Demand AI Viral Hooks Button & Auto-Apply Pipeline (`server.py`, `brain.py`, `web/index.html`)**:
+  - Clicking `✨ AI Viral Hooks` (`#btn_ai_hooks`) invokes `window.generateAiViralHooks(this)` with `event.preventDefault(); event.stopPropagation();`, preventing accordion toggle while guaranteeing immediate execution.
+  - Submits 6 extracted video frames to Gemini Vision (`ai.see_json`) across 6 viral angles (Reaction/Disbelief, Shock/Unexpected, Curiosity gap, Relatable fail/troll, Dramatic climax, Urgent question/challenge).
+  - Automatically assigns the top hook to `clip["hook"] = hooks[0]`, refreshes `#dlg_hook_pills` with 6 interactive pills, applies glowing cyan `.active-hook` highlight, updates the input box, and live-animates the hook preview over the video stage.
 - **Multi-Title AI Suggestions & Interactive Clickable Pills (`brain.py`, `server.py`, `web/index.html`)**:
   - AI generates 4 distinct, high-CTR YouTube Shorts titles ending with `#Shorts` and fitting emojis via `generate_viral_titles()`.
   - In `#clipdlg`, both `Title (with Viral Hashtags)` and `Shorts Title (High-CTR with #Shorts)` feature `#dlg_title_pills` and `#dlg_seo_title_pills` containers displaying clickable title suggestion pills (`💡 Title #1`, `💡 Title #2`, `💡 Title #3`, `💡 Title #4`).

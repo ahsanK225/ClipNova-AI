@@ -1221,7 +1221,7 @@ def clip_generate_titles(jid: str, cid: str):
 @app.get("/api/jobs/{jid}/clips/{cid}/hooks")
 @app.post("/api/jobs/{jid}/clips/{cid}/hooks")
 def clip_generate_hooks(jid: str, cid: str):
-    """Generate 5 viral hook banner variations for this clip using AI vision and video frames."""
+    """Generate 6 viral hook banner variations for this clip using AI vision and video frames."""
     job, clip = _clip_or_404(jid, cid)
     _throttle("cliphooks:" + ctx.uid(), 30, 600, "Please wait a moment before generating more hooks.")
     usage.set_context(job.get("creator"), job.get("title") or "")
@@ -1231,9 +1231,9 @@ def clip_generate_hooks(jid: str, cid: str):
         uploader = job.get("uploader") or job.get("creator") or ""
         game = job.get("game") or None
         frames = jobs.get_clip_frames_payload(job, clip, n_frames=6)
-        hooks = brain.generate_viral_hooks(text, title, uploader, game=game, count=5, image=frames)
+        hooks = brain.generate_viral_hooks(text, title, uploader, game=game, count=6, image=frames)
         clip["hooks"] = hooks
-        if hooks and not clip.get("hook"):
+        if hooks:
             clip["hook"] = hooks[0]
         jobs.save(job)
         return {"ok": True, "hooks": hooks, "hook": clip.get("hook")}

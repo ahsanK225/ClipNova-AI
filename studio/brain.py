@@ -1028,6 +1028,7 @@ CRITICAL GROUNDING & VIRALITY INSTRUCTIONS (LIKE CHATGPT / VIRAL EDITORS):
    - Hook 3: Curiosity gap (e.g. 'WHAT IS IN THAT *TRUNK*?! 📦💀', 'HE ACTUALLY PULLED THIS *OFF*?! 😱')
    - Hook 4: Relatable gaming fail / troll (e.g. 'WORST *DRIVER* IN GTA 6 💀', 'THIS NPC CHOSE *VIOLENCE* 😂')
    - Hook 5: Dramatic climax (e.g. 'HE LOST *EVERYTHING* IN 5 SECONDS 😭', 'NO WAY HE *SURVIVED* THIS 🔥')
+   - Hook 6: Urgent Question / Challenge (e.g. 'HOW DID HE *SURVIVE* THIS?! 😱', 'COULD YOU FIX THIS *ENGINE*?! 🔧💀')
 3. RULES:
    - Surround the single most punchy keyword with asterisks (e.g. '*CAR*', '*DRIP*', '*LACKING*') so it gets highlighted in vibrant yellow on video.
    - End each hook with 1-2 viral emojis.

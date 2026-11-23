@@ -37,5 +37,18 @@ class TestHookOverlayNoDuplicate(unittest.TestCase):
         self.assertIn('display:none', self.index_html)
 
 
+    def test_index_html_has_generate_ai_viral_hooks(self):
+        """index.html must have window.generateAiViralHooks and invoke it on btn_ai_hooks click."""
+        self.assertIn("window.generateAiViralHooks", self.index_html)
+        self.assertIn("generateAiViralHooks(this)", self.index_html)
+        self.assertIn("active-hook", self.index_html)
+
+    def test_server_hooks_endpoint_applies_top_hook(self):
+        """studio/server.py must generate 6 hooks and apply the top hook to clip['hook']."""
+        server_py = (self.root / "studio" / "server.py").read_text(encoding="utf-8")
+        self.assertIn('count=6', server_py)
+        self.assertIn('clip["hook"] = hooks[0]', server_py)
+
+
 if __name__ == "__main__":
     unittest.main()

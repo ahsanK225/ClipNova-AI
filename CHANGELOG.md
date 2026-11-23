@@ -1,6 +1,30 @@
 ﻿# Changelog
 All notable project changes are documented here.
 
+## [2026-11-24] — AI Viral Hooks Button Direct Execution, Multimodal Frame Analysis & Auto-Apply
+
+### Fixed
+- **AI Viral Hooks Button Event Propagation (`web/index.html`)**:
+  - Resolved user issue ("ispr click kron to mjy ai or hooks laga kr de video ko analyze krke") where clicking `✨ AI Viral Hooks` (`#btn_ai_hooks`) appeared unresponsive.
+  - Root cause: An inline `onclick="event.stopPropagation()"` on the button was killing the click event before it could bubble up to the `document.addEventListener("click", ...)` event delegation handler.
+  - Created a dedicated global function `window.generateAiViralHooks(btnEl)` that triggers directly on click via `onclick="event.preventDefault(); event.stopPropagation(); window.generateAiViralHooks(this);"`, guaranteeing execution while preventing `<summary>` from toggling the accordion.
+- **Auto-Apply Top Viral Hook to Player & Video Data (`studio/server.py`, `studio/brain.py`, `web/index.html`)**:
+  - In `studio/server.py`, upgraded `clip_generate_hooks` to generate 6 fresh grounded viral hooks (increased count to 6) and automatically assign `clip["hook"] = hooks[0]` (previously it had `if hooks and not clip.get("hook"):` which refused to update the hook if an old one existed).
+  - In `studio/brain.py`, added category 6 (Urgent Question / Challenge hook) to ensure diverse viral angles.
+  - In `web/index.html`, upon receiving AI hooks from backend:
+    - Populates all 6 fresh pills (#1 through #6) in `#dlg_hook_pills`.
+    - Automatically selects pill #1 with `.active-hook` glowing cyan highlight.
+    - Populates input box with the new hook text.
+    - Live-animates the hook preview directly onto the stage player overlay (`updateDlgLiveHookOverlay()`, `replayDlgHookAnimation()`).
+    - Automatically persists changes via `PUT /api/jobs/{jid}/clips/{cid}/text`.
+
+### Tests and Verification
+- Unit test suite `tests/test_hook_overlay_no_duplicate.py` passed (6/6).
+- Browser visual verification via subagent `b8ecd4bb-de99-4022-be6a-de17df0168b2`:
+  - Clicked `✨ AI Viral Hooks`. Toast appeared, button transitioned to `Watching video…`.
+  - 6 fresh pills generated, pill #1 active-highlighted, input updated, live hook banner preview rendered on video stage.
+  - High-res screenshot saved to `ai_viral_hooks_generated_and_applied_verified.png`.
+
 ## [2026-11-24] — Elimination of Duplicate Hook Banner in Video Stage Player
 
 ### Fixed
