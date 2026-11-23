@@ -208,7 +208,7 @@ class TestVideoStudio(unittest.TestCase):
         self.assertIn('function studioExportCapcutDesktop()', html_content)
         self.assertIn('function studioSetSubPos(', html_content)
         self.assertIn('CapCut Desktop Bridge', html_content)
-        self.assertIn('OpenCut Web Studio', html_content)
+        self.assertIn('Auto-Create CapCut Project', html_content)
         
         # Check styles
         self.assertIn('studio-track-row', html_content)

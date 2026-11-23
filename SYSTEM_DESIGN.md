@@ -605,37 +605,33 @@ Integrated directly in `studio/brain.py` and `studio/posting.py`:
 
 ---
 
-## 32. CapCut Desktop & Open-Source Video Editor (OpenCut / OpenReel) Integration Architecture
+## 32. CapCut Desktop Integration Architecture & Built-in Video Studio
 1. **Background & Creator Objective**:
    - Creators often want fine-grained non-linear editing (NLE) capabilities — keyframing, multi-layer VFX, optical flow slow motion, animated stickers, color LUTs, and audio ducking — before publishing to YouTube Shorts.
-2. **Path A: Native CapCut Desktop Draft Bridge (Already Integrated in ClipNova AI)**:
+2. **Built-in In-Browser Video Studio (`web/index.html`, `studio/render.py`)**:
+   - Provides an instant, zero-setup 9:16 editor directly inside the browser.
+   - Features real-time WYSIWYG timeline scrubbing, split/trimming, 4 cinematic color grading filters (Cyberpunk, Teal & Orange, Vibrant, Film Noir), 4 viral VFX simulations (Flash White, Screen Shake, Glitch RGB, Zoom Punch), meme audio soundboard insertion, and real-time subtitle styling.
+   - Clips load directly with 1 click via `window.openWebStudio(jid, cid)` with zero manual import required.
+3. **Native CapCut Desktop Draft Bridge (`studio/capcut/export.py`)**:
    - **Engine (`studio/capcut/export.py`)**:
-     - ClipNova AI already features an automated exporter that creates complete, valid CapCut desktop project structures directly inside `%LOCALAPPDATA%\CapCut\User Data\Projects\com.lveditor.draft\<project_id>\`.
-     - Automatically generates `draft_content.json` mapping:
+     - Automatically creates complete, valid CapCut desktop project structures directly inside `%LOCALAPPDATA%\CapCut\User Data\Projects\com.lveditor.draft\<project_id>\`.
+     - Automatically generates `draft_content.json` (for modern CapCut 9.x+) and `draft_info.json` mapping:
        - Video track (primary gameplay layer).
        - Picture-in-Picture / webcam track with pre-calculated crop and position.
        - Subtitle track with animated word timings and styles.
        - Background audio track with volume and offset.
+     - Automatically registers drafts in `%LOCALAPPDATA%\CapCut\User Data\Projects\com.lveditor.draft\root_meta_info.json` so projects appear at the very top of CapCut's desktop home screen.
+     - Automatically locates and launches `CapCut.exe` so the editor is immediately accessible.
      - **UI Workflow**:
-       - In `#clipdlg`, clicking `🚀 Open in CapCut Desktop` exports the draft in ~200ms and opens CapCut Desktop directly.
+       - In `#clipdlg`, clicking `🚀 Auto-Create CapCut Project` exports the draft in ~200ms, auto-registers it, and launches CapCut Desktop directly.
        - Creators edit with CapCut's full native GPU rendering, thousands of free VFX, AI cutout, and transitions, with zero browser lag or memory limits.
-3. **Path B: In-Browser Open-Source NLE Integration (`OpenCut` / `OpenReel Video`)**:
-   - **Evaluated Repositories**:
-     - `OpenCut-app/OpenCut`: Open-source desktop/web CapCut alternative with a modern Rust core and web interface.
-     - `Augani/openreel-video`: 100% browser-based React/Next.js/Zustand multi-track video editor with WebCodecs hardware acceleration, split, ripple-delete, transitions, and text layers.
-   - **Architecture for Embedded Web Editor**:
-     - **Project Staging API (`/api/jobs/{jid}/clips/{cid}/editor-project`)**:
-       - Outputs an OpenCut/OpenReel JSON timeline contract staging video segments, audio tracks, and caption cues.
-     - **Embedded Timeline Panel / Route (`/editor/{jid}/{cid}`)**:
-       - Host OpenReel or OpenCut Web as a micro-frontend or embedded canvas view inside ClipNova AI.
-       - Supports live timeline scrubbing, trimming, multi-track layering, and instant export back into ClipNova's YouTube Publishing Calendar queue.
 
    - Guarded `go()` against early overview fallback before creators are loaded.
    - Synchronized `view` and `ctab` with `localStorage` and `history.pushState` / `replaceState`.
 
 
 ## 15. In-Browser Web Video Studio & Multi-Track Timeline Architecture
-ClipNova AI features a non-linear in-browser video editor designed after CapCut and OpenCut:
+ClipNova AI features a non-linear in-browser video editor designed for high-velocity short-form content:
 1. **Interactive WYSIWYG Timeline**:
    - Time Ruler with second markers and click-to-seek playhead needle.
    - Five distinct timeline lanes: Subtitle captions (word blocks with start/end duration), Video slices (with playhead cut/split markers), Facecam PiP, Audio waveform (with draggable start offset trim), and VFX event cues.
@@ -651,7 +647,7 @@ ClipNova AI features a non-linear in-browser video editor designed after CapCut 
 1. **Clean Clip Detail Modal Architecture (`#clipdlg`)**:
    - Redundant cards `Viral Climax Teaser (Cold Open Hook)`, `Layout & Framing Studio`, and `Advanced Timing` have been completely removed from `#clipdlg`.
    - Full timeline editing, framing calibration, and effects are now housed in the dedicated `🎬 Video Studio` workspace.
-   - Quick studio launcher buttons (`🌐 OpenCut Web Studio`, `🚀 CapCut Desktop Bridge`, `🎨 Layout & Timing Studio`) provide immediate 1-click access to editing tools.
+   - Quick studio launcher buttons (`🎬 Edit in Built-in Studio (Clip Ready)` and `🚀 Auto-Create CapCut Project`) provide immediate 1-click access to editing workflows.
    - Hidden input fields retain all clip framing, layout, delays, and timing parameters so that any subsequent video re-render safely preserves prior adjustments.
 2. **Real-Time Live Hook Banner Overlay (`#dlg_hook_live_overlay`)**:
    - High-CTR hook title banner is rendered directly on top of the `#stage` video player with `@keyframes hookPopIn` entrance animation.
@@ -665,24 +661,17 @@ ClipNova AI features a non-linear in-browser video editor designed after CapCut 
 
 ---
 
-## 17. Full OpenCut Web Application Integration (New Tab Launch & Drag-and-Drop Bridge)
-1. **Core Philosophy**:
-   - For creators wanting full CapCut-level non-linear video editing (transitions, speed ramps, stickers, text overlays, and multi-track timelines), ClipNova AI integrates OpenCut (`https://github.com/opencut-app/opencut` / `https://opencut.app` / `https://new.opencut.app`).
-2. **Dual-Action Launch Mechanism (`window.launchOpenCutNewTab`)**:
-   - Simultaneously opens `https://opencut.app` in a fresh browser tab (`_blank`).
-   - Concurrently invokes backend `GET /api/jobs/{jid}/clips/{cid}/open-folder` which executes Windows Explorer `explorer.exe /select,"<filepath>"`, automatically highlighting the rendered clip `.mp4` file in the creator's local folder.
-   - The creator seamlessly drags the pre-selected `.mp4` file directly into OpenCut's web interface for instant editing.
-3. **Dedicated Video Studio Drawer Integration**:
-   - First tab in the Video Studio drawer is dedicated to `🌐 OpenCut Web Studio`.
-   - Displays 1-click `🌐 Launch OpenCut Editor (New Tab)` button alongside direct asset action chips:
-     - `📁 Open Clip Folder in Explorer`: reveals local video file on demand.
-     - `📥 Direct Download MP4`: direct browser download of the clip file.
-     - `🔗 Copy Clip Video URL`: copies full streaming HTTP endpoint URL for direct web pasting.
-     - `🚀 Launch Next-Gen OpenCut Link`: direct link to `https://new.opencut.app`.
-   - Features an optional embedded iframe toggle (`toggleEmbedOpenCut`) allowing creators to work inside ClipNova AI when desired.
-4. **Top Action Bar & Clip Modal Integration**:
-   - Top studio header bar features `<span>🌐</span> Open in OpenCut (New Tab)`.
-   - Clip Detail Modal (`#clipdlg`) features direct launch buttons in its Quick Studio Launcher row.
+## 17. Complete Built-in Studio & CapCut Desktop Dual-Engine Architecture
+1. **Core Philosophy & OpenCut Removal**:
+   - Following creator feedback on browser codec bottlenecks (HEVC decode licensing blocks in Chromium) and missing timeline transitions, OpenCut was completely excised from ClipNova AI.
+   - In its place, the workspace is anchored by a unified dual-engine architecture:
+     1. **Built-in Studio**: Instant browser editing for trimming, LUTs, and VFX.
+     2. **CapCut Desktop Bridge**: Pro-tier NLE with GPU acceleration, seamless project auto-registration, and automatic launch.
+2. **CapCut Desktop Auto-Registration & Launch Workflow**:
+   - The user clicks `🚀 Auto-Create CapCut Project`.
+   - Backend `studio/capcut/export.py` generates the complete project folder and registers it in CapCut's `root_meta_info.json`.
+   - `CapCut.exe` is automatically started and the project folder is opened in Windows Explorer.
+   - The creator immediately has their multi-track project open in CapCut Desktop with zero manual importing or licensing fees.
 
 ---
 
@@ -704,7 +693,7 @@ ClipNova AI features a non-linear in-browser video editor designed after CapCut 
 
 ---
 
-## 19. OpenCut 100% Free Video Conversion Pipeline (HEVC / H.265 to H.264 MP4)
+## 19. 100% Free Universal Video Conversion Pipeline (HEVC / H.265 to H.264 MP4)
 1. **The Browser Codec Bottleneck**:
    - Web browsers on Windows (Chrome, Edge) do not natively decode HEVC / H.265 video without paid proprietary hardware decoder extensions from the Microsoft Store.
    - Standard H.264 (AVC) MP4 videos are 100% royalty-free and supported by every browser and device without any extensions or fees.

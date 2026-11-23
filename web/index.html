@@ -3848,47 +3848,6 @@ window.openWebStudio = function(jid, cid) {
   toast("🎬 Loaded saved clip in Video Studio!", "ok");
 };
 
-window.launchOpenCutNewTab = async function(jid, cid) {
-  const currentJid = jid || window._studioClip?.jid || D.jid;
-  const currentCid = cid || window._studioClip?.cid || D.cid;
-  
-  // 1. Open OpenCut Projects directly (bypassing marketing landing page)
-  window.open("https://opencut.app/projects", "_blank");
-  
-  // 2. Ensure standard H.264 & highlight video file in Windows Explorer for drag & drop
-  if (currentJid && currentCid) {
-    try {
-      const res = await send(`/api/jobs/${encodeURIComponent(currentJid)}/clips/${encodeURIComponent(currentCid)}/convert-h264`, {});
-      if (res && res.status === "already_h264") {
-        toast("🌐 OpenCut Projects opened! Clip is 100% H.264 browser-compatible — drag it into OpenCut!", "ok", 7000);
-      } else {
-        toast("🌐 Converted to H.264 MP4 & highlighted in Explorer — drag into OpenCut!", "ok", 7000);
-      }
-    } catch {
-      await send(`/api/jobs/${encodeURIComponent(currentJid)}/clips/${encodeURIComponent(currentCid)}/open-folder`, {}).catch(() => {});
-      toast("🌐 OpenCut Projects opened in new tab! Drag your clip into OpenCut.", "ok");
-    }
-  } else {
-    toast("🌐 OpenCut Projects opened!", "ok");
-  }
-};
-
-window.convertAnyFileToH264 = async function() {
-  const filepath = prompt("Paste full path of any video file (e.g. C:\\Videos\\stream.mp4) to convert to H.264 for OpenCut:");
-  if (!filepath || !filepath.trim()) return;
-  toast("Converting video to H.264 MP4 via FFmpeg… (~5-10s)", "ok");
-  try {
-    const res = await send("/api/tools/convert-file-h264", { filepath: filepath.trim() });
-    if (res && res.ok) {
-      toast("✅ Converted to H.264 MP4! File highlighted in Explorer — drag it into OpenCut!", "ok", 8000);
-    } else {
-      toast("Conversion failed: " + (res?.message || "Unknown error"), "bad");
-    }
-  } catch (err) {
-    toast("Conversion error: " + (err.message || err), "bad");
-  }
-};
-
 window.studioOpenClipFolder = async function() {
   const jid = window._studioClip?.jid || D.jid;
   const cid = window._studioClip?.cid || D.cid;
@@ -3909,12 +3868,6 @@ window.studioCopyVideoUrl = function() {
   }).catch(() => {
     prompt("Copy this direct video URL:", fullUrl);
   });
-};
-
-window.toggleEmbedOpenCut = function() {
-  window._embedOpenCut = !window._embedOpenCut;
-  renderStudioWorkspace();
-  studioSwitchTab("opencut");
 };
 
 function renderStudioWorkspace() {
@@ -3945,9 +3898,6 @@ function renderStudioWorkspace() {
         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
           <button type="button" class="btn sm" data-act="export_capcut" data-j="${_studioClip?.jid || D.jid}" data-c="${esc(_studioClip?.cid || D.cid)}" style="background:linear-gradient(135deg,#6366F1,#0088FF);color:#FFFFFF;font-weight:800;border:none;box-shadow:0 0 12px rgba(99,102,241,0.35);padding:6px 12px;border-radius:8px;display:inline-flex;align-items:center;gap:6px;cursor:pointer" title="Automatically creates project in CapCut Desktop with video, captions, and hook on timeline">
             <span>🚀</span> Auto-Create CapCut Project
-          </button>
-          <button type="button" class="btn sm" onclick="launchOpenCutNewTab()" style="background:#1E293B;border:1px solid #334155;color:#E2E8F0;font-weight:700;padding:6px 12px;border-radius:8px;display:inline-flex;align-items:center;gap:6px;cursor:pointer" title="Open OpenCut Projects in a new tab">
-            <span>🌐</span> OpenCut Projects
           </button>
           <button type="button" class="btn sm" id="studio_btn_render" onclick="saveStudioExport(false)" style="background:#1E293B;border:1px solid #334155;color:#E2E8F0;font-weight:600">
             💾 Save &amp; Re-render MP4
@@ -3991,7 +3941,6 @@ function renderStudioWorkspace() {
           <!-- Drawer Navigation Bar -->
           <div style="display:flex;gap:6px;border-bottom:1px solid rgba(255,255,255,0.08);padding-bottom:12px;margin-bottom:14px;flex-wrap:wrap">
             ${[
-              ["opencut", "🌐 OpenCut Web Studio"],
               ["capcut", "🚀 CapCut Desktop Bridge"],
               ["filters", "🎨 Visual Filters"],
               ["vfx", "⚡ Viral VFX"],
@@ -4157,80 +4106,6 @@ function renderStudioWorkspace() {
 function renderStudioDrawerContent() {
   if (!_studioProj) return "";
   const dur = _studioProj.duration || 30.0;
-
-  if (_studioDrawerTab === "opencut") {
-    return `
-      <div style="background:linear-gradient(135deg, rgba(99,102,241,0.08), rgba(0,240,255,0.08));border:1px solid rgba(0,240,255,0.3);border-radius:14px;padding:18px">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:10px">
-          <div style="display:flex;align-items:center;gap:12px">
-            <div style="width:48px;height:48px;border-radius:12px;background:linear-gradient(135deg,#6366F1,#00F0FF);display:flex;align-items:center;justify-content:center;font-size:24px;color:#020617;font-weight:900;box-shadow:0 4px 18px rgba(0,240,255,0.35)">
-              🌐
-            </div>
-            <div>
-              <h4 style="margin:0;font-size:16px;color:#F8FAFC;font-weight:800">OpenCut Web Video Editor (CapCut Alternative)</h4>
-              <p style="margin:3px 0 0;font-size:12px;color:#94A3B8">Full NLE web video editor with timeline, VFX, transitions, audio &amp; text</p>
-            </div>
-          </div>
-          <div style="display:flex;gap:8px">
-            <button type="button" class="btn primary" onclick="launchOpenCutNewTab()" style="background:linear-gradient(135deg,#6366F1,#00F0FF);color:#020617;font-weight:800;border:none;padding:8px 16px;border-radius:8px;font-size:12px;box-shadow:0 0 16px rgba(0,240,255,0.4);display:inline-flex;align-items:center;gap:6px">
-              <span>🚀</span> Open in New Tab (opencut.app)
-            </button>
-            <button type="button" class="btn" onclick="toggleEmbedOpenCut()" style="background:#1E293B;border:1px solid #334155;color:#E2E8F0;font-size:12px;display:inline-flex;align-items:center;gap:6px">
-              <span>🖥️</span> ${window._embedOpenCut ? 'Hide Embedded Editor' : 'Embed in this Page'}
-            </button>
-          </div>
-        </div>
-
-        <!-- Quick Workflow Guide -->
-        <div style="background:rgba(15,23,42,0.7);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:12px 14px;margin-bottom:16px">
-          <div style="font-size:12px;font-weight:700;color:#00F0FF;margin-bottom:8px">
-            💡 How to Edit with OpenCut (CapCut Style):
-          </div>
-          <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));gap:10px;font-size:11.5px;color:#CBD5E1">
-            <div style="background:rgba(0,0,0,0.25);padding:8px 10px;border-radius:6px;border:1px solid rgba(255,255,255,0.04)">
-              <b>1. Launch Editor:</b> Click <b>"Open in New Tab"</b> (opens in fresh tab).
-            </div>
-            <div style="background:rgba(0,0,0,0.25);padding:8px 10px;border-radius:6px;border:1px solid rgba(255,255,255,0.04)">
-              <b>2. Drag &amp; Drop:</b> Your clip MP4 file is highlighted in Windows Explorer. Drag it into OpenCut!
-            </div>
-            <div style="background:rgba(0,0,0,0.25);padding:8px 10px;border-radius:6px;border:1px solid rgba(255,255,255,0.04)">
-              <b>3. Full CapCut Editing:</b> Add transitions, filters, audio, text &amp; export video!
-            </div>
-          </div>
-        </div>
-
-        <!-- Direct Clip Actions -->
-        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
-          <button type="button" class="btn sm" onclick="studioOpenClipFolder()" style="background:#2563EB;border:none;color:#FFF;font-weight:700;display:inline-flex;align-items:center;gap:6px">
-            <span>📂</span> Show Clip File in Windows Explorer
-          </button>
-          <a class="btn sm" href="${_studioProj.video_url}?download=1" style="background:#1E293B;border:1px solid #334155;color:#E2E8F0;display:inline-flex;align-items:center;gap:6px">
-            <span>⬇️</span> Download Clip MP4
-          </a>
-          <button type="button" class="btn sm" onclick="studioCopyVideoUrl()" style="background:#1E293B;border:1px solid #334155;color:#E2E8F0;display:inline-flex;align-items:center;gap:6px">
-            <span>📋</span> Copy Direct Video URL
-          </button>
-          <button type="button" class="btn sm" onclick="window.open('https://new.opencut.app', '_blank')" style="background:rgba(99,102,241,0.2);border:1px solid rgba(99,102,241,0.4);color:#818CF8;display:inline-flex;align-items:center;gap:6px">
-            <span>⚡</span> Next-Gen Rewrite (new.opencut.app)
-          </button>
-          <button type="button" class="btn sm" onclick="convertAnyFileToH264()" style="background:linear-gradient(135deg,#059669,#10B981);border:none;color:#FFF;font-weight:700;display:inline-flex;align-items:center;gap:6px;box-shadow:0 2px 8px rgba(16,185,129,0.3)" title="Convert any external video or stream file to H.264 MP4 to fix OpenCut HEVC error">
-            <span>🔄</span> Convert Video to H.264 (Fix HEVC Error)
-          </button>
-        </div>
-
-        ${window._embedOpenCut ? `
-          <div style="margin-top:16px;border:1px solid #334155;border-radius:12px;overflow:hidden;background:#000">
-            <div style="background:#0F172A;padding:8px 14px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #1E293B">
-              <span style="font-size:12px;font-weight:700;color:#00F0FF">🖥️ Live Embedded OpenCut Editor</span>
-              <button class="btn sm ghost" onclick="toggleEmbedOpenCut()">✕ Close Embedded View</button>
-            </div>
-            <iframe src="https://opencut.app" style="width:100%;height:680px;border:none" allow="autoplay; fullscreen; clipboard-read; clipboard-write"></iframe>
-          </div>
-        ` : ''}
-      </div>
-    `;
-  }
-
 
   if (_studioDrawerTab === "filters") {
     const filters = _studioProj.available_filters || [];
@@ -5607,9 +5482,6 @@ function drawClipDlg(full) {
           </button>
           <button type="button" class="btn sm" data-act="export_capcut" data-j="${j.id}" data-c="${esc(c.id)}" style="background:linear-gradient(135deg,#6366F1,#0088FF);color:#FFFFFF;font-weight:800;border:none;display:inline-flex;align-items:center;gap:6px;border-radius:6px;padding:5px 12px;cursor:pointer" title="Automatically creates the project inside CapCut Desktop with video, captions, and hook on timeline">
             <span>🚀</span> Auto-Create CapCut Project
-          </button>
-          <button type="button" class="btn sm" onclick="launchOpenCutNewTab('${j.id}', '${esc(c.id)}')" style="background:var(--bg-3);border:1px solid var(--line);color:var(--text);font-weight:700;display:inline-flex;align-items:center;gap:6px;border-radius:6px;padding:5px 12px;cursor:pointer" title="Open OpenCut Projects in a new browser tab and drag & drop this clip">
-            <span>🌐</span> OpenCut Web (Projects)
           </button>
         </div>
         <!-- Card 1: Viral Hook & Captions (Collapsible Accordion) -->
@@ -8665,12 +8537,6 @@ document.addEventListener("click", async e => {
       const jid = d.j || D.jid;
       const cid = d.c || D.cid;
       openWebStudio(jid, cid);
-      return;
-    }
-    if (a === "launch_opencut_new_tab") {
-      const jid = d.j || D.jid;
-      const cid = d.c || D.cid;
-      launchOpenCutNewTab(jid, cid);
       return;
     }
     if (a === "studio_pick_clip") {

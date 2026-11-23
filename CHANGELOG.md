@@ -1,6 +1,27 @@
 ﻿# Changelog
 All notable project changes are documented here.
 
+## [2026-11-24] — Complete Removal of OpenCut Files, UI Tabs & Code from Project
+
+### Removed
+- **OpenCut Complete Removal (`web/index.html`, `studio/server.py`, `tests/`)**:
+  - Per user request ("or opencut ki sari files ko hata do or os project ko mery project sy remove krdo agr mene capcut hi use krna he to phr opencut ki zarort nai he"), completely excised OpenCut from the workspace:
+    1. **Video Studio Tool Drawer**: Removed `["opencut", "🌐 OpenCut Web Studio"]` navigation tab and entire embedded iframe/panel block from `renderStudioDrawerContent()`. The drawer now focuses cleanly on `🚀 CapCut Desktop Bridge`, `🎨 Visual Filters`, `⚡ Viral VFX`, `🎵 Audio & BGM`, `💬 Subtitles`, and `🎭 Layout`.
+    2. **Video Studio Top Action Bar**: Removed `🌐 OpenCut Projects` button.
+    3. **Clip Modal (`#clipdlg`)**: Removed `🌐 OpenCut Web (Projects)` launcher button from the Quick Studio row, keeping only `🎬 Edit in Built-in Studio (Clip Ready)` and `🚀 Auto-Create CapCut Project`.
+    4. **JavaScript Handlers**: Removed `window.launchOpenCutNewTab`, `window.convertAnyFileToH264`, and `window.toggleEmbedOpenCut`.
+    5. **Backend Clean-up (`studio/server.py`)**: Sanitized `/api/jobs/{jid}/clips/{cid}/convert-h264` and `/api/tools/convert-file-h264` messages and comments, removing all OpenCut branding.
+    6. **Test Clean-up (`tests/test_video_studio.py`, `tests/test_h264_converter.py`)**: Updated assertions to ensure 100% test pass rate for CapCut and Built-in Studio workflows without OpenCut dependencies.
+
+### Tests and Verification
+- Node.js AST validation: `web/index.html` 100% syntax valid (2 scripts, 0 errors).
+- Unit test suites: 14/14 tests passed (`test_video_studio.py`, `test_h264_converter.py`, `test_hook_overlay_no_duplicate.py`, `test_capcut_and_styles.py`).
+- Browser subagent visual inspection via `b5f27afa-c385-4d29-bfb2-125daeedd41c`:
+  - Verified `#clipdlg` has zero OpenCut buttons.
+  - Verified Video Studio top bar and tool drawer have zero OpenCut elements.
+  - Verified CapCut Desktop Bridge and Built-in Studio work seamlessly.
+  - High-res screenshot saved to `opencut_completely_removed_capcut_clean.png`.
+
 ## [2026-11-24] — AI Viral Hooks Button Direct Execution, Multimodal Frame Analysis & Auto-Apply
 
 ### Fixed

@@ -32,7 +32,7 @@ class TestH264Converter(unittest.TestCase):
 
     def test_convert_real_video_to_h264(self):
         test_src = Path("test_hevc_sim.mp4")
-        conv_out = Path("test_hevc_sim_opencut_h264.mp4")
+        conv_out = Path("test_hevc_sim_converted_h264.mp4")
         try:
             cmd = [
                 "ffmpeg", "-y", "-v", "error",
@@ -55,12 +55,9 @@ class TestH264Converter(unittest.TestCase):
             if conv_out.exists():
                 conv_out.unlink()
 
-    def test_frontend_has_converter_button(self):
-        html_path = Path(__file__).resolve().parent.parent / "web" / "index.html"
-        html = html_path.read_text(encoding="utf-8")
-        self.assertIn("convertAnyFileToH264", html)
-        self.assertIn("convert-h264", html)
-        self.assertIn("Fix HEVC Error", html)
+    def test_backend_has_converter_endpoint(self):
+        self.assertTrue(hasattr(server, "convert_clip_to_h264"))
+        self.assertTrue(hasattr(server, "convert_any_file_h264"))
 
 
 if __name__ == "__main__":

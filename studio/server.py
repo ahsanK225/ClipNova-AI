@@ -1283,7 +1283,7 @@ def open_clip_folder(jid: str, cid: str):
 
 @app.post("/api/jobs/{jid}/clips/{cid}/convert-h264")
 def convert_clip_to_h264(jid: str, cid: str):
-    """Ensure clip video is encoded in standard H.264 MP4 for 100% smooth OpenCut and Chrome/Edge playback."""
+    """Ensure clip video is encoded in standard H.264 MP4 for 100% smooth browser and editor playback."""
     job, clip = _clip_or_404(jid, cid)
     d = Path(job["dir"])
     candidates = [
@@ -1315,7 +1315,7 @@ def convert_clip_to_h264(jid: str, cid: str):
             "codec": codec,
             "path": str(target.resolve()),
             "filename": target.name,
-            "message": "Clip is already encoded in standard H.264! 100% OpenCut and browser ready."
+            "message": "Clip is already encoded in standard H.264! 100% browser and editor ready."
         }
         
     out_file = target.parent / f"{target.stem}_h264.mp4"
@@ -1343,7 +1343,7 @@ def convert_clip_to_h264(jid: str, cid: str):
         "codec": "h264",
         "path": str(out_file.resolve()),
         "filename": out_file.name,
-        "message": "Successfully converted to H.264 MP4! File highlighted in Explorer for OpenCut."
+        "message": "Successfully converted to H.264 MP4! File highlighted in Explorer."
     }
 
 
@@ -1357,7 +1357,7 @@ def convert_any_file_h264(body: dict = Body(...)):
     if not p.exists() or not p.is_file():
         raise HTTPException(400, f"File does not exist: {filepath}")
         
-    out_file = p.parent / f"{p.stem}_opencut_h264.mp4"
+    out_file = p.parent / f"{p.stem}_converted_h264.mp4"
     conv_cmd = [
         "ffmpeg", "-y", "-v", "error",
         "-i", str(p.resolve()),
@@ -1380,7 +1380,7 @@ def convert_any_file_h264(body: dict = Body(...)):
         "ok": True,
         "converted_path": str(out_file.resolve()),
         "filename": out_file.name,
-        "message": f"Successfully converted '{p.name}' to H.264 MP4! Ready for OpenCut."
+        "message": f"Successfully converted '{p.name}' to H.264 MP4!"
     }
 
 
