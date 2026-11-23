@@ -3855,16 +3855,37 @@ window.launchOpenCutNewTab = async function(jid, cid) {
   // 1. Open OpenCut Projects directly (bypassing marketing landing page)
   window.open("https://opencut.app/projects", "_blank");
   
-  // 2. Highlight the video file in Windows Explorer for drag & drop
+  // 2. Ensure standard H.264 & highlight video file in Windows Explorer for drag & drop
   if (currentJid && currentCid) {
     try {
-      await send(`/api/jobs/${encodeURIComponent(currentJid)}/clips/${encodeURIComponent(currentCid)}/open-folder`, {});
-      toast("🌐 OpenCut Projects opened! Clip is highlighted in Windows Explorer — drag it into OpenCut to edit!", "ok", 7000);
+      const res = await send(`/api/jobs/${encodeURIComponent(currentJid)}/clips/${encodeURIComponent(currentCid)}/convert-h264`, {});
+      if (res && res.status === "already_h264") {
+        toast("🌐 OpenCut Projects opened! Clip is 100% H.264 browser-compatible — drag it into OpenCut!", "ok", 7000);
+      } else {
+        toast("🌐 Converted to H.264 MP4 & highlighted in Explorer — drag into OpenCut!", "ok", 7000);
+      }
     } catch {
+      await send(`/api/jobs/${encodeURIComponent(currentJid)}/clips/${encodeURIComponent(currentCid)}/open-folder`, {}).catch(() => {});
       toast("🌐 OpenCut Projects opened in new tab! Drag your clip into OpenCut.", "ok");
     }
   } else {
     toast("🌐 OpenCut Projects opened!", "ok");
+  }
+};
+
+window.convertAnyFileToH264 = async function() {
+  const filepath = prompt("Paste full path of any video file (e.g. C:\\Videos\\stream.mp4) to convert to H.264 for OpenCut:");
+  if (!filepath || !filepath.trim()) return;
+  toast("Converting video to H.264 MP4 via FFmpeg… (~5-10s)", "ok");
+  try {
+    const res = await send("/api/tools/convert-file-h264", { filepath: filepath.trim() });
+    if (res && res.ok) {
+      toast("✅ Converted to H.264 MP4! File highlighted in Explorer — drag it into OpenCut!", "ok", 8000);
+    } else {
+      toast("Conversion failed: " + (res?.message || "Unknown error"), "bad");
+    }
+  } catch (err) {
+    toast("Conversion error: " + (err.message || err), "bad");
   }
 };
 
@@ -4191,6 +4212,9 @@ function renderStudioDrawerContent() {
           </button>
           <button type="button" class="btn sm" onclick="window.open('https://new.opencut.app', '_blank')" style="background:rgba(99,102,241,0.2);border:1px solid rgba(99,102,241,0.4);color:#818CF8;display:inline-flex;align-items:center;gap:6px">
             <span>⚡</span> Next-Gen Rewrite (new.opencut.app)
+          </button>
+          <button type="button" class="btn sm" onclick="convertAnyFileToH264()" style="background:linear-gradient(135deg,#059669,#10B981);border:none;color:#FFF;font-weight:700;display:inline-flex;align-items:center;gap:6px;box-shadow:0 2px 8px rgba(16,185,129,0.3)" title="Convert any external video or stream file to H.264 MP4 to fix OpenCut HEVC error">
+            <span>🔄</span> Convert Video to H.264 (Fix HEVC Error)
           </button>
         </div>
 

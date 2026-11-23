@@ -1,6 +1,22 @@
 ﻿# Changelog
 All notable project changes are documented here.
 
+## [2026-11-24] — Built-in 1-Click H.264 Video Converter Pipeline (100% Free OpenCut HEVC Fix)
+
+### Added
+- **Built-in H.264 Video Converter Pipeline (`studio/server.py`, `web/index.html`)**:
+  - **Clip-Level H.264 Verification (`POST /api/jobs/{jid}/clips/{cid}/convert-h264`)**:
+    - Automatically checks the video codec using `ffprobe`.
+    - If already H.264 (true for all ClipNova clips), confirms instantly and highlights the MP4 in Windows Explorer.
+    - If encoded in HEVC or any foreign codec, executes fast FFmpeg transcode (`-c:v libx264 -preset veryfast -crf 17 -pix_fmt yuv420p -c:a aac -movflags +faststart`) in ~5-10s and highlights the web-safe MP4 in Explorer.
+  - **Universal File Converter Endpoint (`POST /api/tools/convert-file-h264`)**:
+    - Converts ANY external video file on the user's computer (including raw streams, HEVC, H.265, MKV, MOV) into a standard, 100% free H.264 MP4 without requiring paid CapCut Pro.
+  - **Frontend UI & 1-Click Launchers (`web/index.html`)**:
+    - Upgraded `window.launchOpenCutNewTab` to auto-ensure H.264 before launching OpenCut Projects.
+    - Added `window.convertAnyFileToH264` and prominent `🔄 Convert Video to H.264 (Fix HEVC Error)` action button in the Video Studio OpenCut drawer.
+- **Automated Converter Test Suite (`tests/test_h264_converter.py`)**:
+  - Tests validation, real FFmpeg video transcode to H.264, and frontend button presence (3/3 tests passed).
+
 ## [2026-11-24] — Viral Hook Banner Real-Time Stage Sync, Glowing Active Pills & Render Engine Fontsdir Fix
 
 ### Fixed

@@ -693,5 +693,19 @@ ClipNova AI features a non-linear in-browser video editor designed after CapCut 
    - Directly triggers `data-act="remake"` within the Viral Hook Banner accordion.
    - Sends updated hook parameters to `/api/jobs/{jid}/clips/{cid}/render`, allowing creators to burn the banner into the MP4 with 1 click.
 
+---
+
+## 19. OpenCut 100% Free Video Conversion Pipeline (HEVC / H.265 to H.264 MP4)
+1. **The Browser Codec Bottleneck**:
+   - Web browsers on Windows (Chrome, Edge) do not natively decode HEVC / H.265 video without paid proprietary hardware decoder extensions from the Microsoft Store.
+   - Standard H.264 (AVC) MP4 videos are 100% royalty-free and supported by every browser and device without any extensions or fees.
+2. **Autonomous Clip Verification (`POST /api/jobs/{jid}/clips/{cid}/convert-h264`)**:
+   - `ffprobe` probes the clip's video stream codec. If already `h264`, confirms immediately.
+   - If encoded in `hevc` or non-standard format, runs `ffmpeg -y -i "{target}" -c:v libx264 -preset veryfast -crf 17 -pix_fmt yuv420p -c:a aac -movflags +faststart "{out_file}"`.
+   - Windows Explorer automatically highlights the resulting H.264 MP4 file via `explorer.exe /select,"<filepath>"`.
+3. **Universal Converter Utility (`POST /api/tools/convert-file-h264`)**:
+   - Allows creators to convert any external stream file or downloaded recording on their local disk into a browser-safe H.264 file in 5-10 seconds.
+   - Eliminates any dependency on CapCut Pro or commercial paid converters, ensuring the entire workflow remains 100% free and open source.
+
 
 

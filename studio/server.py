@@ -1281,6 +1281,109 @@ def open_clip_folder(jid: str, cid: str):
         raise HTTPException(500, f"Could not open folder: {e}")
 
 
+@app.post("/api/jobs/{jid}/clips/{cid}/convert-h264")
+def convert_clip_to_h264(jid: str, cid: str):
+    """Ensure clip video is encoded in standard H.264 MP4 for 100% smooth OpenCut and Chrome/Edge playback."""
+    job, clip = _clip_or_404(jid, cid)
+    d = Path(job["dir"])
+    candidates = [
+        d / "clips" / f"{cid}.mp4",
+        d / "clips" / f"{cid}_vertical.mp4",
+        d / f"{cid}.mp4",
+    ]
+    target = next((p for p in candidates if p.exists()), None)
+    if not target:
+        raise HTTPException(404, "Clip video file not found")
+        
+    cmd = ["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=codec_name", "-of", "json", str(target)]
+    try:
+        res = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+        info = json.loads(res.stdout) if res.returncode == 0 else {}
+        codec = info.get("streams", [{}])[0].get("codec_name", "").lower()
+    except Exception:
+        codec = "unknown"
+        
+    if codec == "h264" and target.suffix.lower() == ".mp4":
+        if os.name == "nt":
+            try:
+                subprocess.Popen(f'explorer.exe /select,"{str(target.resolve())}"')
+            except Exception:
+                pass
+        return {
+            "ok": True,
+            "status": "already_h264",
+            "codec": codec,
+            "path": str(target.resolve()),
+            "filename": target.name,
+            "message": "Clip is already encoded in standard H.264! 100% OpenCut and browser ready."
+        }
+        
+    out_file = target.parent / f"{target.stem}_h264.mp4"
+    conv_cmd = [
+        "ffmpeg", "-y", "-v", "error",
+        "-i", str(target.resolve()),
+        "-c:v", "libx264", "-preset", "veryfast", "-crf", "17", "-pix_fmt", "yuv420p",
+        "-c:a", "aac", "-b:a", "192k",
+        "-movflags", "+faststart",
+        str(out_file.resolve())
+    ]
+    res_conv = subprocess.run(conv_cmd, capture_output=True, text=True, timeout=180)
+    if res_conv.returncode != 0:
+        raise HTTPException(500, f"FFmpeg conversion failed: {res_conv.stderr}")
+        
+    if os.name == "nt" and out_file.exists():
+        try:
+            subprocess.Popen(f'explorer.exe /select,"{str(out_file.resolve())}"')
+        except Exception:
+            pass
+            
+    return {
+        "ok": True,
+        "status": "converted",
+        "codec": "h264",
+        "path": str(out_file.resolve()),
+        "filename": out_file.name,
+        "message": "Successfully converted to H.264 MP4! File highlighted in Explorer for OpenCut."
+    }
+
+
+@app.post("/api/tools/convert-file-h264")
+def convert_any_file_h264(body: dict = Body(...)):
+    """Convert any external video file (HEVC, H.265, MOV, MKV, etc.) into web-safe H.264 MP4."""
+    filepath = str(body.get("filepath", "")).strip().strip('"').strip("'")
+    if not filepath:
+        raise HTTPException(400, "Please provide a valid video filepath")
+    p = Path(filepath)
+    if not p.exists() or not p.is_file():
+        raise HTTPException(400, f"File does not exist: {filepath}")
+        
+    out_file = p.parent / f"{p.stem}_opencut_h264.mp4"
+    conv_cmd = [
+        "ffmpeg", "-y", "-v", "error",
+        "-i", str(p.resolve()),
+        "-c:v", "libx264", "-preset", "veryfast", "-crf", "17", "-pix_fmt", "yuv420p",
+        "-c:a", "aac", "-b:a", "192k",
+        "-movflags", "+faststart",
+        str(out_file.resolve())
+    ]
+    res = subprocess.run(conv_cmd, capture_output=True, text=True, timeout=300)
+    if res.returncode != 0:
+        raise HTTPException(500, f"Conversion failed: {res.stderr}")
+        
+    if os.name == "nt" and out_file.exists():
+        try:
+            subprocess.Popen(f'explorer.exe /select,"{str(out_file.resolve())}"')
+        except Exception:
+            pass
+            
+    return {
+        "ok": True,
+        "converted_path": str(out_file.resolve()),
+        "filename": out_file.name,
+        "message": f"Successfully converted '{p.name}' to H.264 MP4! Ready for OpenCut."
+    }
+
+
 @app.post("/api/jobs/{jid}/clips/{cid}/export-capcut")
 def export_to_capcut(jid: str, cid: str):
     """Export the clip into a native CapCut desktop project folder with tracks for video, hook, and captions."""
