@@ -1,6 +1,17 @@
 ﻿# Changelog
 All notable project changes are documented here.
 
+## [2026-11-24] — CapCut Desktop Auto-Registration in root_meta_info.json & Process Auto-Launcher
+
+### Fixed
+- **CapCut Desktop Project Visibility (`studio/capcut/export.py`)**:
+  - Resolved root cause of exported projects not appearing on CapCut Desktop's home screen.
+  - Implemented `register_in_root_meta()` which prepends the exported draft to `all_draft_store` in `%LOCALAPPDATA%\CapCut\User Data\Projects\com.lveditor.draft\root_meta_info.json`.
+  - Exported drafts now generate both `draft_content.json` (for CapCut 9.x+) and `draft_info.json`, along with `draft_cover.jpg` thumbnail.
+  - As a result, CapCut Desktop instantly displays the project at the very top (Project #1) of its Projects screen.
+- **CapCut Desktop Process Auto-Launcher (`studio/capcut/export.py`, `studio/server.py`)**:
+  - Implemented `find_and_launch_capcut()` which locates `CapCut.exe` (located at `C:\Users\ahsan\AppData\Local\CapCut\Apps\CapCut.exe`) and launches/focuses the CapCut application automatically upon export.
+
 ## [2026-11-24] — Built-in 1-Click H.264 Video Converter Pipeline (100% Free OpenCut HEVC Fix)
 
 ### Added

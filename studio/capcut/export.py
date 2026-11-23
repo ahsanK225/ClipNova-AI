@@ -132,8 +132,30 @@ def export_clip_to_capcut(job: dict, clip: dict, mp4_path: str = "") -> dict:
         except Exception:
             pass
 
-    # Dump draft content
+    # Dump draft content (both draft_info.json and draft_content.json for CapCut 9.x+ compatibility)
     sf.dump(str(draft_dir / "draft_info.json"))
+    try:
+        sf.dump(str(draft_dir / "draft_content.json"))
+    except Exception:
+        shutil.copyfile(str(draft_dir / "draft_info.json"), str(draft_dir / "draft_content.json"))
+
+    now_us = int(time.time() * 1_000_000)
+
+    # Attach cover image if available
+    cover_file = ""
+    cover_candidates = [
+        Path(mp4_path).with_suffix(".jpg") if mp4_path else None,
+        Path(job.get("dir", "")) / "clips" / f"{cid}.jpg",
+        Path(job.get("dir", "")) / f"{cid}.jpg",
+    ]
+    for cc in cover_candidates:
+        if cc and cc.exists():
+            try:
+                shutil.copyfile(str(cc.resolve()), str(draft_dir / "draft_cover.jpg"))
+                cover_file = str(draft_dir / "draft_cover.jpg")
+                break
+            except Exception:
+                pass
 
     # Update metadata
     meta_path = draft_dir / "draft_meta_info.json"
@@ -141,17 +163,21 @@ def export_clip_to_capcut(job: dict, clip: dict, mp4_path: str = "") -> dict:
         try:
             with open(meta_path, "r", encoding="utf-8") as f:
                 meta = json.load(f)
-            now_us = int(time.time() * 1_000_000)
             meta["draft_name"] = draft_name
             meta["tm_duration"] = dur_us
             meta["tm_draft_create"] = now_us
             meta["tm_draft_modified"] = now_us
             meta["draft_fold_path"] = str(draft_dir)
             meta["draft_root_path"] = str(drafts_root)
+            if cover_file:
+                meta["draft_cover"] = cover_file.replace("/", "\\")
             with open(meta_path, "w", encoding="utf-8") as f:
                 json.dump(meta, f, indent=2, ensure_ascii=False)
         except Exception:
             pass
+
+    # Register in CapCut's root_meta_info.json so it immediately appears on CapCut's Home Projects screen
+    registered = register_in_root_meta(drafts_root, draft_dir, draft_name, dur_us, now_us, cover_file)
 
     return {
         "ok": True,
@@ -159,4 +185,100 @@ def export_clip_to_capcut(job: dict, clip: dict, mp4_path: str = "") -> dict:
         "draft_name": draft_name,
         "message": f"Successfully exported to CapCut Desktop project: {draft_name}",
         "in_capcut_folder": drafts_root.name == "com.lveditor.draft",
+        "registered_in_home": registered,
     }
+
+
+def register_in_root_meta(drafts_root: Path, draft_dir: Path, draft_name: str, dur_us: int, now_us: int, cover_path: str = "") -> bool:
+    """Registers the project into CapCut's root_meta_info.json so CapCut displays it on the homepage."""
+    root_meta_file = drafts_root / "root_meta_info.json"
+    if not root_meta_file.exists():
+        return False
+    try:
+        import uuid
+        with open(root_meta_file, "r", encoding="utf-8") as f:
+            root_data = json.load(f)
+        store = root_data.get("all_draft_store", [])
+        
+        # Remove any existing draft with the same name or folder path to prevent duplicates
+        norm_dir = str(draft_dir).replace("\\", "/")
+        store = [d for d in store if d.get("draft_name") != draft_name and d.get("draft_fold_path") != norm_dir]
+        
+        draft_id = str(uuid.uuid4()).upper()
+        entry = {
+            "cloud_draft_cover": False,
+            "cloud_draft_sync": False,
+            "draft_cloud_last_action_download": False,
+            "draft_cloud_purchase_info": "",
+            "draft_cloud_template_id": "",
+            "draft_cloud_tutorial_info": "",
+            "draft_cloud_videocut_purchase_info": "",
+            "draft_cover": str(cover_path).replace("/", "\\") if cover_path else "",
+            "draft_fold_path": norm_dir,
+            "draft_id": draft_id,
+            "draft_is_ai_shorts": False,
+            "draft_is_cloud_temp_draft": False,
+            "draft_is_infinite_canvas_draft": False,
+            "draft_is_invisible": False,
+            "draft_is_pippit_draft": False,
+            "draft_is_web_article_video": False,
+            "draft_json_file": str(draft_dir / "draft_content.json").replace("/", "\\"),
+            "draft_name": draft_name,
+            "draft_new_version": "",
+            "draft_root_path": str(drafts_root).replace("/", "\\"),
+            "draft_timeline_materials_size": 0,
+            "draft_type": "",
+            "draft_web_article_video_enter_from": "",
+            "pippit_avatar_url": "",
+            "pippit_extra_info": "",
+            "pippit_id": "",
+            "pippit_user_name": "",
+            "streaming_edit_draft_ready": True,
+            "tm_draft_cloud_completed": "",
+            "tm_draft_cloud_entry_id": -1,
+            "tm_draft_cloud_modified": 0,
+            "tm_draft_cloud_parent_entry_id": -1,
+            "tm_draft_cloud_space_id": -1,
+            "tm_draft_cloud_user_id": -1,
+            "tm_draft_create": now_us,
+            "tm_draft_modified": now_us,
+            "tm_draft_removed": 0,
+            "tm_duration": dur_us
+        }
+        # Prepend to the top of the list so it is shown as the first project in CapCut
+        store.insert(0, entry)
+        root_data["all_draft_store"] = store
+        with open(root_meta_file, "w", encoding="utf-8") as f:
+            json.dump(root_data, f, indent=2, ensure_ascii=False)
+        return True
+    except Exception as e:
+        print(f"Warning: Failed to update root_meta_info.json: {e}")
+        return False
+
+
+def find_and_launch_capcut() -> bool:
+    """Finds CapCut.exe on Windows and launches it so CapCut Desktop opens on screen."""
+    import subprocess
+    local_app = os.environ.get("LOCALAPPDATA", "")
+    program_files = os.environ.get("ProgramFiles", "")
+    program_files_x86 = os.environ.get("ProgramFiles(x86)", "")
+    
+    candidates = [
+        Path(local_app) / "CapCut" / "Apps" / "CapCut.exe",
+        Path(program_files) / "CapCut" / "CapCut.exe",
+        Path(program_files_x86) / "CapCut" / "CapCut.exe",
+        Path(local_app) / "Programs" / "CapCut" / "CapCut.exe",
+    ]
+    if local_app and (Path(local_app) / "CapCut" / "Apps").exists():
+        for f in (Path(local_app) / "CapCut" / "Apps").glob("**/CapCut.exe"):
+            candidates.append(f)
+            
+    exe = next((p for p in candidates if p.exists()), None)
+    if exe:
+        try:
+            flags = subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0
+            subprocess.Popen([str(exe.resolve())], creationflags=flags)
+            return True
+        except Exception as e:
+            print("Failed to launch CapCut:", e)
+    return False

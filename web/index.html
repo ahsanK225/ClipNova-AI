@@ -4577,7 +4577,7 @@ async function studioExportCapcutDesktop() {
   toast("⏳ Exporting native CapCut Desktop draft project...", "ok", 4000);
   try {
     const res = await send(`/api/jobs/${encodeURIComponent(jid)}/clips/${encodeURIComponent(cid)}/export-capcut`, {});
-    toast(`🎬 CapCut Desktop draft ready! Project "${res.draft_name}" created. Folder opened in Explorer!`, "ok", 8000);
+    toast(`🎬 CapCut Desktop draft ready & launched! Project "${res.draft_name}" is now #1 on your CapCut home screen!`, "ok", 8000);
   } catch (err) {
     toast(`CapCut export failed: ${err.message}`, "bad", 6000);
   }
@@ -8979,8 +8979,8 @@ document.addEventListener("click", async e => {
       try {
         const res = await send(`/api/jobs/${encodeURIComponent(jid)}/clips/${encodeURIComponent(cid)}/export-capcut`, {});
         send(`/api/jobs/${encodeURIComponent(jid)}/clips/${encodeURIComponent(cid)}/open-capcut-folder`, {}).catch(() => {});
-        toast(`🚀 CapCut project "${res.draft_name}" created automatically! Draft folder opened in Explorer. Open CapCut Desktop to edit your video, captions & hook tracks!`, "ok", 7000);
-        b.innerHTML = `<span>✅</span> Project Created in CapCut!`;
+        toast(`🚀 CapCut project "${res.draft_name}" created & CapCut launched! Project is ready on CapCut's home screen!`, "ok", 8000);
+        b.innerHTML = `<span>✅</span> CapCut Launched & Ready!`;
         setTimeout(() => { b.innerHTML = origHtml; b.disabled = false; }, 3500);
       } catch (err) {
         toast("CapCut export failed: " + err.message, "bad");

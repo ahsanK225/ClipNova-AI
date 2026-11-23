@@ -1400,6 +1400,11 @@ def export_to_capcut(jid: str, cid: str):
     res = export_clip_to_capcut(job, clip, mp4_path=mp4_path)
     if not res.get("ok"):
         raise HTTPException(500, res.get("error", "Failed to export CapCut draft"))
+    try:
+        from studio.capcut import find_and_launch_capcut
+        res["launched"] = find_and_launch_capcut()
+    except Exception:
+        res["launched"] = False
     return res
 
 

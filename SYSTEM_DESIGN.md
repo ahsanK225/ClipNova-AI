@@ -707,5 +707,17 @@ ClipNova AI features a non-linear in-browser video editor designed after CapCut 
    - Allows creators to convert any external stream file or downloaded recording on their local disk into a browser-safe H.264 file in 5-10 seconds.
    - Eliminates any dependency on CapCut Pro or commercial paid converters, ensuring the entire workflow remains 100% free and open source.
 
+---
+
+## 20. CapCut Desktop Auto-Registration & Process Auto-Launcher Architecture
+1. **Root Meta Registration (`root_meta_info.json`)**:
+   - CapCut Desktop manages its home screen projects using `%LOCALAPPDATA%\CapCut\User Data\Projects\com.lveditor.draft\root_meta_info.json`.
+   - `export_clip_to_capcut()` calls `register_in_root_meta()` which prepends the draft to `all_draft_store` at index 0 with a unique `draft_id`, thumbnail cover image, and metadata.
+   - Saves both `draft_content.json` (for modern CapCut 9.x+) and `draft_info.json`.
+2. **CapCut.exe Process Auto-Launcher (`find_and_launch_capcut`)**:
+   - Locates `CapCut.exe` on Windows (`%LOCALAPPDATA%\CapCut\Apps\CapCut.exe`) and launches it via `subprocess.Popen([str(exe)])`.
+   - When CapCut opens, the project is immediately visible as Project #1 at the top of the Projects list.
+
+
 
 
