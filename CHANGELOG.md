@@ -1,6 +1,29 @@
 ﻿# Changelog
 All notable project changes are documented here.
 
+## [2026-11-24] — Viral Hook Banner Real-Time Stage Sync, Glowing Active Pills & Render Engine Fontsdir Fix
+
+### Fixed
+- **Render Engine `fontsdir` Filter Typo in `studio/render.py`**:
+  - Resolved `fontsdir=f` typo on lines 842, 857, and 866 of `studio/render.py` where a broken f-string was passing non-existent folder `f` to FFmpeg.
+  - Defined `FONTS_DIR = str((Path(__file__).resolve().parent / "fonts").resolve().as_posix()).replace(":", "\\:")` ensuring Windows drive colons are escaped (`F\:`) in FFmpeg filtergraphs.
+  - Replaced all 3 instances with `fontsdir='{FONTS_DIR}'`, allowing ASS subtitles, hook banners, and font files (`Anton`, `Poppins`, `Archivo Black`) to load without font errors.
+- **Viral Hook Pill Visual Highlight in `web/index.html`**:
+  - Fixed issue where clicking `#2: LOST ALL HIS MONEY IN GTA 6 😭` or other pills did not show high-contrast active state.
+  - Added `.hook-pill-btn.active-hook` CSS rule with `border: 2px solid #00F0FF !important; background: rgba(0,240,255,0.22) !important; box-shadow: 0 0 12px rgba(0,240,255,0.5) !important; color: #00F0FF !important; transform: scale(1.03);`.
+  - Upgraded `pick_hook` event handler to perform case-insensitive, trimmed comparison and dynamically update all pills to toggle `.active-hook`.
+  - Added background auto-persistence (`PUT /api/jobs/{jid}/clips/{cid}/text`) so selected hooks are immediately saved to the database.
+- **Real-Time Video Stage Overlay Sync & Pop-In Animation**:
+  - In `updateDlgLiveHookOverlay()`, ensured `overlay.style.opacity = "1"` and `overlay.style.transform = "translateX(-50%) scale(1)"` so the hook overlay is never stuck at opacity 0 if the preview video is paused past 3.8s.
+  - Whenever a hook is selected or modified, `vid.currentTime` seeks to 0:00 and triggers `hookPopIn` animation on the stage player.
+- **Dedicated 1-Click "Apply Hook & Re-make Video (~10s)" Button**:
+  - Added a prominent cyan-gradient action button right inside the `Viral Hook Banner` accordion in `#clipdlg`.
+  - Creators can preview live on player, then burn the selected hook banner permanently into the MP4 clip file with 1 click without having to scroll or navigate away.
+
+### Added
+- **Automated Verification Test Suite (`tests/test_hook_banner_sync.py`)**:
+  - Tests `FONTS_DIR` presence, directory validity, font TTF files presence, drive colon escaping, ASS hook events generation, and frontend HTML hook banner classes.
+
 ## [2026-11-24] — Multi-Editor Architecture: Direct Built-in Studio Saved-Clip Loader, CapCut Desktop Auto-Project & OpenCut Projects Direct Link
 
 ### Added

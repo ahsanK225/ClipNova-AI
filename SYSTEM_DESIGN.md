@@ -675,4 +675,23 @@ ClipNova AI features a non-linear in-browser video editor designed after CapCut 
    - Top studio header bar features `<span>🌐</span> Open in OpenCut (New Tab)`.
    - Clip Detail Modal (`#clipdlg`) features direct launch buttons in its Quick Studio Launcher row.
 
+---
+
+## 18. Viral Hook Banner Stage Sync, Glowing Pill Architecture & Render Fontsdir Fix
+1. **Render Engine `FONTS_DIR` Path Resolution & Filtergraph Escaping (`studio/render.py`)**:
+   - Defined `FONTS_DIR = str((Path(__file__).resolve().parent / "fonts").resolve().as_posix()).replace(":", "\\:")` in `studio/render.py`.
+   - On Windows, drive letters in absolute paths (e.g., `F:/...`) contain colons that FFmpeg interprets as option delimiters. Escaping colons (`F\:/...`) allows `ass={name}.ass:fontsdir='{FONTS_DIR}'` to correctly supply TTF fonts (`Anton`, `Poppins`, `Archivo Black`) to `libass` without syntax errors.
+2. **Visual Hook Pill Selection & Active Glowing State (`web/index.html`)**:
+   - High-contrast active styling via `.hook-pill-btn.active-hook`:
+     `background: rgba(0,240,255,0.22) !important; border: 2px solid #00F0FF !important; box-shadow: 0 0 12px rgba(0,240,255,0.5) !important; color: #00F0FF !important; font-weight: 800 !important; transform: scale(1.03);`
+   - Case-insensitive trimmed matching in `pick_hook` dynamically toggles the active class across all pills upon click or AI generation.
+   - Background auto-persistence asynchronously calls `PUT /api/jobs/{jid}/clips/{cid}/text` without blocking UI interaction.
+3. **Stage Video Overlay Live Synchronization (`#dlg_hook_live_overlay`)**:
+   - Immediate visibility enforcement in `updateDlgLiveHookOverlay`: sets `overlay.style.opacity = "1"` and `overlay.style.display = "block"` upon hook selection.
+   - Automatically seeks player playhead `vid.currentTime = 0` if beyond 3.8s, firing `@keyframes hookPopIn` pop-in animation so creators immediately see their chosen hook on the clip video.
+4. **Dedicated In-Accordion "Apply Hook & Re-make Video (~10s)" Action**:
+   - Directly triggers `data-act="remake"` within the Viral Hook Banner accordion.
+   - Sends updated hook parameters to `/api/jobs/{jid}/clips/{cid}/render`, allowing creators to burn the banner into the MP4 with 1 click.
+
+
 

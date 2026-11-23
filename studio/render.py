@@ -60,6 +60,7 @@ HOOK_STYLES = {
     },
 }
 HOOK = HOOK_STYLES["neon"]
+FONTS_DIR = str((Path(__file__).resolve().parent / "fonts").resolve().as_posix()).replace(":", "\\:")
 FONT_FILES = {"Poppins ExtraBold": "Poppins-ExtraBold.ttf", "Anton": "Anton-Regular.ttf", "Archivo Black": "ArchivoBlack-Regular.ttf"}
 CAP_MAX_W = 960   # captions never run wider than this, whatever is said
 
@@ -839,7 +840,7 @@ def _render_in(work: Path, src: Path, out_dir: Path, name: str, start, end, layo
 
         fc = concat_fc + _filter(layout, fg_h, face, facecam_pos=facecam_pos, facecam_delay=facecam_delay,
                      facecam_offset_y=facecam_offset_y, game_offset_x=game_offset_x, zoom=zoom,
-                     custom_layout=custom_layout, vin="v_raw") + f"[v0]ass={name}.ass:fontsdir=f{vf_extra}[v]{audio_filter}"
+                     custom_layout=custom_layout, vin="v_raw") + f"[v0]ass={name}.ass:fontsdir='{FONTS_DIR}'{vf_extra}[v]{audio_filter}"
         base = ["ffmpeg", "-y", "-v", "error"] + seek_args + [
                 "-filter_complex", fc, "-map", "[v]", "-map", "[a]",
                 "-avoid_negative_ts", "make_zero",
@@ -854,7 +855,7 @@ def _render_in(work: Path, src: Path, out_dir: Path, name: str, start, end, layo
                 seek_args += ["-stream_loop", "-1", "-i", str(bgm_path)]
             fc = _filter(layout, fg_h, face, facecam_pos=facecam_pos, facecam_delay=facecam_delay,
                          facecam_offset_y=facecam_offset_y, game_offset_x=game_offset_x, zoom=zoom,
-                         custom_layout=custom_layout) + f"[v0]ass={name}.ass:fontsdir=f{vf_extra}[v];[1:a]asetpts=PTS-STARTPTS,volume={bgm_vol_f:.2f}[bgma];[0:a:0][bgma]amix=inputs=2:duration=first:dropout_transition=2[a_mix];[a_mix]{af_chain}[a]"
+                         custom_layout=custom_layout) + f"[v0]ass={name}.ass:fontsdir='{FONTS_DIR}'{vf_extra}[v];[1:a]asetpts=PTS-STARTPTS,volume={bgm_vol_f:.2f}[bgma];[0:a:0][bgma]amix=inputs=2:duration=first:dropout_transition=2[a_mix];[a_mix]{af_chain}[a]"
             base = ["ffmpeg", "-y", "-v", "error"] + seek_args + [
                     "-filter_complex", fc, "-map", "[v]", "-map", "[a]",
                     "-avoid_negative_ts", "make_zero",
@@ -863,7 +864,7 @@ def _render_in(work: Path, src: Path, out_dir: Path, name: str, start, end, layo
         else:
             fc = _filter(layout, fg_h, face, facecam_pos=facecam_pos, facecam_delay=facecam_delay,
                          facecam_offset_y=facecam_offset_y, game_offset_x=game_offset_x, zoom=zoom,
-                         custom_layout=custom_layout) + f"[v0]ass={name}.ass:fontsdir=f{vf_extra}[v]"
+                         custom_layout=custom_layout) + f"[v0]ass={name}.ass:fontsdir='{FONTS_DIR}'{vf_extra}[v]"
             base = ["ffmpeg", "-y", "-v", "error"] + seek_args + [
                     "-filter_complex", fc, "-map", "[v]", "-map", "0:a:0",
                     "-af", af_chain,

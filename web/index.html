@@ -1313,6 +1313,14 @@ details.card[open] > summary .accordion-chevron {
   box-shadow: 0 0 10px rgba(0, 240, 255, 0.8) !important;
   z-index: 6;
 }
+.hook-pill-btn.active-hook {
+  background: rgba(0, 240, 255, 0.22) !important;
+  border: 2px solid #00F0FF !important;
+  color: #00F0FF !important;
+  box-shadow: 0 0 12px rgba(0, 240, 255, 0.5) !important;
+  font-weight: 800 !important;
+  transform: scale(1.03);
+}
 @keyframes hookPopIn {
   0% { opacity: 0; transform: translateX(-50%) scale(0.75); }
   70% { opacity: 1; transform: translateX(-50%) scale(1.06); }
@@ -5595,11 +5603,17 @@ function drawClipDlg(full) {
               <input data-f="hook" value="${esc(c.hook)}" oninput="updateDlgLiveHookOverlay()" placeholder="e.g. WHAT IS THAT TATTOO 💀" style="font-weight:600">
             </label>
             <div id="dlg_hook_pills" style="display:flex;flex-wrap:wrap;gap:6px;margin:2px 0 10px 0">
-              ${(c.hooks || []).map((h, i) => `
-                <button type="button" class="btn sm hook-pill-btn" data-act="pick_hook" data-hook="${esc(h)}" title="Click to use this hook" style="font-size:10px;padding:2px 8px;font-weight:700;background:var(--bg-1,#120e0c);border:1px solid ${c.hook === h ? 'var(--accent, #00f0ff)' : 'var(--line)'};border-radius:12px;color:${c.hook === h ? 'var(--accent, #00f0ff)' : 'var(--text)'};cursor:pointer">
-                  #${i+1}: ${esc(h)}
-                </button>
-              `).join("")}
+              ${(() => {
+                const curH = (c.hook || "").trim().toLowerCase();
+                return (c.hooks || []).map((h, i) => {
+                  const isMatch = (h || "").trim().toLowerCase() === curH;
+                  return `
+                    <button type="button" class="btn sm hook-pill-btn ${isMatch ? 'active-hook' : ''}" data-act="pick_hook" data-hook="${esc(h)}" title="Click to use this hook" style="font-size:10.5px;padding:3px 10px;font-weight:${isMatch ? '800' : '600'};background:${isMatch ? 'rgba(0,240,255,0.22)' : 'var(--bg-1,#120e0c)'};border:${isMatch ? '2px solid #00F0FF' : '1px solid var(--line)'};border-radius:12px;color:${isMatch ? '#00F0FF' : 'var(--text)'};box-shadow:${isMatch ? '0 0 12px rgba(0,240,255,0.45)' : 'none'};cursor:pointer;transition:all 0.15s ease">
+                      #${i+1}: ${esc(h)}
+                    </button>
+                  `;
+                }).join("");
+              })()}
             </div>
             <div class="two" style="margin-bottom:6px">
               <label class="f">Hook banner style<select data-f="hook_style" onchange="updateDlgLiveHookOverlay()">
@@ -5617,6 +5631,15 @@ function drawClipDlg(full) {
             <div style="display:flex;align-items:center;gap:18px;margin-top:4px">
               <label class="sw" style="margin:0;font-size:11px"><input type="checkbox" data-f="captions" data-caption-toggle ${(c.captions === false || (!('captions' in c) && j.options?.captions === false)) ? "" : "checked"}>Generate captions</label>
               <label class="sw" style="margin:0;font-size:11px"><input type="checkbox" data-f="outro_cta" ${c.outro_cta === false ? "" : "checked"}>End support badge (Outro)</label>
+            </div>
+            <div style="margin-top:12px;padding:8px 12px;background:var(--bg-3);border:1px solid var(--line);border-radius:8px;display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
+              <div style="font-size:11px;color:var(--text-sub);display:flex;align-items:center;gap:6px">
+                <span style="color:#00F0FF;font-weight:800">⚡ Live Hook Preview:</span>
+                <span>Select any hook above &amp; preview on player</span>
+              </div>
+              <button type="button" class="btn sm" data-act="remake" style="background:linear-gradient(135deg,#00F0FF,#00A3FF);color:#000;border:none;font-weight:800;font-size:11px;padding:5px 12px;border-radius:8px;box-shadow:0 2px 10px rgba(0,240,255,0.3);cursor:pointer;display:inline-flex;align-items:center;gap:5px" title="Burn this hook banner permanently into the MP4 clip file (~10s)">
+                <span>🔥</span> Apply Hook &amp; Re-make Video (~10s)
+              </button>
             </div>
           </div>
         </details>
@@ -5969,7 +5992,14 @@ window.updateDlgLiveHookOverlay = function() {
     return;
   }
   overlay.style.display = "block";
+  overlay.style.opacity = "1";
+  overlay.style.transform = "translateX(-50%) scale(1)";
   overlay.innerHTML = renderHookBannerHtml(rawHook, hookStyle);
+  const vid = $("#stage video");
+  if (vid && vid.currentTime > 3.8) {
+    vid.currentTime = 0;
+    vid.play().catch(() => {});
+  }
 };
 
 window.setupDlgHookSync = function() {
@@ -5991,10 +6021,6 @@ window.setupDlgHookSync = function() {
 window.replayDlgHookAnimation = function() {
   const vid = $("#stage video");
   const overlay = $("#dlg_hook_live_overlay");
-  if (vid) {
-    vid.currentTime = 0;
-    vid.play().catch(() => {});
-  }
   if (overlay) {
     overlay.style.display = "block";
     overlay.style.opacity = "1";
@@ -6002,6 +6028,10 @@ window.replayDlgHookAnimation = function() {
     overlay.style.animation = "none";
     void overlay.offsetWidth;
     overlay.style.animation = "hookPopIn 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275)";
+  }
+  if (vid) {
+    vid.currentTime = 0;
+    vid.play().catch(() => {});
   }
 };
 window.grabVideoPlayheadForTeaser = function() {
@@ -8588,7 +8618,7 @@ document.addEventListener("click", async e => {
           const pills = $("#dlg_hook_pills");
           if (pills) {
             pills.innerHTML = res.hooks.map((h, i) => `
-              <button type="button" class="btn sm hook-pill-btn" data-act="pick_hook" data-hook="${esc(h)}" title="Click to use this hook" style="font-size:10px;padding:3px 10px;font-weight:700;background:var(--bg-1,#120e0c);border:1px solid ${i === 0 ? 'var(--accent, #00f0ff)' : 'var(--line)'};border-radius:12px;color:${i === 0 ? 'var(--accent, #00f0ff)' : 'var(--text)'};cursor:pointer">
+              <button type="button" class="btn sm hook-pill-btn ${i === 0 ? 'active-hook' : ''}" data-act="pick_hook" data-hook="${esc(h)}" title="Click to use this hook" style="font-size:10.5px;padding:3px 10px;font-weight:${i === 0 ? '800' : '600'};background:${i === 0 ? 'rgba(0,240,255,0.22)' : 'var(--bg-1,#120e0c)'};border:${i === 0 ? '2px solid #00F0FF' : '1px solid var(--line)'};box-shadow:${i === 0 ? '0 0 12px rgba(0,240,255,0.45)' : 'none'};border-radius:12px;color:${i === 0 ? '#00F0FF' : 'var(--text)'};cursor:pointer;transition:all 0.15s ease">
                 #${i+1}: ${esc(h)}
               </button>
             `).join("");
@@ -8597,6 +8627,11 @@ document.addEventListener("click", async e => {
           if (hookInput) {
             hookInput.value = res.hooks[0];
             if (c) c.hook = res.hooks[0];
+          }
+          if (typeof updateDlgLiveHookOverlay === "function") updateDlgLiveHookOverlay();
+          if (typeof replayDlgHookAnimation === "function") replayDlgHookAnimation();
+          if (D.jid && D.cid && typeof postText === "function") {
+            send(`/api/jobs/${D.jid}/clips/${D.cid}/text`, postText(), "PUT").catch(() => {});
           }
           toast("✨ 5 grounded viral hooks generated from video frames!", "ok");
         } else {
@@ -8618,13 +8653,23 @@ document.addEventListener("click", async e => {
         const j = jobOf(D.jid);
         const clp = j?.clips.find(x => x.id === D.cid);
         if (clp) clp.hook = h;
+        const activeH = (h || "").trim().toLowerCase();
         $$(".hook-pill-btn").forEach(btn => {
-          const match = (btn.dataset.hook === h);
-          btn.style.border = match ? "1px solid var(--accent, #00f0ff)" : "1px solid var(--line)";
-          btn.style.color = match ? "var(--accent, #00f0ff)" : "var(--text)";
+          const btnH = (btn.dataset.hook || "").trim().toLowerCase();
+          const match = (btnH === activeH);
+          if (match) {
+            btn.classList.add("active-hook");
+            btn.style.cssText = "font-size:10.5px;padding:3px 10px;font-weight:800;background:rgba(0,240,255,0.22)!important;border:2px solid #00F0FF!important;box-shadow:0 0 12px rgba(0,240,255,0.45)!important;color:#00F0FF!important;border-radius:12px;cursor:pointer;transform:scale(1.03);transition:all 0.15s ease";
+          } else {
+            btn.classList.remove("active-hook");
+            btn.style.cssText = "font-size:10.5px;padding:3px 10px;font-weight:600;background:var(--bg-1,#120e0c);border:1px solid var(--line);box-shadow:none;color:var(--text);border-radius:12px;cursor:pointer;transform:scale(1);transition:all 0.15s ease";
+          }
         });
         if (typeof updateDlgLiveHookOverlay === "function") updateDlgLiveHookOverlay();
         if (typeof replayDlgHookAnimation === "function") replayDlgHookAnimation();
+        if (D.jid && D.cid && typeof postText === "function") {
+          send(`/api/jobs/${D.jid}/clips/${D.cid}/text`, postText(), "PUT").catch(() => {});
+        }
         toast(`Hook set: ${h}`, "ok");
       }
       return;
@@ -8845,11 +8890,15 @@ document.addEventListener("click", async e => {
           // Dynamically refresh hook and title pills:
           const hookPills = $("#dlg_hook_pills");
           if (hookPills && c.hooks && c.hooks.length) {
-            hookPills.innerHTML = c.hooks.map((h, i) => `
-              <button type="button" class="btn sm hook-pill-btn" data-act="pick_hook" data-hook="${esc(h)}" title="Click to use this hook" style="font-size:10px;padding:2px 8px;font-weight:700;background:var(--bg-2);border:1px solid ${c.hook === h ? 'var(--accent, #00f0ff)' : 'var(--line)'};border-radius:12px;color:${c.hook === h ? 'var(--accent, #00f0ff)' : 'var(--text)'};cursor:pointer">
-                #${i+1}: ${esc(h)}
-              </button>
-            `).join("");
+            const curH = (c.hook || "").trim().toLowerCase();
+            hookPills.innerHTML = c.hooks.map((h, i) => {
+              const isMatch = (h || "").trim().toLowerCase() === curH;
+              return `
+                <button type="button" class="btn sm hook-pill-btn ${isMatch ? 'active-hook' : ''}" data-act="pick_hook" data-hook="${esc(h)}" title="Click to use this hook" style="font-size:10.5px;padding:3px 10px;font-weight:${isMatch ? '800' : '600'};background:${isMatch ? 'rgba(0,240,255,0.22)' : 'var(--bg-1,#120e0c)'};border:${isMatch ? '2px solid #00F0FF' : '1px solid var(--line)'};box-shadow:${isMatch ? '0 0 12px rgba(0,240,255,0.45)' : 'none'};border-radius:12px;color:${isMatch ? '#00F0FF' : 'var(--text)'};cursor:pointer;transition:all 0.15s ease">
+                  #${i+1}: ${esc(h)}
+                </button>
+              `;
+            }).join("");
           }
           const titlePills = $("#dlg_title_pills");
           const seoTitlePills = $("#dlg_seo_title_pills");
