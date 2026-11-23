@@ -716,6 +716,31 @@ ClipNova AI features a non-linear in-browser video editor designed for high-velo
    - Locates `CapCut.exe` on Windows (`%LOCALAPPDATA%\CapCut\Apps\CapCut.exe`) and launches it via `subprocess.Popen([str(exe)])`.
    - When CapCut opens, the project is immediately visible as Project #1 at the top of the Projects list.
 
+---
+
+## 21. Workspace-Wide Automated Viral Hooks & High-CTR SEO Architecture
+1. **Core Problem & Grounding**:
+   - Historical clips and streams clipped without multimodal context often suffered from streamer hallucinations (e.g. OhnePixel clips referencing "Speed"), missing punch highlights, or absent `#Shorts` tags.
+2. **Automated Normalization Engine**:
+   - Scans all jobs across the database (`data/users/u_local/**/job.json` and sidecar `clips/{cid}.json`).
+   - Dynamically resolves streamer identity (`OhnePixel`, `xQc`, `MrBeast`, `Ducky`) based on creator and stream metadata.
+   - Replaces any hallucinated references with accurate creator context.
+3. **Canary Yellow Punch Word Highlight Syntax**:
+   - Analyzes clip headline words against a comprehensive hierarchy of high-velocity keywords (`ENGINE`, `CAR`, `POLICE`, `CHOPPER`, `BUSTED`, `DISASTER`, `ROASTED`, `LOOTING`, `CRASH`, `DRIVING`, `FAIL`, `MONEY`, `20K`, `WEAPON`, `VIOLENCE`, `SURVIVED`, etc.).
+   - Surrounds the single most impactful punch word in asterisks (`*WORD*`), which the stage player overlay (`#dlg_hook_live_overlay`) and render engine format in high-contrast Canary Yellow.
+4. **6 Diverse AI Viral Hooks Matrix**:
+   - Each clip is provisioned with 6 distinct angles:
+     1. Disbelief / Reaction
+     2. Unexpected Outcome
+     3. Curiosity Gap
+     4. Relatable Gaming Fail
+     5. Climax
+     6. Urgent Question / Challenge
+   - Active Pill #1 is highlighted in glowing cyan (`.active-hook`).
+5. **High-CTR YouTube Shorts Discoverability**:
+   - Standardizes titles under 75 characters concluding with `#Shorts`.
+   - Generates 15-20 targeted search tags and discussion-sparking pinned comments to optimize YouTube algorithm velocity.
+
 
 
 

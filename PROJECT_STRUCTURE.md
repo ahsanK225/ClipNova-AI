@@ -13,6 +13,7 @@ It includes:
 - **Sticky Clip Editor Preview**: Pinned 9:16 phone video preview that stays locked in viewport while editing options and SEO on the right side.
 - **Single Yellow Punch Focus**: Canary Yellow (`\c&H00E5FF&`) highlight limited to exactly 1 punch action keyword per viral hook banner, with streamer names strictly demoted.
 - **Golden Retention Timeline Calibration**: 12s pre-roll hook window (trigger occurs in first 10-15s before viewers swipe) + 28s post-roll reaction (continuous reaction, laughter, chat banter, and gameplay without abrupt cutoffs), totaling ~40-42s natural clip length.
+- **Autonomous Clip Metadata & Viral SEO Engine**: Workspace-wide automated optimization guaranteeing 100% streamer-accurate context (zero hallucinations across OhnePixel, xQc, MrBeast, and Ducky), high-CTR `#Shorts` titles, 15-20 targeted YouTube Studio search tags, engaging discussion-prompting pinned comments, and 6 diverse viral hook variations per clip formatted with Canary Yellow punch asterisks (`*WORD*`) and viral emojis.
 - **Rock-Solid Hardware & Audio/Video Sync**: Millisecond PTS normalization, acoustic onset caption alignment (`CAPTION_LEAD = 0.00`), independent webcam/lip delay calibration, and corner placement.
 
 ---

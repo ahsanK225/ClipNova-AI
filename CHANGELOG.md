@@ -1,6 +1,30 @@
 ﻿# Changelog
 All notable project changes are documented here.
 
+## [2026-11-24] — Workspace-Wide Automated Viral Hooks & High-CTR SEO Optimization Across All 346 Clips
+
+### Added & Optimized
+- **Workspace-Wide SEO & Viral Hook Optimization**:
+  - Per user request ("ya ak kam karo jetni bhi videos bani hain onki tom khud ak best c seo or hooks laga lo sab ki sab videos ki jo jo hamne clip kiye hain"), executed full automated audit and optimization across all 74 jobs and 346 clips in the database:
+    1. **Eradicated Streamer Hallucinations (45 clips)**: In OhnePixel stream clips, eliminated all incorrect "Speed" references in hook banners, titles, and comments, replacing them with accurate streamer context (`OhnePixel`).
+    2. **Canary Yellow Punch Word Formatting (346 clips)**: Enclosed the key visual action or fail word in asterisks (e.g. `*INSANE*`, `*CAR*`, `*ENGINE*`, `*LOOTING*`, `*POLICE*`, `*BUSTED*`, `*ROASTED*`, `*DISASTER*`, `*ADDICTED*`), activating vibrant Canary Yellow punch rendering in the live video stage player overlay.
+    3. **6 AI Viral Hook Variations per Clip**: Populated `clip["hooks"]` with 6 diverse viral angles (Disbelief, Unexpected Outcome, Curiosity Gap, Gaming Fail, Climax, Urgent Question) with active-cyan glowing highlight on Pill #1.
+    4. **High-CTR YouTube Shorts Titles & SEO (`#Shorts`)**: Standardized all titles under 75 characters with curiosity-inducing copy, relevant emojis, and mandatory `#Shorts` suffix.
+    5. **15-20 Targeted YouTube Search Tags**: Enriched each clip with a comprehensive keyword matrix covering game name, streamer, gameplay categories, fail/funny tags, and Shorts discoverability.
+    6. **Engaging Pinned Comments**: Crafted custom, discussion-sparking questions for each clip to prompt viewer comment activity and boost YouTube algorithm velocity.
+    7. **Disk & Sidecar Persistence**: Updated both primary `job.json` and sidecar `clips/{cid}.json` files across all jobs.
+
+### Tests and Verification
+- Automated clip audit script (`scratch/audit_all_clips.py`): Scanned 346 clips; verified 0 remaining issues (0 hallucinations, 0 missing punch highlights, 0 missing emojis, 0 missing `#Shorts`, 0 weak tags, 0 missing pinned comments).
+- Unit test suites: 14/14 tests passed (`test_hook_overlay_no_duplicate.py`, `test_video_studio.py`, `test_h264_converter.py`).
+- Browser subagent visual verification via `9ba31632-2bf4-420d-aab2-43274b4d5f90`:
+  - Verified `#clipdlg` modal on `http://localhost:8765/app/creators/ohnepixel`.
+  - Confirmed hook banner `GRAND THEFT AUTO VI INFLUENCERS ARE *INSANE* 😳` with asterisk punch highlight.
+  - Confirmed all 6 AI hook pills rendered, with pill #1 active-highlighted in cyan glow.
+  - Confirmed `#Shorts` in SEO Title, rich Description with hashtags, and engaging Pinned Comment.
+  - Confirmed clean single overlay in player with no duplicate banners.
+  - High-res screenshots: `all_clips_best_seo_and_hooks_player_verified.png` and `all_clips_best_seo_and_hooks_verified.png`.
+
 ## [2026-11-24] — Complete Removal of OpenCut Files, UI Tabs & Code from Project
 
 ### Removed
