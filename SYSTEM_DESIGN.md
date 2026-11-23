@@ -230,7 +230,11 @@ Integrated directly in `studio/brain.py` and `studio/posting.py`:
 2. **Pure AI Clipping Mode (Zero Trigger Keywords)**:
    - When `trigger_words` is empty, `live.py` completely bypasses both built-in `CLIP_WORDS` and custom keyword checks.
    - Auto-clipping operates in pure AI mode driven by audio loudness bursts, chat velocity spikes, scheduled intervals, and Gemini multimodal visual/transcript verification.
-   - Setup UI features 1-click `Clear All (AI Only)` and `Restore Defaults` buttons.
+   - Setup UI features 1-click `Clear for <Creator> (Pure AI)` and `Restore Defaults for <Creator>` buttons.
+3. **Strict Creator-Scoped Isolation**:
+   - Trigger keywords are strictly isolated per creator: stored independently in `users/<uid>/creators/<cid>/creator.json`.
+   - Modifying or clearing trigger words for one creator (e.g. enabling Pure AI mode for `ohnepixel`) strictly touches only that creator's record. Other creators (`ishowspeed`, `xqc`, `ducky-reloaded`, `mrbeast`) remain completely unaffected with their full default or custom trigger words intact.
+   - Frontend setup UI renders creator-specific labels (`Always clip the last 30 seconds when someone says on <Creator>'s stream:`), a dedicated `👤 Isolated to <Creator>` badge, explanatory context, and creator-named action buttons (`🗑️ Clear for <Creator> (Pure AI)` and `🔄 Restore Defaults for <Creator>`).
 
 ---
 

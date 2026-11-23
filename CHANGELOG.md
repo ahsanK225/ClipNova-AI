@@ -1,6 +1,31 @@
 ﻿# Changelog
 All notable project changes are documented here.
 
+## [2026-11-23] — Creator-Scoped Trigger Words Isolation & Explicit UI Safeguards
+
+### Fixed
+- **Restored Default Trigger Words for xQc (`data/users/u_local/creators/xqc/creator.json`)**:
+  - Restored full `MASTER_TRIGGER_WORDS` (628 characters) for `xqc` following previous testing runs.
+  - Confirmed and verified that all creators (`ishowspeed`, `ducky-reloaded`, `jenkins-clips`, `mrbeast`) retain their full trigger keywords intact, while `ohnepixel` maintains its user-requested Pure AI mode (empty trigger words).
+
+### Added
+- **Explicit Creator-Isolated Trigger Words UI (`web/index.html`)**:
+  - Replaced ambiguous generic label and buttons with explicit creator-branded controls in `#cform`:
+    - Header: `Always clip the last 30 seconds when someone says on <Creator>'s stream:`
+    - Pill Badge: `👤 Isolated to <Creator>`
+    - Contextual Explanatory Subtext: `🔒 Per-Creator Isolation: Changes here apply strictly to <Creator> and will never affect other creators. Leave empty to disable keyword triggers (pure AI-only scoring).`
+    - Action Buttons: `🗑️ Clear for <Creator> (Pure AI)` and `🔄 Restore Defaults for <Creator>`.
+    - Live Toasts: Clearly state that actions and clears apply strictly to the active creator and leave all other creators untouched.
+- **Creator Isolation Verification Tests (`tests/test_creators_trigger_words.py`)**:
+  - Added `test_06_creator_trigger_words_isolation` asserting that creating multiple creators, clearing trigger words for Creator A, or modifying them to custom phrases leaves Creator B completely untouched with its full default `MASTER_TRIGGER_WORDS` intact across in-memory cache, disk persistence, and cache eviction cycles.
+
+### Tests and Verification
+- Executed unit test suite `tests/test_creators_trigger_words.py`: 7/7 tests passed cleanly (100% success).
+- Real browser subagent visual inspection on `http://127.0.0.1:8765`:
+  - Verified `xQc` Setup displays full trigger words with `👤 Isolated to xQc` badge and action buttons.
+  - Verified `ohnepixel` Setup displays empty trigger words with `👤 Isolated to ohnepixel` badge and action buttons.
+  - Verification screenshots captured: `artifacts/xqc_trigger_words_verified.png` and `artifacts/ohnepixel_trigger_words_isolated.png`.
+
 ## [2026-11-23] — Option A Autonomous Hourly Views Velocity Tracker & Hybrid Algorithm Priming Publishing Engine
 
 ### Added

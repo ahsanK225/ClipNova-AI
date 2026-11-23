@@ -163,6 +163,45 @@ class TestCreatorTriggerWords(unittest.TestCase):
             s_ohne._triggers(p)
         self.assertEqual(len(s_ohne.manual), 0, "OhnePixel with empty trigger_words must produce 0 keyword clips")
 
+    def test_06_creator_trigger_words_isolation(self):
+        """Verifies strict isolation: clearing or modifying trigger_words for Creator A NEVER affects Creator B."""
+        # Create two distinct creators
+        c1 = creators.create({"name": "Streamer Alpha Isolated"})
+        c2 = creators.create({"name": "Streamer Beta Isolated"})
+        cid1, cid2 = c1["id"], c2["id"]
+        self.created_cids.extend([cid1, cid2])
+
+        # Both initially have MASTER_TRIGGER_WORDS
+        self.assertEqual(creators.get(cid1)["trigger_words"], creators.MASTER_TRIGGER_WORDS)
+        self.assertEqual(creators.get(cid2)["trigger_words"], creators.MASTER_TRIGGER_WORDS)
+
+        # Clear trigger_words ONLY for Creator 1 (Pure AI mode)
+        creators.update(cid1, {"trigger_words": ""})
+
+        # Verify Creator 1 is empty, but Creator 2 STILL HAS FULL DEFAULT TRIGGER WORDS!
+        self.assertEqual(creators.get(cid1)["trigger_words"], "")
+        self.assertEqual(creators.get(cid2)["trigger_words"], creators.MASTER_TRIGGER_WORDS)
+        self.assertGreater(len(creators.get(cid2)["trigger_words"]), 500)
+
+        # Update Creator 2 to custom trigger words
+        custom_kw = "clutch that, what a play"
+        creators.update(cid2, {"trigger_words": custom_kw})
+
+        # Verify Creator 1 remains empty while Creator 2 has custom keywords
+        self.assertEqual(creators.get(cid1)["trigger_words"], "")
+        self.assertEqual(creators.get(cid2)["trigger_words"], custom_kw)
+
+        # Restore defaults for Creator 1
+        creators.update(cid1, {"trigger_words": creators.MASTER_TRIGGER_WORDS})
+        self.assertEqual(creators.get(cid1)["trigger_words"], creators.MASTER_TRIGGER_WORDS)
+        # Creator 2 still retains its own custom keywords!
+        self.assertEqual(creators.get(cid2)["trigger_words"], custom_kw)
+
+        # Verify persistence from disk after cache eviction
+        creators.forget(self.uid)
+        self.assertEqual(creators.get(cid1)["trigger_words"], creators.MASTER_TRIGGER_WORDS)
+        self.assertEqual(creators.get(cid2)["trigger_words"], custom_kw)
+
 
 if __name__ == "__main__":
     unittest.main()
