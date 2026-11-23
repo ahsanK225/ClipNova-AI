@@ -1134,6 +1134,31 @@ dialog[open]{animation:fadein .16s ease}
 .cal-anim-fadein {
   animation: calFadeInUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
+details.card > summary {
+  list-style: none;
+  cursor: pointer;
+  user-select: none;
+}
+details.card > summary::-webkit-details-marker {
+  display: none;
+}
+details.card .accordion-chevron {
+  display: inline-block;
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  font-size: 13px;
+  color: var(--text-sub, #94A3B8);
+}
+details.card[open] > summary .accordion-chevron {
+  transform: rotate(180deg);
+}
+@media (max-width: 860px) {
+  .meters {
+    grid-template-columns: 1fr 1fr !important;
+  }
+  .meters .meter:last-child {
+    grid-column: span 2;
+  }
+}
 </style>
 </head>
 <body>
@@ -1162,6 +1187,7 @@ dialog[open]{animation:fadein .16s ease}
 <dialog id="formdlg"></dialog>
 <dialog id="layout_gallery_dlg" style="border:none;background:transparent;padding:0"></dialog>
 <dialog id="custom_layout_dlg" style="border:none;background:transparent;padding:0"></dialog>
+<dialog id="cal_picker_dlg" style="border:none;background:transparent;padding:0"></dialog>
 <input type="file" id="cls_upload_input" accept="image/*" hidden>
 <input type="file" id="file" accept="video/*" multiple hidden>
 <div id="toasts" role="status" aria-live="polite"></div>
@@ -1787,7 +1813,7 @@ function pathFor(v, tab) {
   return "/app" + (ROUTES[v] ? "/" + ROUTES[v] : "");
 }
 function fromPath(path) {
-  const m = path.match(/^\/app\/creators\/([^/]+)(?:\/(setup|activity|clips))?\/?$/);
+  const m = path.match(/^\/app\/creators\/([^/]+)(?:\/(setup|activity|clips|calendar))?\/?$/);
   if (m) return ["c:" + decodeURIComponent(m[1]), m[2] || "clips"];
   const st = path.match(/^\/app\/settings(?:\/(ai|seo|profile|security|apps|speech|storage))?\/?$/);
   if (st) return ["settings", st[1] || null];
@@ -1800,11 +1826,12 @@ function remember(v, tab, how = "push") {
 }
 addEventListener("popstate", () => { const [v, tab] = fromPath(location.pathname); go(v, tab, true); });
 function go(v, tab, fromHistory) {
-  if (v.startsWith("c:") && !S.creators.some(c => "c:" + c.id === v)) v = "overview";
+  if (v.startsWith("c:") && S.creators && S.creators.length > 0 && !S.creators.some(c => "c:" + c.id === v)) v = "overview";
   S.view = v; if (tab) S.ctab = tab; else if (!v.startsWith("c:")) S.ctab = "clips";
   if (v === "settings") S.stab = setTabs().some(x => x[0] === tab) ? tab : setTabs()[0][0];
   if (!fromHistory) remember(v, v.startsWith("c:") ? S.ctab : v === "settings" ? S.stab : null);
   localStorage.setItem("view", v);
+  if (v.startsWith("c:") && S.ctab) localStorage.setItem("ctab", S.ctab);
   $("#app").classList.remove("open");
   const view = $("#view");
   if (window._gaStop) { try { window._gaStop(); } catch {} window._gaStop = null; }
@@ -2516,10 +2543,10 @@ function liveHtml(j) {
       <div class="stat"><b>${L.checks}</b><span>AI calls${L.skipped ? ` · ${L.skipped} skipped` : ""}${L.rejected ? ` · ${L.rejected} turned down` : ""}</span></div><div class="stat"><b>${j.clips.length}</b><span>Clips so far</span></div>
       <div class="stat"><b style="color:var(--accent,#00F0FF);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;font-weight:700">${esc(S.status?.ai?.model || 'gemini-3.5-flash-lite')}</b><span>Active AI Model</span></div>
       ${L.pending_clips ? `<div class="stat"><b>${L.pending_clips}</b><span>Hand clip being prepared</span></div>` : ""}</div>
-    <div class="meters" style="grid-template-columns: repeat(auto-fit, minmax(280px, 1fr))">
-      <div class="meter"><h4>Loudness, last minute</h4>${spark(L.level, "", -55, -8)}</div>
-      ${L.chat ? `<div class="meter"><h4>Chat messages per second</h4>${spark(L.chat, "chat", 0, Math.max(4, ...L.chat))}</div>` : ""}
-      <div class="meter" style="min-width: 0; display:flex; flex-direction:column">
+    <div class="meters" style="display:grid;grid-template-columns: minmax(130px, 170px) minmax(130px, 170px) minmax(360px, 1fr); gap: 12px; align-items: stretch;">
+      <div class="meter" style="padding:10px 12px"><h4>Loudness</h4>${spark(L.level, "", -55, -8)}</div>
+      ${L.chat ? `<div class="meter" style="padding:10px 12px"><h4>Chat / sec</h4>${spark(L.chat, "chat", 0, Math.max(4, ...L.chat))}</div>` : ""}
+      <div class="meter" style="min-width: 0; display:flex; flex-direction:column; padding:10px 14px">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
           <h4 style="margin:0;display:flex;align-items:center;gap:6px"><span>🧠</span> Latest AI Decisions</h4>
           <span class="pill" style="font-size:9.5px;padding:1px 6px;border-radius:10px;background:rgba(0,240,255,0.1);color:var(--accent,#00F0FF);border:1px solid rgba(0,240,255,0.25);font-weight:700">● LIVE MONITOR</span>
@@ -3190,8 +3217,8 @@ async function renderCreatorCalendarCard(c, targetEl, isCompact = false) {
                             <span style="font-size:10px">Paired Post: <b>${sl.community_time_pkt} PKT (+30m)</b></span>
                           </div>
 
-                          <button type="button" class="btn sm" data-act="cal_goto_clips" style="margin-top:auto;padding:5px 10px;font-size:11px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.09);color:#94A3B8;border-radius:8px;justify-content:center">
-                            ➕ Queue Next Video
+                          <button type="button" class="btn sm" onclick="openCalendarSlotPicker('${esc(c.id)}', ${sl.video_timestamp}, ${sl.slot_num}, '${esc(sl.video_time_pkt)}', '${esc(sl.video_us_east_str)} · ${esc(sl.video_us_west_str)}', '${esc(sl.cycle_date)}')" style="margin-top:auto;padding:6px 12px;font-size:11px;background:linear-gradient(135deg,rgba(0,240,255,0.15),rgba(99,102,241,0.2));border:1px solid rgba(0,240,255,0.3);color:#00F0FF;font-weight:700;border-radius:8px;justify-content:center;cursor:pointer;display:inline-flex;align-items:center;gap:6px">
+                            <span>➕</span> Queue Next Video
                           </button>
                         </div>
                       `;
@@ -3231,6 +3258,9 @@ async function renderCreatorCalendarCard(c, targetEl, isCompact = false) {
                   <span style="font-size:13px">📢</span>
                   <span style="font-size:10px">Paired Community Post: <b>${sl.community_time_pkt} PKT (+30m)</b></span>
                 </div>
+                <button type="button" class="btn sm" onclick="openCalendarSlotPicker('${esc(c.id)}', ${sl.video_timestamp}, ${sl.slot_num}, '${esc(sl.video_time_pkt)}', '${esc(sl.video_us_east_str)} · ${esc(sl.video_us_west_str)}', '${esc(sl.cycle_date)}')" style="margin-top:auto;padding:5px 10px;font-size:11px;background:rgba(0,240,255,0.1);border:1px solid rgba(0,240,255,0.25);color:#00F0FF;border-radius:6px;justify-content:center;cursor:pointer;display:inline-flex;align-items:center;gap:4px">
+                  <span>➕</span> Assign Clip to Slot
+                </button>
               </div>
             `;
           }).join('')}
@@ -3311,6 +3341,166 @@ function drawCreatorCalendarTab() {
   if (!c || !box) return;
   renderCreatorCalendarCard(c, box, false);
 }
+
+async function openCalendarSlotPicker(cid, slotTs, slotNum, pktTimeStr, usaTimeStr, cycleDate) {
+  const dlg = $("#cal_picker_dlg");
+  if (!dlg) return;
+
+  dlg.innerHTML = `
+    <div style="background:#0F172A;color:#fff;border:1px solid #1E293B;border-radius:20px;max-width:880px;width:95vw;max-height:88vh;display:flex;flex-direction:column;box-shadow:0 30px 90px rgba(0,0,0,0.9);overflow:hidden;animation:calFadeInUp 0.25s ease">
+      <!-- Header -->
+      <div style="padding:18px 24px;border-bottom:1px solid rgba(255,255,255,0.08);background:linear-gradient(135deg, rgba(0,240,255,0.1), rgba(99,102,241,0.12));display:flex;align-items:center;justify-content:space-between">
+        <div style="display:flex;align-items:center;gap:12px">
+          <div style="width:42px;height:42px;border-radius:12px;background:rgba(0,240,255,0.15);border:1px solid rgba(0,240,255,0.3);display:flex;align-items:center;justify-content:center;font-size:22px;box-shadow:0 0 15px rgba(0,240,255,0.2)">
+            ⚡
+          </div>
+          <div>
+            <div style="display:flex;align-items:center;gap:8px">
+              <h2 style="margin:0;font-size:17px;font-weight:800;color:#F8FAFC">
+                Schedule Ready Video · Slot ${slotNum}
+              </h2>
+              <span class="pill" style="font-size:10px;padding:2px 8px;border-radius:10px;background:rgba(0,240,255,0.15);color:#00F0FF;border:1px solid rgba(0,240,255,0.3);font-weight:700">USA Publishing Calendar</span>
+            </div>
+            <div style="margin-top:4px;font-size:12px;color:#94A3B8;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+              <span>🇵🇰 <b>${esc(pktTimeStr)} PKT</b> (${esc(cycleDate)})</span>
+              <span style="opacity:0.4">•</span>
+              <span style="color:#38BDF8">🇺🇸 <b>${esc(usaTimeStr)}</b></span>
+              <span style="opacity:0.4">•</span>
+              <span style="color:#D8B4FE">📢 Community Post (+30m)</span>
+            </div>
+          </div>
+        </div>
+        <button class="btn icon ghost" onclick="$('#cal_picker_dlg').close()" aria-label="Close" style="color:#94A3B8;font-size:18px;cursor:pointer">${ic("x")}</button>
+      </div>
+
+      <!-- Content -->
+      <div id="cal_picker_content" style="padding:20px 24px;overflow-y:auto;flex:1;display:flex;flex-direction:column;gap:14px">
+        <div style="padding:40px;text-align:center;color:var(--text-dim);font-size:13px">
+          <span class="spin" style="font-size:20px">⏳</span> Loading ready clips for this creator...
+        </div>
+      </div>
+    </div>
+  `;
+
+  dlg.showModal();
+
+  try {
+    const data = await api(`/api/creators/${cid}/ready-clips`);
+    const clips = data?.clips || [];
+    const container = $("#cal_picker_content");
+    if (!container) return;
+
+    if (!clips.length) {
+      container.innerHTML = `
+        <div style="padding:48px 24px;text-align:center;background:rgba(255,255,255,0.02);border:1px dashed rgba(255,255,255,0.1);border-radius:14px">
+          <div style="font-size:36px;margin-bottom:12px">🎬</div>
+          <h3 style="margin:0 0 6px 0;font-size:15px;color:#F8FAFC">Abhi koi rendered video clip tayyar nahi hai</h3>
+          <p style="margin:0 auto 16px;max-width:440px;font-size:12px;color:#94A3B8;line-height:1.5">
+            Jab live stream se video clip render ho jayegi, wo automatically yahan list ho jayegi aur aap 1-click se use is slot par assign kar sakenge.
+          </p>
+          <button type="button" class="btn primary sm" onclick="$('#cal_picker_dlg').close(); go('c:' + '${esc(cid)}', 'clips');" style="font-weight:700">
+            View Clips &amp; Recordings
+          </button>
+        </div>
+      `;
+      return;
+    }
+
+    container.innerHTML = `
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+        <span style="font-size:12px;color:#94A3B8;font-weight:600">
+          Available ready clips (${clips.length}):
+        </span>
+        <span style="font-size:11px;color:#64748B">
+          Click "Schedule to this Slot" to publish at ${esc(pktTimeStr)} PKT
+        </span>
+      </div>
+
+      <div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(260px, 1fr));gap:12px">
+        ${clips.map(cl => {
+          const thumbUrl = cl.cover ? `/media/${cl.job_id}/${cl.cover}` : "";
+          const dur = cl.duration ? `${Math.round(cl.duration)}s` : "Short";
+          const isCurrentSlot = cl.is_scheduled && Math.abs((cl.scheduled_at || 0) - slotTs) < 5400;
+
+          return `
+            <div style="background:rgba(18,24,38,0.85);border:1px solid ${isCurrentSlot ? 'rgba(0,255,136,0.5)' : cl.is_scheduled ? 'rgba(255,255,255,0.1)' : 'rgba(0,240,255,0.25)'};border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:10px;transition:all .15s ease;box-shadow:${isCurrentSlot ? '0 0 15px rgba(0,255,136,0.15)' : 'none'}">
+              <div style="display:flex;gap:10px;align-items:flex-start">
+                <div style="width:64px;height:96px;border-radius:8px;overflow:hidden;flex-shrink:0;background:#000;border:1px solid rgba(255,255,255,0.12);position:relative">
+                  ${thumbUrl ? `<img src="${thumbUrl}" style="width:100%;height:100%;object-fit:cover" alt="">` : `<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#475569;font-size:20px">🎬</div>`}
+                  <span style="position:absolute;bottom:4px;right:4px;background:rgba(0,0,0,0.75);font-size:9.5px;font-weight:700;padding:1px 4px;border-radius:4px;color:#FFF;font-family:monospace">
+                    ${dur}
+                  </span>
+                </div>
+                <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:4px">
+                  <div style="font-size:12px;font-weight:700;color:#F8FAFC;line-height:1.35;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical">
+                    ${esc(cl.title || 'Ready Clip')}
+                  </div>
+                  <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap">
+                    ${cl.score ? `<span class="pill" style="font-size:9.5px;padding:1px 6px;border-radius:4px;background:rgba(0,240,255,0.12);color:#00F0FF;border:1px solid rgba(0,240,255,0.3);font-weight:700">⚡ Score ${cl.score}</span>` : ''}
+                    ${cl.priority ? `<span class="pill" style="font-size:9.5px;padding:1px 6px;border-radius:4px;background:rgba(0,255,136,0.12);color:#00FF88;border:1px solid rgba(0,255,136,0.3);font-weight:700">High</span>` : ''}
+                  </div>
+                  ${cl.is_scheduled ? `
+                    <div style="font-size:10px;color:${isCurrentSlot ? '#00FF88' : '#F59E0B'};font-weight:600;margin-top:2px">
+                      ${isCurrentSlot ? '✓ Already on this slot' : '📅 Scheduled on another slot'}
+                    </div>
+                  ` : `
+                    <div style="font-size:10px;color:#94A3B8;margin-top:2px">
+                      ✓ Ready to schedule
+                    </div>
+                  `}
+                </div>
+              </div>
+
+              <div style="margin-top:auto;padding-top:8px;border-top:1px solid rgba(255,255,255,0.06)">
+                ${isCurrentSlot ? `
+                  <button type="button" class="btn sm" disabled style="width:100%;background:rgba(0,255,136,0.15);color:#00FF88;border:1px solid rgba(0,255,136,0.3);font-weight:700;font-size:11px;border-radius:6px;cursor:default">
+                    ✓ Scheduled on This Slot
+                  </button>
+                ` : `
+                  <button type="button" class="btn sm" onclick="assignClipToCalendarSlot('${esc(cid)}', '${esc(cl.job_id)}', '${esc(cl.id)}', ${slotTs}, '${esc(pktTimeStr)}')" style="width:100%;background:linear-gradient(135deg,#00F0FF,#0099FF);color:#050505;font-weight:800;font-size:11px;border:none;border-radius:6px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:6px">
+                    <span>⚡</span> Schedule to this Slot
+                  </button>
+                `}
+              </div>
+            </div>
+          `;
+        }).join('')}
+      </div>
+    `;
+  } catch (err) {
+    const container = $("#cal_picker_content");
+    if (container) {
+      container.innerHTML = `<div class="err" style="padding:20px;text-align:center">Error loading ready clips: ${esc(err.message)}</div>`;
+    }
+  }
+}
+
+async function assignClipToCalendarSlot(cid, jid, cid_clip, slotTs, pktTimeStr) {
+  try {
+    toast(`⚡ Scheduling clip to ${pktTimeStr} PKT...`, "ok");
+    const res = await send("/api/calendar/schedule-clip", {
+      creator_id: cid,
+      job_id: jid,
+      clip_id: cid_clip,
+      slot_ts: slotTs
+    }, "POST");
+    if (res && res.ok) {
+      toast(`✅ Scheduled for ${pktTimeStr} PKT! Paired Community Post (+30m) active.`, "ok");
+      const dlg = $("#cal_picker_dlg");
+      if (dlg && dlg.open) dlg.close();
+      const cr = creator() || (S.creators || []).find(x => x.id === cid);
+      if ($("#setup_creator_calendar_card")) renderCreatorCalendarCard(cr, $("#setup_creator_calendar_card"), true);
+      if ($("#creator_calendar_view")) renderCreatorCalendarCard(cr, $("#creator_calendar_view"), false);
+      await tick();
+    } else {
+      toast("Could not schedule clip: " + (res?.detail || "Server error"), "bad");
+    }
+  } catch (err) {
+    toast("Scheduling failed: " + err.message, "bad");
+  }
+}
+
+$("#cal_picker_dlg")?.addEventListener("click", e => { if (e.target === e.currentTarget) e.currentTarget.close(); });
 
 function drawCreatorForm() {
   const c = creator(), box = $("#cform"); if (!c || !box) return;
@@ -4077,132 +4267,155 @@ function drawClipDlg(full) {
             <button type="button" class="btn sm ghost" data-act="rateclip" data-val="duplicate" style="padding:2px 6px;font-size:11px;${c.feedback === 'duplicate' ? 'background:rgba(180,100,255,0.2);color:#B464FF;font-weight:700' : ''}">🔁 Duplicate</button>
           </div>
           <p class="sub" style="margin-top:4px">${esc(c.reason || bInfo.desc)}</p></div><button class="btn icon ghost" data-act="closedlg" aria-label="Close">${ic("x")}</button></div>
-        <!-- Card 1: Viral Hook & Captions -->
-        <div class="card" style="margin:0 0 10px 0;background:var(--bg-2);border:1px solid var(--line);border-radius:10px;padding:12px">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+        <!-- Card 1: Viral Hook & Captions (Collapsible Accordion) -->
+        <details class="card" open style="margin:0 0 10px 0;background:var(--bg-2);border:1px solid var(--line);border-radius:10px;padding:12px">
+          <summary style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;list-style:none">
             <h3 style="margin:0;font-size:13px;display:flex;align-items:center;gap:6px"><span>🎣</span> Viral Hook Banner</h3>
-            <button type="button" class="btn sm" data-act="ai_generate_hooks" id="btn_ai_hooks" style="background:linear-gradient(135deg,#F59E0B,#D97706);color:#000;border:none;font-weight:800;font-size:11px;padding:3px 10px;border-radius:14px;box-shadow:0 2px 8px rgba(245,158,11,0.25);cursor:pointer;display:inline-flex;align-items:center;gap:4px">
-              <span>✨</span> AI Viral Hooks
-            </button>
-          </div>
-          <label class="f" style="margin-bottom:6px">
-            <input data-f="hook" value="${esc(c.hook)}" placeholder="e.g. GTA 6 *influencers* are insane 😳" style="font-weight:600">
-          </label>
-          <div id="dlg_hook_pills" style="display:flex;flex-wrap:wrap;gap:6px;margin:2px 0 10px 0">
-            ${(c.hooks || []).map((h, i) => `
-              <button type="button" class="btn sm hook-pill-btn" data-act="pick_hook" data-hook="${esc(h)}" title="Click to use this hook" style="font-size:10px;padding:2px 8px;font-weight:700;background:var(--bg-1,#120e0c);border:1px solid ${c.hook === h ? 'var(--accent, #00f0ff)' : 'var(--line)'};border-radius:12px;color:${c.hook === h ? 'var(--accent, #00f0ff)' : 'var(--text)'};cursor:pointer">
-                #${i+1}: ${esc(h)}
+            <div style="display:flex;align-items:center;gap:8px">
+              <button type="button" class="btn sm" data-act="ai_generate_hooks" id="btn_ai_hooks" onclick="event.stopPropagation()" style="background:linear-gradient(135deg,#F59E0B,#D97706);color:#000;border:none;font-weight:800;font-size:11px;padding:3px 10px;border-radius:14px;box-shadow:0 2px 8px rgba(245,158,11,0.25);cursor:pointer;display:inline-flex;align-items:center;gap:4px">
+                <span>✨</span> AI Viral Hooks
               </button>
-            `).join("")}
+              <span class="accordion-chevron">▾</span>
+            </div>
+          </summary>
+          <div style="margin-top:10px">
+            <label class="f" style="margin-bottom:6px">
+              <input data-f="hook" value="${esc(c.hook)}" placeholder="e.g. GTA 6 *influencers* are insane 😳" style="font-weight:600">
+            </label>
+            <div id="dlg_hook_pills" style="display:flex;flex-wrap:wrap;gap:6px;margin:2px 0 10px 0">
+              ${(c.hooks || []).map((h, i) => `
+                <button type="button" class="btn sm hook-pill-btn" data-act="pick_hook" data-hook="${esc(h)}" title="Click to use this hook" style="font-size:10px;padding:2px 8px;font-weight:700;background:var(--bg-1,#120e0c);border:1px solid ${c.hook === h ? 'var(--accent, #00f0ff)' : 'var(--line)'};border-radius:12px;color:${c.hook === h ? 'var(--accent, #00f0ff)' : 'var(--text)'};cursor:pointer">
+                  #${i+1}: ${esc(h)}
+                </button>
+              `).join("")}
+            </div>
+            <div class="two" style="margin-bottom:6px">
+              <label class="f">Hook banner style<select data-f="hook_style">
+                <option value="viral_yellow" ${c.hook_style === "viral_yellow" ? "selected" : ""}>⚡ Viral Floating (Yellow Punch) [No Box]</option>
+                <option value="viral_cyan" ${c.hook_style === "viral_cyan" ? "selected" : ""}>💎 Viral Floating (Cyan Punch) [No Box]</option>
+                <option value="neon" ${(!c.hook_style || c.hook_style === "neon") ? "selected" : ""}>Neon Dark (Gaming Box)</option>
+                <option value="purple_whip" ${c.hook_style === "purple_whip" ? "selected" : ""}>Purple Whip (Glow Box)</option>
+                <option value="yellow" ${c.hook_style === "yellow" ? "selected" : ""}>Viral Yellow Box</option>
+                <option value="pill" ${c.hook_style === "pill" ? "selected" : ""}>3D White Pill</option>
+                <option value="cyber_red" ${c.hook_style === "cyber_red" ? "selected" : ""}>Cyber Red Box</option>
+                <option value="gold_luxury" ${c.hook_style === "gold_luxury" ? "selected" : ""}>Gold Luxury Box</option>
+              </select></label>
+              <label class="f">Caption style<select data-f="style" data-caption-style ${(c.captions === false || (!('captions' in c) && j.options?.captions === false)) ? "disabled" : ""}>${opts(S.status.styles, c.style)}</select></label>
+            </div>
+            <div style="display:flex;align-items:center;gap:18px;margin-top:4px">
+              <label class="sw" style="margin:0;font-size:11px"><input type="checkbox" data-f="captions" data-caption-toggle ${(c.captions === false || (!('captions' in c) && j.options?.captions === false)) ? "" : "checked"}>Generate captions</label>
+              <label class="sw" style="margin:0;font-size:11px"><input type="checkbox" data-f="outro_cta" ${c.outro_cta === false ? "" : "checked"}>End support badge (Outro)</label>
+            </div>
           </div>
-          <div class="two" style="margin-bottom:6px">
-            <label class="f">Hook banner style<select data-f="hook_style">
-              <option value="viral_yellow" ${c.hook_style === "viral_yellow" ? "selected" : ""}>⚡ Viral Floating (Yellow Punch) [No Box]</option>
-              <option value="viral_cyan" ${c.hook_style === "viral_cyan" ? "selected" : ""}>💎 Viral Floating (Cyan Punch) [No Box]</option>
-              <option value="neon" ${(!c.hook_style || c.hook_style === "neon") ? "selected" : ""}>Neon Dark (Gaming Box)</option>
-              <option value="purple_whip" ${c.hook_style === "purple_whip" ? "selected" : ""}>Purple Whip (Glow Box)</option>
-              <option value="yellow" ${c.hook_style === "yellow" ? "selected" : ""}>Viral Yellow Box</option>
-              <option value="pill" ${c.hook_style === "pill" ? "selected" : ""}>3D White Pill</option>
-              <option value="cyber_red" ${c.hook_style === "cyber_red" ? "selected" : ""}>Cyber Red Box</option>
-              <option value="gold_luxury" ${c.hook_style === "gold_luxury" ? "selected" : ""}>Gold Luxury Box</option>
-            </select></label>
-            <label class="f">Caption style<select data-f="style" data-caption-style ${(c.captions === false || (!('captions' in c) && j.options?.captions === false)) ? "disabled" : ""}>${opts(S.status.styles, c.style)}</select></label>
-          </div>
-          <div style="display:flex;align-items:center;gap:18px;margin-top:4px">
-            <label class="sw" style="margin:0;font-size:11px"><input type="checkbox" data-f="captions" data-caption-toggle ${(c.captions === false || (!('captions' in c) && j.options?.captions === false)) ? "" : "checked"}>Generate captions</label>
-            <label class="sw" style="margin:0;font-size:11px"><input type="checkbox" data-f="outro_cta" ${c.outro_cta === false ? "" : "checked"}>End support badge (Outro)</label>
-          </div>
-        </div>
+        </details>
 
-        <!-- Card: Viral Climax Teaser Hook (Cold Open) -->
-        <div class="card" style="margin:0 0 10px 0;background:linear-gradient(135deg, rgba(236,72,153,0.08), rgba(99,102,241,0.08));border:1px solid rgba(236,72,153,0.35);border-radius:10px;padding:12px">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+        <!-- Card: Viral Climax Teaser Hook (Collapsible Accordion) -->
+        <details class="card" ${c.teaser_enabled ? 'open' : ''} style="margin:0 0 10px 0;background:linear-gradient(135deg, rgba(236,72,153,0.08), rgba(99,102,241,0.08));border:1px solid rgba(236,72,153,0.35);border-radius:10px;padding:12px">
+          <summary style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;list-style:none">
             <h3 style="margin:0;font-size:13px;display:flex;align-items:center;gap:6px">
               <span>🎬</span> Viral Climax Teaser (Cold Open Hook)
             </h3>
-            <span class="pill" style="font-size:10px;padding:2px 8px;border-radius:10px;background:rgba(236,72,153,0.18);color:#F472B6;border:1px solid rgba(236,72,153,0.4);font-weight:800">🔥 Viral Retention</span>
-          </div>
-          <p class="sub" style="font-size:11px;margin:0 0 8px 0;line-height:1.4">
-            Video ke aakhri 3-5 seconds (reaction / punchline) ko shuru mein cold open teaser bana kar play karein. Hook banner isi teaser par pop-in hoga!
-          </p>
-          <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
-            <label class="sw" style="margin:0;font-size:12px;font-weight:700;color:#F8FAFC">
-              <input type="checkbox" data-f="teaser_enabled" id="dlg_teaser_enabled" ${c.teaser_enabled ? "checked" : ""} onchange="const el=$('#dlg_teaser_opts');if(el)el.style.display=this.checked?'block':'none'">
-              <span>Prepend Climax Teaser at Beginning</span>
-            </label>
-          </div>
-          <div id="dlg_teaser_opts" style="display:${c.teaser_enabled ? 'block' : 'none'};margin-top:10px;padding-top:10px;border-top:1px dashed rgba(255,255,255,0.12)">
-            <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-              <label class="f" style="margin:0;flex:1;min-width:140px">
-                <span style="font-size:11px;font-weight:600">Teaser Duration:</span>
-                <select data-f="teaser_dur" id="dlg_teaser_dur" style="font-size:12px">
-                  <option value="3" ${Number(c.teaser_dur) === 3 ? "selected" : ""}>3.0 Seconds</option>
-                  <option value="4" ${(!c.teaser_dur || Number(c.teaser_dur) === 4) ? "selected" : ""}>4.0 Seconds (Recommended)</option>
-                  <option value="5" ${Number(c.teaser_dur) === 5 ? "selected" : ""}>5.0 Seconds (Extra Punch)</option>
-                  <option value="6" ${Number(c.teaser_dur) === 6 ? "selected" : ""}>6.0 Seconds</option>
-                </select>
+            <div style="display:flex;align-items:center;gap:8px">
+              <span class="pill" style="font-size:10px;padding:2px 8px;border-radius:10px;background:rgba(236,72,153,0.18);color:#F472B6;border:1px solid rgba(236,72,153,0.4);font-weight:800">🔥 Viral Retention</span>
+              <span class="accordion-chevron">▾</span>
+            </div>
+          </summary>
+          <div style="margin-top:10px">
+            <p class="sub" style="font-size:11px;margin:0 0 8px 0;line-height:1.4">
+              Video ke aakhri 3-5 seconds (reaction / punchline) ko shuru mein cold open teaser bana kar play karein. Hook banner isi teaser par pop-in hoga!
+            </p>
+            <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+              <label class="sw" style="margin:0;font-size:12px;font-weight:700;color:#F8FAFC">
+                <input type="checkbox" data-f="teaser_enabled" id="dlg_teaser_enabled" ${c.teaser_enabled ? "checked" : ""} onchange="const el=$('#dlg_teaser_opts');if(el)el.style.display=this.checked?'block':'none'">
+                <span>Prepend Climax Teaser at Beginning</span>
               </label>
-              <div style="flex:1;min-width:200px">
-                <span style="font-size:11px;font-weight:600;display:block;margin-bottom:4px">Grab Position From Video:</span>
-                <button type="button" class="btn sm" onclick="grabVideoPlayheadForTeaser()" style="background:rgba(0,240,255,0.12);border:1px solid rgba(0,240,255,0.4);color:#00F0FF;font-size:11px;font-weight:700;padding:5px 12px;border-radius:6px;width:100%;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:6px">
-                  <span>🎯</span> Use Current Video Playhead
-                </button>
-                <input type="hidden" data-f="teaser_start" id="dlg_teaser_start" value="${c.teaser_start ?? ''}">
+            </div>
+            <div id="dlg_teaser_opts" style="display:${c.teaser_enabled ? 'block' : 'none'};margin-top:10px;padding-top:10px;border-top:1px dashed rgba(255,255,255,0.12)">
+              <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+                <label class="f" style="margin:0;flex:1;min-width:140px">
+                  <span style="font-size:11px;font-weight:600">Teaser Duration:</span>
+                  <select data-f="teaser_dur" id="dlg_teaser_dur" style="font-size:12px">
+                    <option value="3" ${Number(c.teaser_dur) === 3 ? "selected" : ""}>3.0 Seconds</option>
+                    <option value="4" ${(!c.teaser_dur || Number(c.teaser_dur) === 4) ? "selected" : ""}>4.0 Seconds (Recommended)</option>
+                    <option value="5" ${Number(c.teaser_dur) === 5 ? "selected" : ""}>5.0 Seconds (Extra Punch)</option>
+                    <option value="6" ${Number(c.teaser_dur) === 6 ? "selected" : ""}>6.0 Seconds</option>
+                  </select>
+                </label>
+                <div style="flex:1;min-width:200px">
+                  <span style="font-size:11px;font-weight:600;display:block;margin-bottom:4px">Grab Position From Video:</span>
+                  <button type="button" class="btn sm" onclick="grabVideoPlayheadForTeaser()" style="background:rgba(0,240,255,0.12);border:1px solid rgba(0,240,255,0.4);color:#00F0FF;font-size:11px;font-weight:700;padding:5px 12px;border-radius:6px;width:100%;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:6px">
+                    <span>🎯</span> Use Current Video Playhead
+                  </button>
+                  <input type="hidden" data-f="teaser_start" id="dlg_teaser_start" value="${c.teaser_start ?? ''}">
+                </div>
+              </div>
+              <div id="dlg_teaser_status" style="margin-top:8px;font-size:11px;color:#94A3B8;background:rgba(0,0,0,0.3);padding:6px 10px;border-radius:6px;border:1px solid rgba(255,255,255,0.06)">
+                ${c.teaser_enabled ? `✓ Active: Aakhri ${c.teaser_dur || 4}s ka teaser 0:00 par shuru hoga Hook title ke sath.` : 'Tip: Left side par video chala kar aakhri reaction par pause karein aur "Use Current Video Playhead" dabayein!'}
               </div>
             </div>
-            <div id="dlg_teaser_status" style="margin-top:8px;font-size:11px;color:#94A3B8;background:rgba(0,0,0,0.3);padding:6px 10px;border-radius:6px;border:1px solid rgba(255,255,255,0.06)">
-              ${c.teaser_enabled ? `✓ Active: Aakhri ${c.teaser_dur || 4}s ka teaser 0:00 par shuru hoga Hook title ke sath.` : 'Tip: Left side par video chala kar aakhri reaction par pause karein aur "Use Current Video Playhead" dabayein!'}
-            </div>
           </div>
-        </div>
+        </details>
 
-        <!-- Card: Viral Background Music & Meme Sounds -->
-        <div class="card" style="margin:0 0 10px 0;background:var(--bg-2);border:1px solid var(--line);border-radius:10px;padding:12px">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+        <!-- Card: Viral Background Music & Meme Sounds (Collapsible Accordion) -->
+        <details class="card" ${(c.bgm_track && c.bgm_track !== 'none') ? 'open' : ''} style="margin:0 0 10px 0;background:var(--bg-2);border:1px solid var(--line);border-radius:10px;padding:12px">
+          <summary style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;list-style:none">
             <h3 style="margin:0;font-size:13px;display:flex;align-items:center;gap:6px"><span>🎵</span> Background Music &amp; Meme Sounds</h3>
-            <span class="pill" style="font-size:10px;padding:2px 8px;border-radius:10px;background:rgba(0,240,255,0.15);color:var(--accent,#00F0FF);border:1px solid rgba(0,240,255,0.3);font-weight:700">⚡ Live Sync (No Re-render)</span>
-          </div>
-          <p class="sub" style="font-size:11px;margin:0 0 10px 0;line-height:1.4">
-            Select viral background music or meme sounds. Video ke sath <b>LIVE</b> suniye bina re-render ke intezar ke!
-          </p>
-
-          <!-- Real-Time Volume & Live Sync Controls -->
-          <div style="background:var(--bg-3);border:1px solid var(--line);border-radius:8px;padding:8px 10px;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
-            <div style="display:flex;align-items:center;gap:8px;flex:1;min-width:180px">
-              <span style="font-size:12px">🔊</span>
-              <span style="font-size:11px;font-weight:600">Music Volume:</span>
-              <input type="range" id="dlg_bgm_vol" min="0" max="100" value="${Math.round((c.bgm_volume ?? 0.18) * 100)}" style="flex:1;accent-color:var(--accent,#00F0FF);cursor:pointer" oninput="updateBgmVolume(this.value)">
-              <b id="dlg_bgm_vol_txt" style="font-size:11px;min-width:32px;color:var(--accent,#00F0FF);font-family:monospace">${Math.round((c.bgm_volume ?? 0.18) * 100)}%</b>
+            <div style="display:flex;align-items:center;gap:8px">
+              <span class="pill" style="font-size:10px;padding:2px 8px;border-radius:10px;background:rgba(0,240,255,0.15);color:var(--accent,#00F0FF);border:1px solid rgba(0,240,255,0.3);font-weight:700">⚡ Live Sync (No Re-render)</span>
+              <span class="accordion-chevron">▾</span>
             </div>
-            <div style="display:flex;align-items:center;gap:6px">
-              <input type="hidden" data-f="bgm_track" id="dlg_bgm_track" value="${esc(c.bgm_track || 'none')}">
-              <input type="hidden" data-f="bgm_volume" id="dlg_bgm_volume_input" value="${c.bgm_volume ?? 0.18}">
-              <button type="button" class="btn sm" id="btn_bgm_preview_toggle" onclick="toggleBgmSyncPreview()" style="font-size:11px;padding:3px 9px;background:rgba(255,255,255,0.06);border:1px solid var(--line);border-radius:6px;cursor:pointer">
-                <span>🔊</span> Sync: <b id="bgm_sync_status" style="color:#00FF88">ON</b>
-              </button>
-              <label class="btn sm" style="font-size:11px;padding:3px 9px;cursor:pointer;background:linear-gradient(135deg,#00F0FF,#0099FF);color:#050505;font-weight:700;border:none;border-radius:6px;display:inline-flex;align-items:center;gap:4px">
-                <span>➕</span> Upload
-                <input type="file" id="dlg_bgm_uploader" accept="audio/*" style="display:none" onchange="uploadCustomAudioTrack(this)">
-              </label>
+          </summary>
+          <div style="margin-top:10px">
+            <p class="sub" style="font-size:11px;margin:0 0 10px 0;line-height:1.4">
+              Select viral background music or meme sounds. Video ke sath <b>LIVE</b> suniye bina re-render ke intezar ke!
+            </p>
+
+            <!-- Real-Time Volume & Live Sync Controls -->
+            <div style="background:var(--bg-3);border:1px solid var(--line);border-radius:8px;padding:8px 10px;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+              <div style="display:flex;align-items:center;gap:8px;flex:1;min-width:180px">
+                <span style="font-size:12px">🔊</span>
+                <span style="font-size:11px;font-weight:600">Music Volume:</span>
+                <input type="range" id="dlg_bgm_vol" min="0" max="100" value="${Math.round((c.bgm_volume ?? 0.18) * 100)}" style="flex:1;accent-color:var(--accent,#00F0FF);cursor:pointer" oninput="updateBgmVolume(this.value)">
+                <b id="dlg_bgm_vol_txt" style="font-size:11px;min-width:32px;color:var(--accent,#00F0FF);font-family:monospace">${Math.round((c.bgm_volume ?? 0.18) * 100)}%</b>
+              </div>
+              <div style="display:flex;align-items:center;gap:6px">
+                <input type="hidden" data-f="bgm_track" id="dlg_bgm_track" value="${esc(c.bgm_track || 'none')}">
+                <input type="hidden" data-f="bgm_volume" id="dlg_bgm_volume_input" value="${c.bgm_volume ?? 0.18}">
+                <button type="button" class="btn sm" id="btn_bgm_preview_toggle" onclick="toggleBgmSyncPreview()" style="font-size:11px;padding:3px 9px;background:rgba(255,255,255,0.06);border:1px solid var(--line);border-radius:6px;cursor:pointer">
+                  <span>🔊</span> Sync: <b id="bgm_sync_status" style="color:#00FF88">ON</b>
+                </button>
+                <label class="btn sm" style="font-size:11px;padding:3px 9px;cursor:pointer;background:linear-gradient(135deg,#00F0FF,#0099FF);color:#050505;font-weight:700;border:none;border-radius:6px;display:inline-flex;align-items:center;gap:4px">
+                  <span>➕</span> Upload
+                  <input type="file" id="dlg_bgm_uploader" accept="audio/*" style="display:none" onchange="uploadCustomAudioTrack(this)">
+                </label>
+              </div>
+            </div>
+
+            <!-- Category Filter Tabs -->
+            <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
+              <button type="button" class="btn sm bgm-filter-btn" data-cat="all" onclick="filterBgmTracks('all')" style="font-size:10px;padding:2px 8px;border-radius:12px;background:var(--accent,#00F0FF);color:#000;font-weight:700;border:none;cursor:pointer">🔥 All</button>
+              <button type="button" class="btn sm bgm-filter-btn" data-cat="music" onclick="filterBgmTracks('music')" style="font-size:10px;padding:2px 8px;border-radius:12px;background:var(--bg-3);color:var(--text);border:1px solid var(--line);cursor:pointer">🎵 Beats &amp; Music</button>
+              <button type="button" class="btn sm bgm-filter-btn" data-cat="meme" onclick="filterBgmTracks('meme')" style="font-size:10px;padding:2px 8px;border-radius:12px;background:var(--bg-3);color:var(--text);border:1px solid var(--line);cursor:pointer">💥 Meme Sounds</button>
+              <button type="button" class="btn sm bgm-filter-btn" data-cat="custom" onclick="filterBgmTracks('custom')" style="font-size:10px;padding:2px 8px;border-radius:12px;background:var(--bg-3);color:var(--text);border:1px solid var(--line);cursor:pointer">📁 My Uploads</button>
+            </div>
+
+            <!-- Sound Cards Grid -->
+            <div id="dlg_bgm_cards" style="display:grid;grid-template-columns:repeat(auto-fill, minmax(170px, 1fr));gap:6px;max-height:220px;overflow-y:auto;padding-right:4px">
+              <div style="padding:15px;text-align:center;color:var(--text-sub);font-size:11px">Loading sound library…</div>
             </div>
           </div>
+        </details>
 
-          <!-- Category Filter Tabs -->
-          <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
-            <button type="button" class="btn sm bgm-filter-btn" data-cat="all" onclick="filterBgmTracks('all')" style="font-size:10px;padding:2px 8px;border-radius:12px;background:var(--accent,#00F0FF);color:#000;font-weight:700;border:none;cursor:pointer">🔥 All</button>
-            <button type="button" class="btn sm bgm-filter-btn" data-cat="music" onclick="filterBgmTracks('music')" style="font-size:10px;padding:2px 8px;border-radius:12px;background:var(--bg-3);color:var(--text);border:1px solid var(--line);cursor:pointer">🎵 Beats &amp; Music</button>
-            <button type="button" class="btn sm bgm-filter-btn" data-cat="meme" onclick="filterBgmTracks('meme')" style="font-size:10px;padding:2px 8px;border-radius:12px;background:var(--bg-3);color:var(--text);border:1px solid var(--line);cursor:pointer">💥 Meme Sounds</button>
-            <button type="button" class="btn sm bgm-filter-btn" data-cat="custom" onclick="filterBgmTracks('custom')" style="font-size:10px;padding:2px 8px;border-radius:12px;background:var(--bg-3);color:var(--text);border:1px solid var(--line);cursor:pointer">📁 My Uploads</button>
-          </div>
-
-          <!-- Sound Cards Grid -->
-          <div id="dlg_bgm_cards" style="display:grid;grid-template-columns:repeat(auto-fill, minmax(170px, 1fr));gap:6px;max-height:220px;overflow-y:auto;padding-right:4px">
-            <div style="padding:15px;text-align:center;color:var(--text-sub);font-size:11px">Loading sound library…</div>
-          </div>
-        </div>
-
-        <!-- Card 2: Layout & Framing Studio -->
-        <div class="card" style="margin:0 0 10px 0;background:var(--bg-2);border:1px solid var(--line);border-radius:10px;padding:12px">
+        <!-- Card 2: Layout & Framing Studio (Collapsible Accordion) -->
+        <details class="card" open style="margin:0 0 10px 0;background:var(--bg-2);border:1px solid var(--line);border-radius:10px;padding:12px">
+          <summary style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;list-style:none">
+            <h3 style="margin:0;font-size:13px;display:flex;align-items:center;gap:6px"><span>🎨</span> Layout &amp; Framing Studio</h3>
+            <div style="display:flex;align-items:center;gap:8px">
+              <span class="sub" style="font-size:10px">(Split, PIP, Framing &amp; Presets)</span>
+              <span class="accordion-chevron">▾</span>
+            </div>
+          </summary>
+          <div style="margin-top:10px">
           <div style="display:flex;gap:12px;align-items:center;margin-bottom:8px">
             <div style="position:relative;width:52px;height:92px;border-radius:10px;border:2px solid var(--line,#2a221d);background:#000;overflow:hidden;flex-shrink:0;box-shadow:0 4px 12px rgba(0,0,0,0.4)">
               <img id="dlg_layout_img" src="${getLayoutPreviewImg(c.layout || 'split_half', c.facecam_pos)}" style="width:100%;height:100%;object-fit:cover;display:block" alt="Preview">
@@ -4255,13 +4468,17 @@ function drawClipDlg(full) {
               </div>
             `;
           })()}
-        </div>
+          </div>
+        </details>
 
         <!-- Card 3: Advanced Timing, Sync & Framing (Collapsible) -->
         <details class="card" style="margin:0 0 10px 0;background:var(--bg-2);border:1px solid var(--line);border-radius:10px;padding:10px 12px">
-          <summary style="cursor:pointer;font-size:12px;font-weight:700;color:var(--brand-ink);display:flex;align-items:center;gap:6px">
-            <span>⚙️ Advanced Timing, Sync &amp; Framing</span>
-            <span class="sub" style="font-size:10px;margin-left:auto">(Audio delay, cam offset, trim)</span>
+          <summary style="cursor:pointer;font-size:12px;font-weight:700;color:var(--brand-ink);display:flex;align-items:center;justify-content:space-between;list-style:none">
+            <span style="display:flex;align-items:center;gap:6px">⚙️ Advanced Timing, Sync &amp; Framing</span>
+            <div style="display:flex;align-items:center;gap:8px">
+              <span class="sub" style="font-size:10px">(Audio delay, cam offset, trim)</span>
+              <span class="accordion-chevron">▾</span>
+            </div>
           </summary>
           <div style="display:flex;flex-direction:column;gap:8px;margin-top:10px">
             <div class="two">
@@ -8116,9 +8333,26 @@ function initClipNovaHeroAnimation(container) {
   }
   if (q.get("verified")) { history.replaceState(null, "", location.pathname); setTimeout(() => toast("Email confirmed. You're ready to clip.", "ok"), 300); }
   if (q.get("verify_error")) { history.replaceState(null, "", location.pathname); setTimeout(() => toast(q.get("verify_error"), "bad"), 300); }
-  if (location.pathname.startsWith("/app/")) { const [v, tab] = fromPath(location.pathname); S.view = v; S.ctab = tab; }  // the address decides, before anything loads
+  let [initV, initTab] = location.pathname.startsWith("/app/") ? fromPath(location.pathname) : [null, null];
+  if (!initV || initV === "overview") {
+    const savedV = localStorage.getItem("view");
+    const savedTab = localStorage.getItem("ctab");
+    if (savedV && (savedV === "overview" || savedV.startsWith("c:") || savedV === "settings" || savedV === "library")) {
+      initV = savedV;
+      initTab = savedTab || initTab || "clips";
+    }
+  }
+  if (!initV) { initV = "overview"; initTab = "clips"; }
+  S.view = initV;
+  S.ctab = initTab;
   await tick();
-  { const [v, tab] = location.pathname.startsWith("/app/") ? fromPath(location.pathname) : ["overview", "clips"]; go(v, tab, true); remember(S.view, S.ctab, "replace"); }
+  {
+    const [pathV, pathTab] = location.pathname.startsWith("/app/") ? fromPath(location.pathname) : [null, null];
+    const finalV = pathV || S.view || "overview";
+    const finalTab = pathTab || S.ctab || "clips";
+    go(finalV, finalTab, true);
+    remember(S.view, S.ctab, "replace");
+  }
   try {  // a link pasted on the home page before signing up
     const link = sessionStorage.getItem("peakcut_link");
     if (link) { sessionStorage.removeItem("peakcut_link"); go("overview"); $("#url").value = link; onLink($("#url")); $("#url").focus(); toast("Your link is ready. Press Make clips.", "ok"); }

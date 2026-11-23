@@ -147,7 +147,7 @@ def _upload_worker(p):
         _post(p)
 
 
-def enqueue(job, clip, account_ids, now=False, force=False) -> list:
+def enqueue(job, clip, account_ids, now=False, force=False, target_ts=None) -> list:
     c = creators.get(job["creator"]) or creators.DEFAULTS
     made = []
     with _lock:
@@ -176,10 +176,14 @@ def enqueue(job, clip, account_ids, now=False, force=False) -> list:
             if already_posted and not (now or force):
                 continue  # automatic autopost won't duplicate, but manual "Post now" / force will post directly
 
-            # Compute slot using USA-Focused Automatic Publishing Calendar
-            all_current = existing_mine + made
-            slot_info = calendar.find_next_available_slot(aid, all_current)
-            due = time.time() if now else slot_info["video_ts"]
+            # Compute slot using USA-Focused Automatic Publishing Calendar or target_ts
+            if target_ts:
+                due = float(target_ts)
+                slot_info = calendar.format_slot_info(due)
+            else:
+                all_current = existing_mine + made
+                slot_info = calendar.find_next_available_slot(aid, all_current)
+                due = time.time() if now else slot_info["video_ts"]
 
             p = {"id": secrets.token_hex(8), "user": ctx.uid(), "job": job["id"], "clip": clip["id"], "creator": job["creator"],
                  "account": aid, "account_name": acc["name"], "platform": acc["platform"], "status": "scheduled",
@@ -320,6 +324,7 @@ def _post(p):
         p.update(status="posted", posted_at=time.time(), remote_id=rid, url=url, error=None)
         if acc["platform"] == "youtube" and p.get("due_at", 0) > time.time() + 60 and not p.get("now"):
             p["scheduled_at"] = p["due_at"]
+            p["is_scheduled"] = True
             lt_str = time.strftime("%Y-%m-%d %H:%M", time.localtime(p["due_at"]))
             creators.log(p["creator"], f"Uploaded & Scheduled natively on YouTube for {lt_str}: {title}")
         else:

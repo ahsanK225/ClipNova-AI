@@ -158,3 +158,20 @@ F:\Games\GTA 6 CLIPPING\
   - `GET /api/ai`: Returns `keys_list` with masked strings and live status badges for UI display.
 - **`web/index.html`**:
   - Interactive **🔑 API Keys Pool Card**: Replaces plain textarea with a clear list showing Key #, masked key, live/standby status pill, individual `🗑️ Remove` buttons, and an input box with `[➕ Add Key]`.
+
+---
+
+## 7. Automatic USA-Focused Publishing Calendar, Clip Picker & UI Accordion Architecture
+- **`studio/calendar.py`**:
+  - Core USA publishing schedule calculator: 6:00 PM, 12:00 AM, 6:00 AM PKT slots.
+  - Accounts for USA Daylight Saving Time (DST) dynamically via `zoneinfo.ZoneInfo("America/New_York")` and `ZoneInfo("America/Los_Angeles")`.
+  - Enforces strict 3-video daily ceiling and auto-advances subsequent ready clips to future days.
+- **`studio/server.py`**:
+  - `GET /api/creators/{cid}/calendar`: Returns active calendar data, daily quota usage, and upcoming slots with scheduled clips.
+  - `GET /api/creators/{cid}/ready-clips`: Lists all finished/rendered clips ready for scheduling with cover thumbnails, duration, and AI score.
+  - `POST /api/calendar/schedule-clip`: Schedules a specific clip directly to a targeted calendar slot timestamp, pairing a Community Post (+30m).
+- **`web/index.html`**:
+  - `#cal_picker_dlg`: Interactive modal popup for slot selection with ready clip cards and 1-click `⚡ Schedule to this Slot` action.
+  - Collapsible `<details class="card">` accordions for `Viral Hook Banner`, `Viral Climax Teaser`, `Background Music`, and `Layout Studio` in `#clipdlg`.
+  - Squeezed `.meters` grid (`minmax(130px, 170px) minmax(130px, 170px) minmax(360px, 1fr)`) allowing full readability of `Latest AI Decisions`.
+  - Route & Subtab persistence across F5 refresh using `fromPath` calendar regex and `localStorage`.

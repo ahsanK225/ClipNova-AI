@@ -2504,17 +2504,50 @@ def get_creator_calendar(cid: str):
     if not c:
         raise HTTPException(404, "Creator not found")
 
+    now_ts = time.time()
     all_mine = posting._mine()
     c_posts = [p for p in all_mine if p.get("creator") == cid]
 
-    scheduled_posts = [p for p in c_posts if p.get("status") in posting.OPEN]
-    scheduled_posts.sort(key=lambda p: float(p.get("scheduled_at") or p.get("due_at") or 0))
+    # Collect scheduled posts: open in local queue OR future scheduled on platform
+    scheduled_posts = []
+    seen_post_ids = set()
+    for p in c_posts:
+        sched_t = float(p.get("scheduled_at") or p.get("due_at") or (p.get("calendar_slot", {}).get("video_ts") if isinstance(p.get("calendar_slot"), dict) else 0) or 0)
+        is_future = sched_t > now_ts + 60
+        if p.get("status") in posting.OPEN or is_future or p.get("is_scheduled"):
+            scheduled_posts.append(p)
+            seen_post_ids.add(p.get("id"))
 
-    recent_posted = [p for p in c_posts if p.get("status") == "posted"]
+    # Also harvest any future scheduled posts stored on clips directly
+    if not jobs.list_jobs():
+        jobs.load_user(ctx.uid())
+    all_jobs = {j["id"]: j for j in jobs.list_jobs() if j.get("creator") == cid}
+    for j in all_jobs.values():
+        for clip in j.get("clips", []):
+            for pid, pdata in (clip.get("posts") or {}).items():
+                if pid not in seen_post_ids and isinstance(pdata, dict):
+                    sched_t = float(pdata.get("scheduled_at") or pdata.get("due_at") or (pdata.get("calendar_slot", {}).get("video_ts") if isinstance(pdata.get("calendar_slot"), dict) else 0) or 0)
+                    if pdata.get("status") in posting.OPEN or sched_t > now_ts + 60 or pdata.get("is_scheduled"):
+                        post_copy = dict(pdata)
+                        post_copy["id"] = pid
+                        post_copy["job"] = j["id"]
+                        post_copy["clip"] = clip.get("id")
+                        post_copy["creator"] = cid
+                        post_copy["cover"] = clip.get("cover") or f"{clip['id']}.jpg"
+                        post_copy["file"] = clip.get("file") or ""
+                        post_copy["hook"] = clip.get("hook") or ""
+                        post_copy["title"] = clip.get("title") or clip.get("hook") or post_copy.get("title") or "Short"
+                        post_copy["reason"] = clip.get("reason") or ""
+                        post_copy["clip_status"] = clip.get("status") or "done"
+                        scheduled_posts.append(post_copy)
+                        seen_post_ids.add(pid)
+
+    scheduled_posts.sort(key=lambda p: float(p.get("scheduled_at") or p.get("due_at") or (p.get("calendar_slot", {}).get("video_ts") if isinstance(p.get("calendar_slot"), dict) else 0) or 0))
+
+    recent_posted = [p for p in c_posts if p.get("status") == "posted" and p.get("id") not in seen_post_ids]
     recent_posted.sort(key=lambda p: -float(p.get("posted_at") or p.get("due_at") or 0))
     recent_posted = recent_posted[:10]
 
-    all_jobs = {j["id"]: j for j in jobs.list_jobs() if j.get("creator") == cid}
     for p in scheduled_posts + recent_posted:
         j = all_jobs.get(p.get("job"))
         if j:
@@ -2527,7 +2560,7 @@ def get_creator_calendar(cid: str):
                 p["clip_status"] = clip.get("status") or "done"
 
     primary_acc = c["accounts"][0] if c.get("accounts") else None
-    upcoming_slots = calendar.assign_slots_to_videos(primary_acc, all_mine, count=9)
+    upcoming_slots = calendar.assign_slots_to_videos(primary_acc, scheduled_posts + all_mine, count=9)
 
     return {
         "creator": {"id": c["id"], "name": c["name"], "accounts": c.get("accounts", [])},
@@ -2537,6 +2570,94 @@ def get_creator_calendar(cid: str):
         "max_per_day": calendar.MAX_VIDEOS_PER_DAY,
         "preferred_times_pkt": ["06:00 PM", "12:00 AM", "06:00 AM"],
         "min_gap_hours": 6
+    }
+
+
+@app.get("/api/creators/{cid}/ready-clips")
+def get_creator_ready_clips(cid: str):
+    """Returns all rendered/completed clips for a creator ready for calendar scheduling."""
+    c = creators.get(cid)
+    if not c:
+        raise HTTPException(404, "Creator not found")
+
+    if not jobs.list_jobs():
+        jobs.load_user(ctx.uid())
+    all_jobs = [j for j in jobs.list_jobs() if j.get("creator") == cid]
+    ready_clips = []
+    now_ts = time.time()
+
+    for j in all_jobs:
+        for clip in j.get("clips", []):
+            if clip.get("status") == "done":
+                sched_info = None
+                for pid, pdata in (clip.get("posts") or {}).items():
+                    if isinstance(pdata, dict):
+                        st = float(pdata.get("scheduled_at") or pdata.get("due_at") or (pdata.get("calendar_slot", {}).get("video_ts") if isinstance(pdata.get("calendar_slot"), dict) else 0) or 0)
+                        if st > now_ts + 60 or pdata.get("status") in posting.OPEN:
+                            sched_info = {
+                                "scheduled_at": st,
+                                "slot": pdata.get("calendar_slot"),
+                                "account_name": pdata.get("account_name"),
+                            }
+                            break
+
+                ready_clips.append({
+                    "id": clip["id"],
+                    "job_id": j["id"],
+                    "title": clip.get("title") or clip.get("hook") or "Clip",
+                    "hook": clip.get("hook") or "",
+                    "duration": round(clip.get("end", 0) - clip.get("start", 0), 1),
+                    "score": clip.get("score", 70),
+                    "cover": clip.get("cover") or f"{clip['id']}.jpg",
+                    "file": clip.get("file") or "",
+                    "scheduled": sched_info,
+                    "created": j.get("created", 0),
+                })
+
+    ready_clips.sort(key=lambda x: -x["created"])
+    return {"clips": ready_clips}
+
+
+@app.post("/api/calendar/schedule-clip")
+def schedule_clip_to_slot(payload: dict = Body(...)):
+    """Schedules a specific clip directly to a specific USA publishing calendar slot."""
+    cid = payload.get("creator") or payload.get("creator_id")
+    jid = payload.get("job_id")
+    clip_id = payload.get("clip_id")
+    slot_ts = float(payload.get("slot_ts") or 0)
+
+    if not (cid and jid and clip_id and slot_ts):
+        raise HTTPException(400, "creator, job_id, clip_id, and slot_ts are required")
+
+    if not jobs.list_jobs():
+        jobs.load_user(ctx.uid())
+
+    job = jobs.get(jid)
+    if not job:
+        raise HTTPException(404, "Job not found")
+    clip = next((k for k in job.get("clips", []) if k.get("id") == clip_id), None)
+    if not clip:
+        raise HTTPException(404, "Clip not found")
+
+    c = creators.get(cid)
+    acc_id = None
+    if c and c.get("accounts"):
+        acc_id = c["accounts"][0]
+    else:
+        user_accs = accounts.list_accounts()
+        yt_accs = [a for a in user_accs if a.get("platform") == "youtube"]
+        acc_id = (yt_accs[0]["id"] if yt_accs else (user_accs[0]["id"] if user_accs else None))
+
+    if not acc_id:
+        raise HTTPException(400, "No connected social account found. Please connect your YouTube account in the Accounts tab first.")
+
+    made = posting.enqueue(job, clip, [acc_id], target_ts=slot_ts, force=True)
+    slot_info = calendar.format_slot_info(slot_ts)
+    return {
+        "ok": True,
+        "slot": slot_info,
+        "title": clip.get("title") or clip.get("hook") or "Short",
+        "posts_created": len(made)
     }
 
 

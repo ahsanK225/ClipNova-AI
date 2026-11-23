@@ -1,6 +1,38 @@
 ﻿# Changelog
 All notable project changes are documented here.
 
+## [2026-11-23] — Interactive Calendar Slot Video Picker, Refresh Route Persistence, Squeezed Meters & Collapsible Clip Editor Accordions
+
+### Added
+- **Interactive Calendar Slot Video Picker Modal (`#cal_picker_dlg`) (`web/index.html`, `studio/server.py`)**:
+  - Clicking `+ Queue Next Video` or clicking any open slot in the USA Publishing Calendar opens an interactive video picker modal window `#cal_picker_dlg`.
+  - Lists all ready/rendered clips for the active creator via `GET /api/creators/{cid}/ready-clips` with 9:16 vertical cover thumbnails, duration, AI energy score, and status.
+  - Features 1-click `⚡ Schedule to this Slot` button that triggers `POST /api/calendar/schedule-clip`, enqueuing the video upload at that slot timestamp and pairing a Community Post (+30m).
+  - Slot card instantly transitions to `🎬 SCHEDULED` displaying thumbnail, title, USA viewing windows, and paired community post.
+- **Collapsible Cards in Clip Editor (`#clipdlg`) (`web/index.html`)**:
+  - Converted `🎣 Viral Hook Banner`, `🎬 Viral Climax Teaser (Cold Open Hook)`, `🎵 Background Music & Meme Sounds`, and `🎨 Layout & Framing Studio` into native collapsible `<details class="card">` accordions with rotating chevron indicators (`▾`), matching `⚙️ Advanced Timing, Sync & Framing`.
+  - Cards can be toggled open or closed with smooth CSS transitions without cluttering the screen.
+
+### Changed
+- **Squeezed Sparkline Meters & Expansive AI Decision Space (`web/index.html`)**:
+  - Updated live stream bottom `.meters` grid from equal-width `repeat(auto-fit, minmax(280px, 1fr))` to `minmax(130px, 170px) minmax(130px, 170px) minmax(360px, 1fr)`.
+  - Squeezes `Loudness` and `Chat / sec` sparklines into compact cards and grants `Latest AI Decisions` the expanded width (`1fr` / 600px+) so event headlines and natural-language explanations are fully readable without truncation.
+- **Route & Tab Persistence Across Page Refresh (`web/index.html`)**:
+  - Updated route parsing regex in `fromPath` to include `calendar` (`(?:\/(setup|activity|clips|calendar))?`), preventing calendar URLs from falling back to overview.
+  - Guarded `go` against premature redirection to `overview` when `S.creators` is not yet loaded.
+  - Stored and restored both `view` and `ctab` from URL pathname and `localStorage`, ensuring page refresh (F5) directly restores the creator view and exact subtab.
+
+### Fixed
+- **Calendar Scheduled Videos Recognition (`studio/server.py`, `studio/calendar.py`, `studio/posting.py`)**:
+  - Fixed scheduled video filtering in `get_creator_calendar` so future YouTube uploaded posts marked `"posted"` or `status in posting.OPEN` with future `scheduled_at`/`due_at` are included in `scheduled_posts`.
+  - Added `target_ts` parameter in `posting.enqueue` for direct slot scheduling and `is_scheduled` metadata tracking.
+
+### Tests and Verification
+- Unit and regression test suite in `tests/test_usa_publishing_calendar.py`, `tests/test_creators_trigger_words.py`, `tests/test_trigger_timeline.py`, and `tests/test_ai_verdicts_clean_ui.py` passed (25/25 tests OK in 0.64s).
+- Full AST validation of JavaScript in `web/index.html` executed with Node.js with zero errors.
+- Live HTTP test against `http://127.0.0.1:8765/api/calendar/schedule-clip` returned `200 OK` with 2 posts created.
+- Server daemon verified healthy on port 8765.
+
 ## [2026-11-23] — Strict Live Pure AI Mode Bypass & Reaction Phrase Scoping
 
 ### Fixed

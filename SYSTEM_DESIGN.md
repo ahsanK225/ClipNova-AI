@@ -538,3 +538,22 @@ Integrated directly in `studio/brain.py` and `studio/posting.py`:
 3. **Removal of Casual Conversational Fillers (`studio/ohnepixel.py`)**:
    - Removed casual conversational words (`"huh"`, `"come on bro"`, `"why bro"`, `"wait wait wait"`, `"hold on"`, `"no no no"`) from `STRONG_REACTION_PHRASES`.
    - These common phrases no longer trigger auto-clips directly without multimodal AI evidence.
+
+---
+
+## 31. Interactive Calendar Video Picker Modal, Collapsible Accordions & Refresh Persistence
+1. **Interactive Calendar Slot Video Picker Modal (`#cal_picker_dlg`)**:
+   - Clicking `+ Queue Next Video` on any open slot opens `#cal_picker_dlg`.
+   - Displays slot metadata: PKT time, US EST/PST windows, and paired Community Post (+30m).
+   - Dynamically loads ready/rendered clips from `GET /api/creators/{cid}/ready-clips`.
+   - 1-click `⚡ Schedule to this Slot` triggers `POST /api/calendar/schedule-clip`, enqueuing the clip directly at that timestamp and auto-generating the paired Community Post.
+2. **Collapsible Clip Editor Modal Accordions (`#clipdlg`)**:
+   - Replaced bulky fixed cards with collapsible `<details class="card">` elements for `Viral Hook Banner`, `Viral Climax Teaser`, `Background Music & Meme Sounds`, and `Layout & Framing Studio`.
+   - Added animated rotating chevron indicator (`▾`) that flips 180 degrees smoothly on open/close.
+3. **Squeezed Meters Layout & Expansive AI Decisions View**:
+   - `.meters` CSS grid configured with `minmax(130px, 170px) minmax(130px, 170px) minmax(360px, 1fr)`.
+   - Compacts sparkline meters to give `Latest AI Decisions` wide desktop space, eliminating text cutoff and truncation of reasons.
+4. **URL Route & Subtab Persistence Across Page Refresh**:
+   - Updated `fromPath` regex to match `/calendar` tab routes.
+   - Guarded `go()` against early overview fallback before creators are loaded.
+   - Synchronized `view` and `ctab` with `localStorage` and `history.pushState` / `replaceState`.

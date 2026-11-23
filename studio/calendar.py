@@ -104,10 +104,12 @@ def assign_slots_to_videos(account_id: Optional[str],
     # Filter active video publications (Community Posts do not count against the limit)
     active_videos = []
     for p in existing_posts or []:
-        if account_id and p.get("account") != account_id:
+        if account_id and p.get("account") and p.get("account") != account_id:
             continue
-        if p.get("status") in ("scheduled", "posted", "queued") and _is_video_post(p):
-            t = p.get("scheduled_at") or p.get("due_at") or p.get("posted_at")
+        if _is_video_post(p):
+            t = p.get("scheduled_at") or p.get("due_at") or (p.get("calendar_slot", {}).get("video_ts") if isinstance(p.get("calendar_slot"), dict) else None)
+            if not t and p.get("status") == "posted":
+                t = p.get("posted_at")
             if t:
                 active_videos.append(float(t))
 
