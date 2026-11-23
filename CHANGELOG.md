@@ -1,6 +1,47 @@
 ﻿# Changelog
 All notable project changes are documented here.
 
+## [2026-11-23] — In-Browser Web Video Studio (CapCut / OpenCut Style Multi-Track Editor)
+
+### Added
+- **In-Browser Web Video Studio Workspace (`web/index.html`)**:
+  - **Dedicated Navigation Tab (`🎬 Video Studio`)**: Added `["studio", "Video Studio", "film", 0]` to creator tabs in `drawShell()`, supporting deep linking via `/app/creators/<cid>/studio`.
+  - **Launch Action Points**: Added `🎬 Open in Web Studio` button to clip cards (`clipHtml`) and `#clipdlg` Clip Editor modal.
+  - **Clip Selection Grid**: When entering the Studio without an active clip, displays a visual grid of all finished clips for the creator with thumbnails, timecodes, and direct `🎬 Open in Studio` launch buttons.
+  - **9:16 Vertical Video Viewport**: Studio workspace with 9:16 aspect ratio player, real-time CSS color grading filters, transport controls (`⏪ -1s`, `▶️ Play/Pause`, `⏩ +1s`), and playback speed selectors (`0.75x`, `1.0x`, `1.25x`, `1.5x`).
+  - **Live Dynamic Subtitle Overlay**: Active spoken word dynamically highlighted in real-time in sync with playback.
+  - **5-Tab Studio Tool Drawer**:
+    1. `🎨 Visual Filters`: Cards for Normal, Vibrant Viral, Cinematic Film, Moody Dark, Cyberpunk, and Classic B&W with instantaneous CSS live preview.
+    2. `⚡ Viral VFX Overlays`: Real-time interactive animations for Flash White, Screen Shake, Glitch RGB, and Zoom Punch with `⚡ Test Now` and `➕ Add at Playhead` keyframe placement.
+    3. `🎵 Audio & BGM Mix`: Track selection, volume slider, draggable start offset scrubber, and viral quick jumps (`0:00`, `+10s`, `⚡ 0:15 Drop`, `+30s`).
+    4. `💬 Subtitles & Captions`: Interactive transcript word blocks with timestamps; clicking any word jumps playhead to that exact word; editable text box allows fixing speech-to-text typos in place.
+    5. `🎭 Layout & Facecam`: Layout switcher for Split vertical, Fullscreen gameplay, and Custom presets.
+  - **CapCut-Style Multi-Track Timeline (`web/index.html`)**:
+    - Interactive Time Ruler with 5-second tick markers and click-to-seek functionality.
+    - Draggable Red/Cyan Playhead Needle extending down across all tracks that tracks playback progress accurately.
+    - Track 1 (💬 Subtitles): Individual word blocks with start/end positions, active glow on spoken word, and click-to-seek.
+    - Track 2 (🎬 Video): Video clip bar with visual split cut slice marks.
+    - Track 3 (🎭 Facecam): Facecam PiP placement indicator.
+    - Track 4 (🎵 Audio): Background audio track with volume and offset trim badges.
+    - Track 5 (⚡ VFX): Visual event pills representing placed VFX moments.
+- **Backend Studio Project & Export APIs (`studio/server.py`, `studio/jobs.py`, `studio/render.py`)**:
+  - `GET /api/jobs/{jid}/clips/{cid}/studio-project`: Returns full multi-track project contract (word timestamps, filter presets, VFX presets, audio tracks, and stickers).
+  - `POST /api/jobs/{jid}/clips/{cid}/studio-export`: Saves cuts, filters, speed, audio trim, word edits, and triggers re-render via `jobs.request_render()`.
+  - **1-Click Auto-Queue to YouTube**: `🚀 Save & Queue to YouTube (USA Peak)` renders the video and immediately enqueues it into the USA Publishing Calendar at the optimal peak velocity slot via `posting.enqueue()`.
+  - **FFmpeg Filtergraph Color Grading (`studio/render.py`)**: Added `VIDEO_FILTERS` mapping (`vibrant`, `cinematic`, `moody`, `cyberpunk`, `bw`) and chained video filters into FFmpeg output.
+
+### Tests and Verification
+- Created comprehensive test suite `tests/test_video_studio.py` (5/5 passed in 0.239s):
+  - Verified `GET /api/jobs/{jid}/clips/{cid}/studio-project` returns valid schema, tracks, filters, and VFX.
+  - Verified `POST /api/jobs/{jid}/clips/{cid}/studio-export` updates clip metadata and triggers re-render.
+  - Verified auto-scheduling with `schedule_now=True` calls `posting.enqueue()`.
+  - Verified FFmpeg `VIDEO_FILTERS` dictionary and filter syntax.
+  - Verified frontend `web/index.html` markup, tabs, styles, and action buttons.
+- Real browser visual verification via subagent `102fb32c-382c-404a-b0ac-b20b6e4ba4ab` on `http://localhost:8765`:
+  - Verified 5 top tabs in creator view (`Clips`, `Video Studio`, `Publishing Calendar`, `Setup`, `Activity`).
+  - Navigated to `Video Studio` tab, opened OhnePixel clip, verified 9:16 vertical player, vibrant filter application, screen shake test, and multi-track timeline with interactive playhead scrubbing at 15s.
+  - Visual evidence artifacts saved: `video_studio_timeline_verified.png` and `video_studio_timeline_fullpage.png`.
+
 ## [2026-11-23] — CapCut-Style Audio Start Trim & Video Editor (OpenCut) Architecture
 
 ### Added

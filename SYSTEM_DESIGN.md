@@ -623,3 +623,15 @@ Integrated directly in `studio/brain.py` and `studio/posting.py`:
 
    - Guarded `go()` against early overview fallback before creators are loaded.
    - Synchronized `view` and `ctab` with `localStorage` and `history.pushState` / `replaceState`.
+
+
+## 15. In-Browser Web Video Studio & Multi-Track Timeline Architecture
+ClipNova AI features a non-linear in-browser video editor designed after CapCut and OpenCut:
+1. **Interactive WYSIWYG Timeline**:
+   - Time Ruler with second markers and click-to-seek playhead needle.
+   - Five distinct timeline lanes: Subtitle captions (word blocks with start/end duration), Video slices (with playhead cut/split markers), Facecam PiP, Audio waveform (with draggable start offset trim), and VFX event cues.
+2. **Real-Time CSS & FFmpeg Parity**:
+   - CSS filters (`saturate`, `contrast`, `hue-rotate`, `grayscale`) match backend FFmpeg filter expressions (`eq=saturation=1.3:contrast=1.1`, `hue=h=15:s=1.35`) for zero-delay visual preview.
+   - Interactive VFX simulations (Flash White, Screen Shake, Glitch RGB, Zoom Punch) run CSS keyframe animations for instant testing.
+3. **Seamless Publishing Integration**:
+   - `Save & Queue to YouTube (USA Peak)` ties the studio timeline directly into the autonomous YouTube hourly velocity priming calendar, scheduling exported clips at peak audience velocity slots.

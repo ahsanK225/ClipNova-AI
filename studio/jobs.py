@@ -409,9 +409,9 @@ def request_render(jid, cid, changes: dict):
         raise ValueError("Those times aren't valid.")
     if not 3 <= new["end"] - new["start"] <= 180:
         raise ValueError("A clip can be 3 to 180 seconds long.")
-    for k in ("hook", "title", "description", "style", "layout", "seo_title", "pinned_comment", "hook_style", "outro_text", "facecam_pos", "bgm_track"):
+    for k in ("hook", "title", "description", "style", "layout", "seo_title", "pinned_comment", "hook_style", "outro_text", "facecam_pos", "bgm_track", "video_filter"):
         if k in changes:
-            new[k] = str(changes[k])[:{"hook": 60, "title": 100, "description": 2000, "seo_title": 100, "pinned_comment": 500, "hook_style": 20, "outro_text": 100, "facecam_pos": 20, "bgm_track": 50}.get(k, 20)]
+            new[k] = str(changes[k])[:{"hook": 60, "title": 100, "description": 2000, "seo_title": 100, "pinned_comment": 500, "hook_style": 20, "outro_text": 100, "facecam_pos": 20, "bgm_track": 50, "video_filter": 50}.get(k, 20)]
     if "bgm_volume" in changes:
         try:
             new["bgm_volume"] = max(0.0, min(1.0, round(float(changes["bgm_volume"]), 2)))
@@ -422,6 +422,13 @@ def request_render(jid, cid, changes: dict):
             new["bgm_offset"] = max(0.0, min(3600.0, round(float(changes["bgm_offset"]), 3)))
         except (ValueError, TypeError):
             new["bgm_offset"] = 0.0
+    if "speed" in changes:
+        try:
+            new["speed"] = max(0.25, min(4.0, round(float(changes["speed"]), 2)))
+        except (ValueError, TypeError):
+            new["speed"] = 1.0
+    if "words" in changes and isinstance(changes["words"], list):
+        new["words"] = changes["words"]
     if "hashtags" in changes:
         new["hashtags"] = clean_hashtags(changes["hashtags"])
     if "outro_cta" in changes:

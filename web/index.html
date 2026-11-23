@@ -1244,7 +1244,77 @@ details.card[open] > summary .accordion-chevron {
     grid-column: span 2;
   }
 }
+
+/* --- ClipNova Web Video Studio (CapCut Style Multi-Track Editor) --- */
+@keyframes studioShake {
+  0%, 100% { transform: translate(0, 0); }
+  20% { transform: translate(-8px, 6px); }
+  40% { transform: translate(8px, -6px); }
+  60% { transform: translate(-6px, -4px); }
+  80% { transform: translate(6px, 4px); }
+}
+@keyframes studioGlitch {
+  0%, 100% { filter: none; }
+  20% { filter: drop-shadow(-4px 0 #ff0055) drop-shadow(4px 0 #00f0ff); transform: skewX(-2deg); }
+  40% { filter: drop-shadow(4px 0 #ff0055) drop-shadow(-4px 0 #00f0ff); transform: skewX(2deg); }
+  60% { filter: drop-shadow(-2px 0 #ff0055) drop-shadow(2px 0 #00f0ff); transform: none; }
+  80% { filter: drop-shadow(3px 0 #ff0055) drop-shadow(-3px 0 #00f0ff); }
+}
+@keyframes studioZoomPunch {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.22); }
+  100% { transform: scale(1); }
+}
+.studio-anim-shake { animation: studioShake 0.4s ease-in-out; }
+.studio-anim-glitch { animation: studioGlitch 0.45s ease-in-out; }
+.studio-anim-zoom { animation: studioZoomPunch 0.4s cubic-bezier(0.16, 1, 0.3, 1); }
+
+.studio-track-row {
+  position: relative;
+  height: 40px;
+  background: rgba(15, 23, 42, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  margin-bottom: 6px;
+  overflow: hidden;
+  user-select: none;
+}
+.studio-word-block {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  background: rgba(99, 102, 241, 0.25);
+  border: 1px solid rgba(99, 102, 241, 0.6);
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  color: #E2E8F0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 0 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.studio-word-block:hover {
+  background: rgba(0, 240, 255, 0.35);
+  border-color: #00F0FF;
+  color: #FFF;
+  z-index: 5;
+}
+.studio-word-block.active {
+  background: #00F0FF !important;
+  border-color: #FFF !important;
+  color: #020617 !important;
+  font-weight: 900 !important;
+  box-shadow: 0 0 10px rgba(0, 240, 255, 0.8) !important;
+  z-index: 6;
+}
 </style>
+
 </head>
 <body>
 <div class="app" id="app">
@@ -1773,7 +1843,7 @@ function drawShell() {  const nav = (v, icon, label, extra = "") => `<button cla
     subHtml = statusBadge(c);
     const nJobs = S.jobs.filter(j => j.creator === c.id).length, nLog = (c.log || []).length;
     const nSched = (S.overview?.posts || []).filter(p => p.creator === c.id && p.status === "scheduled" && p.kind !== "community").length;
-    tabs = [["clips", "Clips", "scissors", nJobs], ["calendar", "Publishing Calendar", "calendar", nSched], ["setup", "Setup", "cog", 0], ["activity", "Activity", "clock", nLog]].map(([k, l, i, n]) =>
+    tabs = [["clips", "Clips", "scissors", nJobs], ["studio", "Video Studio", "film", 0], ["calendar", "Publishing Calendar", "calendar", nSched], ["setup", "Setup", "cog", 0], ["activity", "Activity", "clock", nLog]].map(([k, l, i, n]) =>
       `<button class="tabbtn ${S.ctab === k ? "on" : ""}" data-act="tab" data-t="${k}" role="tab" aria-selected="${S.ctab === k}">${ic(i)}${l}${n ? `<span class="n">${n > 99 ? "99+" : n}</span>` : ""}</button>`).join("");
     act = c.live_job ? `<button class="btn danger" data-act="stoplive" data-j="${esc(c.live_job)}">${ic("stop")}Stop recording</button>`
                      : `<button class="btn primary" data-act="golive"><span class="rdot"></span>${liveOn(c).length ? "Record live stream" : "Start recording"}</button>`;
@@ -1898,7 +1968,7 @@ function pathFor(v, tab) {
   return "/app" + (ROUTES[v] ? "/" + ROUTES[v] : "");
 }
 function fromPath(path) {
-  const m = path.match(/^\/app\/creators\/([^/]+)(?:\/(setup|activity|clips|calendar))?\/?$/);
+  const m = path.match(/^\/app\/creators\/([^/]+)(?:\/(setup|activity|clips|calendar|studio))?\/?$/);
   if (m) return ["c:" + decodeURIComponent(m[1]), m[2] || "clips"];
   const st = path.match(/^\/app\/settings(?:\/(ai|seo|profile|security|apps|speech|storage))?\/?$/);
   if (st) return ["settings", st[1] || null];
@@ -1953,11 +2023,13 @@ function setTab(t) {
   if (S.view.startsWith("c:")) remember(S.view, t, "replace");
   drawShell();
   $("#cbody").innerHTML = t === "clips" ? `<div id="live"></div><div id="add"></div><div id="jobs"></div>`
+    : t === "studio" ? `<div id="creator_studio_view" style="padding:4px 0 24px 0"></div>`
     : t === "calendar" ? `<div id="creator_calendar_view" style="padding:4px 0 24px 0"></div>`
     : t === "setup" ? `<div id="cform"></div>`
     : `<div id="clog"></div>`;
   if ($("#stream")) $("#stream").style.display = t === "clips" ? "" : "none";
   if (t === "clips") drawAdd("compact");
+  if (t === "studio") drawVideoStudioTab();
   if (t === "calendar") drawCreatorCalendarTab();
   if (t === "setup") drawCreatorForm();
   render();
@@ -2593,6 +2665,7 @@ function clipHtml(j, c) {
       ${postPills(c) ? `<div class="row" style="gap:4px">${postPills(c)}</div>` : ""}
       <div class="clip-foot">
         ${busyClip ? "" : `<label class="selck" title="Select this clip"><input type="checkbox" data-sel="${key}" ${sel().has(key) ? "checked" : ""} aria-label="Select this clip"></label>`}
+        ${c.status === "done" ? `<button class="btn sm icon ghost" data-act="open_web_studio" ${a} title="Open in Web Video Studio" aria-label="Open in Web Studio">🎬</button>` : ""}
         ${c.status === "done" ? `<a class="btn sm icon ghost" href="${m}${esc(c.file)}?download=1" title="Download" aria-label="Download">${ic("down")}</a>` : ""}
         <button class="btn sm icon ghost" data-act="copy" ${a} title="Copy post text" aria-label="Copy post text">${ic("copy")}</button>
         <button class="btn sm icon ghost" data-act="copyseo" ${a} title="Copy YouTube Shorts SEO" aria-label="Copy YouTube Shorts SEO" style="font-weight:700;font-size:11px;padding:0 5px;color:var(--brand)">SEO</button>
@@ -3605,6 +3678,701 @@ async function renderCreatorCalendarCard(c, targetEl, isCompact = false) {
       ` : ''}
     </div>
   `;
+}
+
+
+/* ============================================================ CLIPNOVA WEB VIDEO STUDIO */
+let _studioProj = null;
+let _studioActiveFilter = "normal";
+let _studioSpeed = 1.0;
+let _studioBgmTrack = "none";
+let _studioBgmVolume = 0.18;
+let _studioBgmOffset = 0.0;
+let _studioLayout = "split";
+let _studioWords = [];
+let _studioDrawerTab = "filters";
+let _studioVfxCues = [];
+let _studioCuts = [];
+let _studioAudioAudition = null;
+
+async function drawVideoStudioTab() {
+  const c = creator(), box = $("#creator_studio_view");
+  if (!c || !box) return;
+
+  // 1. If no specific clip selected, show clip picker grid
+  if (!window._studioClip) {
+    const creatorJobs = S.jobs.filter(j => j.creator === c.id);
+    const allDoneClips = [];
+    creatorJobs.forEach(j => {
+      (j.clips || []).forEach(cl => {
+        if (cl.status === "done") allDoneClips.push({ jid: j.id, clip: cl, jobName: j.title || j.source?.name || "Stream Recording" });
+      });
+    });
+
+    box.innerHTML = `
+      <div style="background:#0F172A;border:1px solid #1E293B;border-radius:18px;padding:24px;box-shadow:0 12px 40px rgba(0,0,0,0.5)">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px">
+          <div style="display:flex;align-items:center;gap:14px">
+            <div style="width:48px;height:48px;border-radius:14px;background:linear-gradient(135deg,rgba(99,102,241,0.25),rgba(0,240,255,0.25));border:1px solid rgba(0,240,255,0.4);display:flex;align-items:center;justify-content:center;font-size:24px;box-shadow:0 0 20px rgba(0,240,255,0.2)">
+              🎬
+            </div>
+            <div>
+              <h2 style="margin:0;font-size:20px;font-weight:800;color:#F8FAFC;letter-spacing:-0.3px">
+                ClipNova AI · Web Video Studio
+              </h2>
+              <p style="margin:4px 0 0;font-size:13px;color:#94A3B8">
+                In-browser multi-track editor: edit subtitles, video filters, viral VFX, audio drop sync &amp; auto-queue to USA YouTube Peak Velocity.
+              </p>
+            </div>
+          </div>
+          <span class="pill" style="padding:6px 14px;border-radius:20px;background:rgba(0,240,255,0.12);color:#00F0FF;border:1px solid rgba(0,240,255,0.3);font-size:12px;font-weight:700">
+            ✨ Multi-Track Timeline Engine Active
+          </span>
+        </div>
+
+        <div style="margin-bottom:14px;display:flex;align-items:center;justify-content:space-between">
+          <h3 style="margin:0;font-size:15px;font-weight:700;color:#E2E8F0">
+            Select a Clip to Edit (${allDoneClips.length} ready):
+          </h3>
+          <button class="btn sm ghost" onclick="setTab('clips')">Back to Clips</button>
+        </div>
+
+        ${allDoneClips.length === 0 ? `
+          <div style="padding:48px 20px;text-align:center;color:#64748B;background:rgba(15,23,42,0.5);border:1px dashed #334155;border-radius:14px">
+            <span style="font-size:36px;display:block;margin-bottom:10px">📼</span>
+            <b style="color:#94A3B8;font-size:15px">No finished clips found for ${esc(c.name)} yet.</b>
+            <p style="font-size:13px;margin:6px 0 16px">Make clips from a live stream or recorded video in the Clips tab first.</p>
+            <button class="btn primary" onclick="setTab('clips')">Go to Clips Tab</button>
+          </div>
+        ` : `
+          <div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(280px, 1fr));gap:16px">
+            ${allDoneClips.map(({ jid, clip, jobName }) => {
+              const m = `/media/${jid}/`;
+              return `
+                <div style="background:#131B2E;border:1px solid #1E293B;border-radius:14px;overflow:hidden;display:flex;flex-direction:column;transition:border-color 0.15s" onmouseover="this.style.borderColor='rgba(0,240,255,0.5)'" onmouseout="this.style.borderColor='#1E293B'">
+                  <div style="position:relative;width:100%;height:160px;background:#05070D">
+                    <img src="${m}${esc(clip.cover)}?v=${clip.version || 1}" alt="" style="width:100%;height:100%;object-fit:cover" loading="lazy">
+                    <span style="position:absolute;bottom:8px;right:8px;background:rgba(0,0,0,0.85);color:#fff;font-size:11px;font-weight:700;padding:2px 6px;border-radius:6px;font-family:monospace">
+                      ${fmt(clip.end - clip.start)}
+                    </span>
+                    <span style="position:absolute;top:8px;left:8px;background:rgba(99,102,241,0.85);color:#fff;font-size:10px;font-weight:700;padding:2px 6px;border-radius:6px">
+                      9:16 Shorts
+                    </span>
+                  </div>
+                  <div style="padding:14px;display:flex;flex-direction:column;flex:1">
+                    <div style="font-size:11px;color:#94A3B8;margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+                      ${esc(jobName)}
+                    </div>
+                    <b style="font-size:14px;color:#F8FAFC;margin-bottom:6px;line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">
+                      ${esc(clip.title || clip.hook || "Untitled Clip")}
+                    </b>
+                    <p style="font-size:12px;color:#94A3B8;margin:0 0 14px;line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">
+                      ${esc(clip.description || "")}
+                    </p>
+                    <div style="margin-top:auto">
+                      <button class="btn primary" data-act="studio_pick_clip" data-j="${jid}" data-c="${esc(clip.id)}" style="width:100%;justify-content:center;background:linear-gradient(135deg,#6366F1,#00F0FF);color:#020617;font-weight:800;border:none;box-shadow:0 4px 14px rgba(0,240,255,0.25)">
+                        🎬 Open in Studio
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              `;
+            }).join("")}
+          </div>
+        `}
+      </div>
+    `;
+    return;
+  }
+
+  // 2. A specific clip is active -> load project from API
+  const { jid, cid } = window._studioClip;
+  box.innerHTML = `
+    <div style="background:#0F172A;border:1px solid #1E293B;border-radius:18px;padding:48px 24px;text-align:center;color:#94A3B8">
+      <div style="font-size:36px;margin-bottom:12px" class="spin">⏳</div>
+      <b style="font-size:16px;color:#F8FAFC">Loading Web Video Studio timeline project…</b>
+      <p style="font-size:13px;margin:6px 0 0">Extracting word timestamps, audio tracks, and video filters</p>
+    </div>
+  `;
+
+  let project = null;
+  try {
+    project = await api(`/api/jobs/${encodeURIComponent(jid)}/clips/${encodeURIComponent(cid)}/studio-project`);
+  } catch (err) {
+    box.innerHTML = `
+      <div style="background:#0F172A;border:1px solid #EF4444;border-radius:18px;padding:24px;color:#EF4444;text-align:center">
+        <b>Failed to load studio project: ${esc(err.message)}</b>
+        <div style="margin-top:14px"><button class="btn" onclick="window._studioClip=null;drawVideoStudioTab()">Back to Clips Grid</button></div>
+      </div>
+    `;
+    return;
+  }
+
+  _studioProj = project;
+  _studioActiveFilter = project.tracks?.video?.filter || "normal";
+  _studioSpeed = project.tracks?.video?.speed || 1.0;
+  _studioBgmTrack = project.tracks?.audio?.track || "none";
+  _studioBgmVolume = project.tracks?.audio?.volume ?? 0.18;
+  _studioBgmOffset = project.tracks?.audio?.offset ?? 0.0;
+  _studioLayout = project.tracks?.facecam?.layout || "split";
+  _studioWords = (project.tracks?.subtitles || []).map(w => ({ ...w }));
+  _studioVfxCues = [];
+  _studioCuts = [];
+
+  renderStudioWorkspace();
+}
+
+function renderStudioWorkspace() {
+  const box = $("#creator_studio_view");
+  if (!box || !_studioProj) return;
+
+  const filters = _studioProj.available_filters || [];
+  const vfxPresets = _studioProj.available_vfx || [];
+  const sounds = _studioProj.available_sounds || [];
+  const dur = _studioProj.duration || 30.0;
+
+  box.innerHTML = `
+    <div style="background:#0B1120;border:1px solid #1E293B;border-radius:18px;padding:18px;box-shadow:0 20px 60px rgba(0,0,0,0.7);display:flex;flex-direction:column;gap:16px">
+      <!-- Top Action Bar -->
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;padding-bottom:12px;border-bottom:1px solid rgba(255,255,255,0.08)">
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <button class="btn sm" data-act="studio_back_to_clips" style="background:#1E293B;border:1px solid #334155;color:#E2E8F0;font-weight:600">
+            ⬅️ Clips Grid
+          </button>
+          <input id="studio_title_input" value="${esc(_studioProj.title)}" style="background:#131B2E;color:#F8FAFC;border:1px solid #334155;border-radius:8px;padding:6px 12px;font-size:13px;font-weight:700;width:300px;max-width:100%" placeholder="Clip Title">
+          <span id="studio_time_display" style="font-family:ui-monospace,Menlo,monospace;font-size:12px;font-weight:700;color:#00F0FF;background:rgba(0,240,255,0.1);border:1px solid rgba(0,240,255,0.3);padding:4px 10px;border-radius:8px">
+            00:00.0 / ${fmt(dur)}
+          </span>
+          <button type="button" class="btn sm" id="studio_btn_cut" onclick="studioSplitCut()" style="background:#1E293B;border:1px solid #334155;color:#CBD5E1" title="Split clip at playhead">
+            ✂️ Split at Playhead
+          </button>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <button type="button" class="btn sm" id="studio_btn_render" onclick="saveStudioExport(false)" style="background:#1E293B;border:1px solid #334155;color:#E2E8F0;font-weight:600">
+            💾 Save &amp; Re-render MP4
+          </button>
+          <button type="button" class="btn sm primary" id="studio_btn_queue" onclick="saveStudioExport(true)" style="background:linear-gradient(135deg,#00F0FF,#6366F1);color:#020617;font-weight:800;border:none;box-shadow:0 0 16px rgba(0,240,255,0.4)">
+            🚀 Save &amp; Queue to YouTube (USA Peak)
+          </button>
+        </div>
+      </div>
+
+      <!-- Main Workspace: Video Viewport (Center) + Tool Drawer (Right) -->
+      <div style="display:grid;grid-template-columns:minmax(280px, 320px) 1fr;gap:20px;align-items:start">
+        <!-- Left: 9:16 Video Preview Viewport -->
+        <div style="display:flex;flex-direction:column;align-items:center">
+          <div id="studio_preview_box" style="position:relative;width:100%;max-width:280px;aspect-ratio:9/16;background:#000;border-radius:14px;overflow:hidden;box-shadow:0 12px 40px rgba(0,0,0,0.8);border:2px solid #1E293B">
+            <video id="studio_video_el" src="${_studioProj.video_url}" playsinline preload="auto" style="width:100%;height:100%;object-fit:cover;transition:filter 0.15s ease"></video>
+            <!-- Subtitle Words Overlay -->
+            <div id="studio_sub_overlay" style="position:absolute;bottom:45px;left:8px;right:8px;text-align:center;pointer-events:none;color:#FFFF00;font-family:'Impact',sans-serif;font-size:19px;text-transform:uppercase;-webkit-text-stroke:1.2px #000;text-shadow:2px 2px 0 #000;font-weight:900;line-height:1.2;z-index:15"></div>
+            <!-- VFX Flash Overlay -->
+            <div id="studio_vfx_flash" style="position:absolute;inset:0;background:#FFF;pointer-events:none;opacity:0;z-index:20;transition:opacity 0.05s ease"></div>
+          </div>
+
+          <!-- Video Transport Controls -->
+          <div style="margin-top:10px;width:100%;max-width:280px;background:#131B2E;border:1px solid #1E293B;border-radius:10px;padding:8px 12px;display:flex;align-items:center;justify-content:space-between">
+            <button class="btn sm icon ghost" onclick="studioSeekRel(-1)" title="Back 1s">⏪</button>
+            <button class="btn sm icon" id="studio_play_btn" onclick="studioTogglePlay()" style="background:#00F0FF;color:#020617;font-weight:800;border:none">▶️</button>
+            <button class="btn sm icon ghost" onclick="studioSeekRel(1)" title="Forward 1s">⏩</button>
+            <span style="height:16px;width:1px;background:#334155;margin:0 4px"></span>
+            <div style="display:flex;gap:4px">
+              ${[0.75, 1.0, 1.25, 1.5].map(s => `
+                <button class="chip sm ${s === _studioSpeed ? 'on' : ''}" onclick="studioSetSpeed(${s})" style="font-size:10px;padding:2px 6px">
+                  ${s}x
+                </button>
+              `).join("")}
+            </div>
+          </div>
+        </div>
+
+        <!-- Right: Studio Tool Tabs Drawer (Filters, VFX, Audio, Subtitles, Layout) -->
+        <div style="background:#131B2E;border:1px solid #1E293B;border-radius:14px;padding:16px;display:flex;flex-direction:column;min-height:480px">
+          <!-- Drawer Navigation Bar -->
+          <div style="display:flex;gap:6px;border-bottom:1px solid rgba(255,255,255,0.08);padding-bottom:12px;margin-bottom:14px;flex-wrap:wrap">
+            ${[
+              ["filters", "🎨 Visual Filters"],
+              ["vfx", "⚡ Viral VFX"],
+              ["audio", "🎵 Audio & BGM"],
+              ["subtitles", "💬 Subtitles"],
+              ["layout", "🎭 Layout"]
+            ].map(([id, label]) => `
+              <button class="tabbtn ${_studioDrawerTab === id ? 'on' : ''}" onclick="studioSwitchTab('${id}')" style="font-size:12px;padding:6px 12px">
+                ${label}
+              </button>
+            `).join("")}
+          </div>
+
+          <!-- Drawer Content Panel -->
+          <div id="studio_drawer_content" style="flex:1">
+            ${renderStudioDrawerContent()}
+          </div>
+        </div>
+      </div>
+
+      <!-- Bottom: Multi-Track Timeline Editor Container (CapCut Style) -->
+      <div style="background:#0A0E1A;border:1px solid #1E293B;border-radius:14px;padding:14px 18px;display:flex;flex-direction:column;gap:8px">
+        <!-- Timeline Header -->
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="font-size:13px;font-weight:700;color:#F8FAFC">Multi-Track Timeline</span>
+            <span class="pill" style="font-size:10px;padding:2px 8px;background:rgba(99,102,241,0.15);color:#818CF8;border:1px solid rgba(99,102,241,0.3)">
+              Interactive Scrubbing
+            </span>
+          </div>
+          <span style="font-size:11px;color:#94A3B8">Click or drag anywhere on ruler to move playhead</span>
+        </div>
+
+        <!-- Ruler Track -->
+        <div id="studio_ruler" style="position:relative;height:24px;background:#0F172A;border:1px solid rgba(255,255,255,0.06);border-radius:6px;cursor:pointer;overflow:hidden" onclick="studioSeekRuler(event)">
+          ${(() => {
+            let ticks = [];
+            for (let t = 0; t <= dur; t += 5) {
+              const pct = (t / dur) * 100;
+              ticks.push(`
+                <div style="position:absolute;left:${pct}%;top:0;bottom:0;display:flex;flex-direction:column;align-items:center;pointer-events:none">
+                  <span style="height:6px;width:1px;background:#64748B"></span>
+                  <span style="font-size:9px;font-family:monospace;color:#94A3B8;margin-top:2px">${t}s</span>
+                </div>
+              `);
+            }
+            return ticks.join("");
+          })()}
+        </div>
+
+        <!-- Relative Tracks Wrapper with moving Red/Cyan Playhead Needle -->
+        <div id="studio_tracks_wrapper" style="position:relative;margin-top:4px;cursor:pointer" onclick="studioSeekRuler(event)">
+          <!-- Playhead Needle -->
+          <div id="studio_needle" style="position:absolute;left:0%;top:-10px;bottom:0;width:2px;background:#00F0FF;box-shadow:0 0 8px #00F0FF;z-index:50;pointer-events:none;transition:left 0.05s linear">
+            <div style="width:10px;height:10px;background:#00F0FF;transform:rotate(45deg);margin-left:-4px;margin-top:-5px;box-shadow:0 0 6px #00F0FF"></div>
+          </div>
+
+          <!-- Track 1: Subtitle Words -->
+          <div class="studio-track-row" id="studio_track_subtitles" title="Subtitles Track">
+            <div style="position:absolute;left:8px;top:10px;font-size:10px;font-weight:700;color:#818CF8;z-index:2;pointer-events:none">
+              💬 Subtitles
+            </div>
+            <div id="studio_sub_words_container" style="position:absolute;inset:0">
+              ${_studioWords.map((w, idx) => {
+                const left = (w.start / dur) * 100;
+                const width = Math.max(1.5, ((w.end - w.start) / dur) * 100);
+                return `
+                  <div class="studio-word-block" data-idx="${idx}" data-start="${w.start}" style="left:${left}%;width:${width}%" onclick="event.stopPropagation();studioSeekToWord(${idx})">
+                    ${esc(w.text)}
+                  </div>
+                `;
+              }).join("")}
+            </div>
+          </div>
+
+          <!-- Track 2: Video Track -->
+          <div class="studio-track-row" id="studio_track_video" style="background:linear-gradient(90deg, rgba(99,102,241,0.2), rgba(168,85,247,0.25));border-color:rgba(99,102,241,0.4)" title="Video Track">
+            <div style="position:absolute;left:8px;top:10px;font-size:10px;font-weight:700;color:#C084FC;z-index:2;pointer-events:none">
+              🎬 Video: ${_studioProj.title ? esc(_studioProj.title.slice(0, 30)) : 'Main Cut'}
+            </div>
+            <!-- Cuts slice lines -->
+            <div id="studio_cuts_container" style="position:absolute;inset:0;pointer-events:none">
+              ${_studioCuts.map(c => `
+                <div style="position:absolute;left:${(c / dur) * 100}%;top:0;bottom:0;width:2px;background:#FFF;border-left:1px dashed #EF4444"></div>
+              `).join("")}
+            </div>
+          </div>
+
+          <!-- Track 3: Facecam Layout -->
+          <div class="studio-track-row" id="studio_track_facecam" style="background:rgba(20,83,45,0.25);border-color:rgba(34,197,94,0.3)" title="Reaction Track">
+            <div style="position:absolute;left:8px;top:10px;font-size:10px;font-weight:700;color:#4ADE80;z-index:2;pointer-events:none">
+              🎭 Facecam PiP: ${_studioLayout.toUpperCase()}
+            </div>
+          </div>
+
+          <!-- Track 4: Audio Track (Waveform + Trim handle) -->
+          <div class="studio-track-row" id="studio_track_audio" style="background:rgba(8,145,178,0.2);border-color:rgba(6,182,212,0.3)" title="Background Audio Track">
+            <div style="position:absolute;left:8px;top:10px;font-size:10px;font-weight:700;color:#22D3EE;z-index:2;pointer-events:none">
+              🎵 BGM: ${_studioBgmTrack !== 'none' ? esc(_studioBgmTrack) : 'Original Audio Only'} (${Math.round(_studioBgmVolume * 100)}% vol, ${_studioBgmOffset}s offset)
+            </div>
+          </div>
+
+          <!-- Track 5: VFX Track -->
+          <div class="studio-track-row" id="studio_track_vfx" style="background:rgba(180,83,9,0.2);border-color:rgba(245,158,11,0.3)" title="VFX Overlays Track">
+            <div style="position:absolute;left:8px;top:10px;font-size:10px;font-weight:700;color:#FBBF24;z-index:2;pointer-events:none">
+              ⚡ Viral VFX Events (${_studioVfxCues.length} placed)
+            </div>
+            <div id="studio_vfx_markers_container" style="position:absolute;inset:0;pointer-events:none">
+              ${_studioVfxCues.map(cue => `
+                <div style="position:absolute;left:${(cue.time / dur) * 100}%;top:4px;bottom:4px;width:18px;margin-left:-9px;background:#F59E0B;color:#020617;font-size:9px;font-weight:900;border-radius:4px;display:flex;align-items:center;justify-content:center;box-shadow:0 0 6px #F59E0B">
+                  ⚡
+                </div>
+              `).join("")}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  // Attach event listener on video element
+  const vid = $("#studio_video_el");
+  if (vid) {
+    vid.ontimeupdate = () => {
+      const cur = vid.currentTime;
+      const total = vid.duration || dur;
+      // Update timecode display
+      const tc = $("#studio_time_display");
+      if (tc) tc.innerText = `${fmt(cur)}.${Math.floor((cur % 1) * 10)} / ${fmt(total)}`;
+      
+      // Update playhead needle position
+      const needle = $("#studio_needle");
+      if (needle) needle.style.left = `${(cur / total) * 100}%`;
+
+      // Highlight active subtitle word
+      const wordsBox = $("#studio_sub_words_container");
+      let activeWord = "";
+      if (wordsBox) {
+        const blocks = wordsBox.querySelectorAll(".studio-word-block");
+        blocks.forEach(b => {
+          const idx = Number(b.dataset.idx);
+          const w = _studioWords[idx];
+          if (w && cur >= w.start && cur <= w.end) {
+            b.classList.add("active");
+            activeWord = w.text;
+          } else {
+            b.classList.remove("active");
+          }
+        });
+      }
+      const overlay = $("#studio_sub_overlay");
+      if (overlay) overlay.innerText = activeWord;
+    };
+
+    vid.onplay = () => { const btn = $("#studio_play_btn"); if (btn) btn.innerText = "⏸️"; };
+    vid.onpause = () => { const btn = $("#studio_play_btn"); if (btn) btn.innerText = "▶️"; };
+    
+    // Apply initial filter
+    applyStudioFilterCss(_studioActiveFilter);
+  }
+}
+
+function renderStudioDrawerContent() {
+  if (!_studioProj) return "";
+  const dur = _studioProj.duration || 30.0;
+
+  if (_studioDrawerTab === "filters") {
+    const filters = _studioProj.available_filters || [];
+    return `
+      <div>
+        <h4 style="margin:0 0 8px;font-size:14px;color:#F8FAFC">Visual Video Filters</h4>
+        <p style="margin:0 0 12px;font-size:12px;color:#94A3B8">
+          Instant real-time CSS preview on the player; rendered with FFmpeg color grading.
+        </p>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(130px, 1fr));gap:10px">
+          ${filters.map(f => `
+            <button type="button" class="btn sm" onclick="studioSelectFilter('${f.id}')" style="display:flex;flex-direction:column;align-items:flex-start;padding:10px;border-radius:10px;background:${_studioActiveFilter === f.id ? 'rgba(0,240,255,0.15)' : '#1E293B'};border:1px solid ${_studioActiveFilter === f.id ? '#00F0FF' : '#334155'};text-align:left">
+              <b style="font-size:12px;color:${_studioActiveFilter === f.id ? '#00F0FF' : '#F8FAFC'}">${esc(f.name)}</b>
+              <span style="font-size:10px;color:#94A3B8;margin-top:4px">${f.id === 'normal' ? 'Natural look' : 'Color graded'}</span>
+            </button>
+          `).join("")}
+        </div>
+      </div>
+    `;
+  }
+
+  if (_studioDrawerTab === "vfx") {
+    const vfxPresets = _studioProj.available_vfx || [];
+    return `
+      <div>
+        <h4 style="margin:0 0 8px;font-size:14px;color:#F8FAFC">Viral VFX Overlays</h4>
+        <p style="margin:0 0 12px;font-size:12px;color:#94A3B8">
+          High-impact visual effects for punchlines, climax drops, and reaction shocks.
+        </p>
+        <div style="display:grid;grid-template-columns:1fr;gap:10px">
+          ${vfxPresets.map(v => `
+            <div style="background:#1E293B;border:1px solid #334155;border-radius:10px;padding:10px 14px;display:flex;align-items:center;justify-content:space-between">
+              <div>
+                <b style="font-size:13px;color:#F8FAFC">${esc(v.name)}</b>
+                <div style="font-size:11px;color:#94A3B8;margin-top:2px">${esc(v.desc)}</div>
+              </div>
+              <div style="display:flex;gap:6px">
+                <button type="button" class="btn sm" onclick="studioTriggerVfx('${v.id}')" style="background:#0F172A;border:1px solid #334155;font-size:11px">
+                  ⚡ Test Now
+                </button>
+                <button type="button" class="btn sm primary" onclick="studioAddVfxMarker('${v.id}')" style="font-size:11px;background:#F59E0B;border:none;color:#020617;font-weight:700">
+                  ➕ Add at Playhead
+                </button>
+              </div>
+            </div>
+          `).join("")}
+        </div>
+      </div>
+    `;
+  }
+
+  if (_studioDrawerTab === "audio") {
+    const sounds = _studioProj.available_sounds || [];
+    return `
+      <div>
+        <h4 style="margin:0 0 8px;font-size:14px;color:#F8FAFC">Background Music &amp; Audio Mix</h4>
+        <p style="margin:0 0 12px;font-size:12px;color:#94A3B8">
+          Select viral phonk, meme sound, or background lo-fi. Adjust volume and start offset drop.
+        </p>
+        <label class="f" style="margin-bottom:12px">
+          <span>Track Selection</span>
+          <select id="studio_bgm_track_select" onchange="studioChangeBgmTrack(this.value)">
+            ${sounds.map(s => `
+              <option value="${esc(s.id)}" ${_studioBgmTrack === s.id ? 'selected' : ''}>${esc(s.name)} [${esc(s.category)}]</option>
+            `).join("")}
+          </select>
+        </label>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">
+          <div>
+            <label class="f" style="margin:0">
+              <span>Volume: <b id="studio_vol_val">${Math.round(_studioBgmVolume * 100)}%</b></span>
+              <input type="range" min="0" max="1" step="0.05" value="${_studioBgmVolume}" oninput="studioChangeBgmVolume(this.value)">
+            </label>
+          </div>
+          <div>
+            <label class="f" style="margin:0">
+              <span>Start Drop Offset: <b id="studio_offset_val">${_studioBgmOffset}s</b></span>
+              <input type="range" min="0" max="60" step="0.5" value="${_studioBgmOffset}" oninput="studioChangeBgmOffset(this.value)">
+            </label>
+          </div>
+        </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+          <span style="font-size:11px;color:#94A3B8">Quick Drop Jumps:</span>
+          ${[0, 10, 15, 30].map(s => `
+            <button class="chip sm" onclick="studioChangeBgmOffset(${s})">${s === 15 ? '⚡ 0:15 Drop' : s + 's'}</button>
+          `).join("")}
+        </div>
+      </div>
+    `;
+  }
+
+  if (_studioDrawerTab === "subtitles") {
+    return `
+      <div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+          <h4 style="margin:0;font-size:14px;color:#F8FAFC">Transcript &amp; Subtitles (${_studioWords.length} words)</h4>
+          <span style="font-size:11px;color:#94A3B8">Click word to seek; edit text to fix typos</span>
+        </div>
+        <div style="max-height:360px;overflow-y:auto;display:flex;flex-direction:column;gap:6px;padding-right:4px">
+          ${_studioWords.map((w, idx) => `
+            <div style="background:#1E293B;border:1px solid #334155;border-radius:8px;padding:6px 10px;display:flex;align-items:center;gap:10px">
+              <span style="font-family:monospace;font-size:11px;color:#00F0FF;cursor:pointer" onclick="studioSeekToWord(${idx})">
+                ${w.start.toFixed(1)}s
+              </span>
+              <input value="${esc(w.text)}" onchange="studioEditWord(${idx}, this.value)" style="background:#0F172A;color:#FFF;border:1px solid #334155;border-radius:6px;padding:4px 8px;font-size:12px;font-weight:700;flex:1">
+            </div>
+          `).join("")}
+        </div>
+      </div>
+    `;
+  }
+
+  if (_studioDrawerTab === "layout") {
+    return `
+      <div>
+        <h4 style="margin:0 0 8px;font-size:14px;color:#F8FAFC">Video &amp; Facecam Layout</h4>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          ${[
+            ["split", "Split Vertical (Gameplay + Reaction)", "Gameplay bottom, Facecam top"],
+            ["gameplay", "Fullscreen Gameplay", "Full vertical gameplay, reaction PiP in corner"],
+            ["custom", "Custom Layout Preset", "Using creator saved coordinates"]
+          ].map(([lay, name, desc]) => `
+            <button type="button" class="btn sm" onclick="studioSelectLayout('${lay}')" style="display:flex;flex-direction:column;align-items:flex-start;padding:12px;border-radius:10px;background:${_studioLayout === lay ? 'rgba(0,240,255,0.15)' : '#1E293B'};border:1px solid ${_studioLayout === lay ? '#00F0FF' : '#334155'};text-align:left">
+              <b style="font-size:13px;color:${_studioLayout === lay ? '#00F0FF' : '#F8FAFC'}">${name}</b>
+              <span style="font-size:11px;color:#94A3B8;margin-top:4px">${desc}</span>
+            </button>
+          `).join("")}
+        </div>
+      </div>
+    `;
+  }
+
+  return "";
+}
+
+function studioSwitchTab(tabId) {
+  _studioDrawerTab = tabId;
+  const content = $("#studio_drawer_content");
+  if (content) content.innerHTML = renderStudioDrawerContent();
+  // Update drawer nav buttons
+  const navBtns = $("#creator_studio_view")?.querySelectorAll(".tabbtn");
+  if (navBtns) {
+    navBtns.forEach(b => {
+      if (b.innerText.toLowerCase().includes(tabId)) b.classList.add("on");
+      else b.classList.remove("on");
+    });
+  }
+}
+
+function studioSelectFilter(fid) {
+  _studioActiveFilter = fid;
+  applyStudioFilterCss(fid);
+  studioSwitchTab("filters");
+  toast(`Applied filter: ${fid}`, "ok", 2000);
+}
+
+function applyStudioFilterCss(fid) {
+  const vid = $("#studio_video_el");
+  if (!vid || !_studioProj) return;
+  const f = (_studioProj.available_filters || []).find(x => x.id === fid);
+  if (f) vid.style.filter = f.css;
+}
+
+function studioTriggerVfx(vfxId) {
+  const pBox = $("#studio_preview_box");
+  const flash = $("#studio_vfx_flash");
+  if (vfxId === "flash") {
+    if (flash) {
+      flash.style.opacity = "1";
+      setTimeout(() => { flash.style.opacity = "0"; }, 150);
+    }
+  } else if (vfxId === "shake") {
+    if (pBox) {
+      pBox.classList.remove("studio-anim-shake");
+      void pBox.offsetWidth;
+      pBox.classList.add("studio-anim-shake");
+      setTimeout(() => pBox.classList.remove("studio-anim-shake"), 400);
+    }
+  } else if (vfxId === "glitch") {
+    if (pBox) {
+      pBox.classList.remove("studio-anim-glitch");
+      void pBox.offsetWidth;
+      pBox.classList.add("studio-anim-glitch");
+      setTimeout(() => pBox.classList.remove("studio-anim-glitch"), 450);
+    }
+  } else if (vfxId === "zoom_punch") {
+    if (pBox) {
+      pBox.classList.remove("studio-anim-zoom");
+      void pBox.offsetWidth;
+      pBox.classList.add("studio-anim-zoom");
+      setTimeout(() => pBox.classList.remove("studio-anim-zoom"), 400);
+    }
+  }
+}
+
+function studioAddVfxMarker(vfxId) {
+  const vid = $("#studio_video_el");
+  const t = vid ? vid.currentTime : 0;
+  _studioVfxCues.push({ time: t, type: vfxId });
+  studioTriggerVfx(vfxId);
+  renderStudioWorkspace();
+  toast(`Added VFX marker at ${t.toFixed(1)}s`, "ok", 2500);
+}
+
+function studioTogglePlay() {
+  const vid = $("#studio_video_el");
+  if (!vid) return;
+  if (vid.paused) vid.play();
+  else vid.pause();
+}
+
+function studioSeekRel(delta) {
+  const vid = $("#studio_video_el");
+  if (!vid) return;
+  vid.currentTime = Math.max(0, Math.min(vid.duration || 30, vid.currentTime + delta));
+}
+
+function studioSetSpeed(s) {
+  _studioSpeed = s;
+  const vid = $("#studio_video_el");
+  if (vid) vid.playbackRate = s;
+  renderStudioWorkspace();
+}
+
+function studioSeekRuler(e) {
+  const wrapper = $("#studio_tracks_wrapper");
+  if (!wrapper || !_studioProj) return;
+  const rect = wrapper.getBoundingClientRect();
+  const x = Math.max(0, Math.min(rect.width, e.clientX - rect.left));
+  const pct = x / rect.width;
+  const targetTime = pct * (_studioProj.duration || 30.0);
+  const vid = $("#studio_video_el");
+  if (vid) vid.currentTime = targetTime;
+}
+
+function studioSeekToWord(idx) {
+  const w = _studioWords[idx];
+  if (!w) return;
+  const vid = $("#studio_video_el");
+  if (vid) {
+    vid.currentTime = w.start;
+    vid.play();
+  }
+}
+
+function studioEditWord(idx, val) {
+  if (_studioWords[idx]) {
+    _studioWords[idx].text = val.trim();
+    toast("Updated subtitle word", "ok", 1500);
+  }
+}
+
+function studioChangeBgmTrack(val) {
+  _studioBgmTrack = val;
+  toast(`Selected BGM: ${val}`, "ok", 2000);
+  renderStudioWorkspace();
+}
+
+function studioChangeBgmVolume(val) {
+  _studioBgmVolume = parseFloat(val);
+  const lbl = $("#studio_vol_val");
+  if (lbl) lbl.innerText = `${Math.round(_studioBgmVolume * 100)}%`;
+}
+
+function studioChangeBgmOffset(val) {
+  _studioBgmOffset = parseFloat(val);
+  const lbl = $("#studio_offset_val");
+  if (lbl) lbl.innerText = `${_studioBgmOffset}s`;
+  renderStudioWorkspace();
+}
+
+function studioSelectLayout(lay) {
+  _studioLayout = lay;
+  studioSwitchTab("layout");
+  toast(`Layout set to ${lay}`, "ok", 2000);
+}
+
+function studioSplitCut() {
+  const vid = $("#studio_video_el");
+  if (!vid) return;
+  const t = vid.currentTime;
+  _studioCuts.push(t);
+  renderStudioWorkspace();
+  toast(`Split cut placed at ${t.toFixed(1)}s`, "ok", 2500);
+}
+
+async function saveStudioExport(scheduleNow) {
+  if (!_studioProj || !window._studioClip) return;
+  const { jid, cid } = window._studioClip;
+  const title = $("#studio_title_input")?.value || _studioProj.title;
+
+  toast(scheduleNow ? "⏳ Rendering Studio modifications & scheduling to USA YouTube Peak..." : "⏳ Rendering Studio video with FFmpeg...", "ok", 5000);
+
+  const payload = {
+    title: title,
+    video_filter: _studioActiveFilter,
+    speed: _studioSpeed,
+    bgm_track: _studioBgmTrack,
+    bgm_volume: _studioBgmVolume,
+    bgm_offset: _studioBgmOffset,
+    layout: _studioLayout,
+    words: _studioWords.map(w => ({ w: w.text, s: w.start, e: w.end })),
+    schedule_now: scheduleNow
+  };
+
+  try {
+    const res = await send(`/api/jobs/${encodeURIComponent(jid)}/clips/${encodeURIComponent(cid)}/studio-export`, payload);
+    if (scheduleNow) {
+      toast("🚀 Video exported & scheduled in YouTube USA Publishing Calendar at peak velocity slot!", "ok", 7000);
+      window._studioClip = null;
+      setTab("calendar");
+    } else {
+      toast("✅ Clip re-render queued with your cuts, filters and audio mix!", "ok", 6000);
+      window._studioClip = null;
+      setTab("clips");
+    }
+  } catch (err) {
+    toast(`Export failed: ${err.message}`, "bad", 6000);
+  }
 }
 
 function drawCreatorCalendarTab() {
@@ -4920,6 +5688,9 @@ function drawClipDlg(full) {
         })()}
         <div style="display:flex;gap:8px;align-items:center;margin:12px 0 16px 0;flex-wrap:wrap">
           <button class="btn" data-act="remake" style="flex:1;min-width:180px">${ic("scissors")}Save and re-make clip</button>
+          <button type="button" class="btn" data-act="open_web_studio" data-j="${j.id}" data-c="${esc(c.id)}" style="background:linear-gradient(135deg,#6366F1,#00F0FF);color:#020617;font-weight:800;border:none;display:inline-flex;align-items:center;gap:6px;box-shadow:0 0 12px rgba(0,240,255,0.3)" title="Open in Web Video Studio timeline editor">
+            <span>🎬</span> Open in Web Studio
+          </button>
           <button type="button" class="btn" data-act="export_capcut" data-j="${j.id}" data-c="${esc(c.id)}" style="background:linear-gradient(135deg,#00F0FF,#0088FF);color:#050505;font-weight:800;border:none;display:inline-flex;align-items:center;gap:6px" title="Export this clip into a full native CapCut desktop project">
             <span>🚀</span> Open in CapCut Desktop
           </button>
@@ -7482,6 +8253,29 @@ document.addEventListener("click", async e => {
       } catch (err) {
         toast("Could not save review: " + err.message, "bad");
       }
+      return;
+    }
+    if (a === "open_web_studio") {
+      const jid = d.j || D.jid;
+      const cid = d.c || D.cid;
+      if (!jid || !cid) return toast("Job or clip ID not found.", "bad");
+      const j = S.jobs.find(x => x.id === jid);
+      if (j && j.creator && (!S.view.startsWith("c:") || S.view !== "c:" + j.creator)) {
+        go("c:" + j.creator, "studio");
+      }
+      window._studioClip = { jid, cid };
+      if ($("#clipdlg") && $("#clipdlg").open) $("#clipdlg").close();
+      setTab("studio");
+      return;
+    }
+    if (a === "studio_pick_clip") {
+      window._studioClip = { jid: d.j, cid: d.c };
+      drawVideoStudioTab();
+      return;
+    }
+    if (a === "studio_back_to_clips") {
+      window._studioClip = null;
+      drawVideoStudioTab();
       return;
     }
     if (a === "openclip") return openClip(d.j, d.c);

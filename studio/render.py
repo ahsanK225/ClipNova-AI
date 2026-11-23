@@ -691,6 +691,15 @@ _qsv_ok = None
 RENDER_SECONDS = 600      # one clip's video encode; far beyond normal, so a frozen encoder is stopped, not waited on
 
 
+VIDEO_FILTERS = {
+    "vibrant": "eq=saturation=1.3:contrast=1.1",
+    "cinematic": "eq=contrast=1.15:brightness=-0.03",
+    "moody": "eq=contrast=1.2:brightness=-0.08",
+    "cyberpunk": "hue=h=15:s=1.35",
+    "bw": "eq=saturation=0:contrast=1.2"
+}
+
+
 def render_clip(src: Path, out_dir: Path, name: str, clip: dict, words: list, src_w: int, src_h: int) -> dict:
     """Writes <name>.mp4, <name>.jpg and <name>.ass into out_dir. Returns file names."""
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -754,12 +763,13 @@ def render_clip(src: Path, out_dir: Path, name: str, clip: dict, words: list, sr
         bgm_track = clip.get("bgm_track")
         bgm_volume = clip.get("bgm_volume", 0.18)
         bgm_offset = clip.get("bgm_offset", 0.0)
+        video_filter = clip.get("video_filter")
         return _render_in(work, src, out_dir, name, start, end, layout, fg_h, ass, face=face,
                           facecam_pos=facecam_pos, facecam_delay=facecam_delay, audio_delay=audio_delay, meta=meta,
                           facecam_offset_y=facecam_offset_y, game_offset_x=game_offset_x, zoom=zoom,
                           custom_layout=custom_layout, teaser_enabled=teaser_enabled, teaser_dur=teaser_dur,
                           teaser_start=teaser_start, bgm_track=bgm_track, bgm_volume=bgm_volume,
-                          bgm_offset=bgm_offset)
+                          bgm_offset=bgm_offset, video_filter=video_filter)
     finally:
         shutil.rmtree(work, ignore_errors=True)
 
@@ -768,7 +778,7 @@ def _render_in(work: Path, src: Path, out_dir: Path, name: str, start, end, layo
                facecam_pos="top-right", facecam_delay=0.0, audio_delay=0.0, meta=None,
                facecam_offset_y=0, game_offset_x=0, zoom=1.0, custom_layout=None,
                teaser_enabled=False, teaser_dur=0.0, teaser_start=None,
-               bgm_track=None, bgm_volume=0.18, bgm_offset=0.0) -> dict:
+               bgm_track=None, bgm_volume=0.18, bgm_offset=0.0, video_filter=None) -> dict:
     global _qsv_ok
     (work / f"{name}.ass").write_text(ass, encoding="utf-8")
     (work / "f").mkdir()
@@ -807,6 +817,7 @@ def _render_in(work: Path, src: Path, out_dir: Path, name: str, start, end, layo
             af_filters.append("asetpts=PTS-STARTPTS")
     af_filters.append("loudnorm=I=-14:TP=-1.5:LRA=11")
     af_chain = ",".join(af_filters)
+    vf_extra = f",{VIDEO_FILTERS[video_filter]}" if (video_filter and video_filter in VIDEO_FILTERS) else ""
 
     if teaser_enabled and teaser_dur > 0:
         t_dur = min(float(teaser_dur), dur * 0.45)
@@ -828,7 +839,7 @@ def _render_in(work: Path, src: Path, out_dir: Path, name: str, start, end, layo
 
         fc = concat_fc + _filter(layout, fg_h, face, facecam_pos=facecam_pos, facecam_delay=facecam_delay,
                      facecam_offset_y=facecam_offset_y, game_offset_x=game_offset_x, zoom=zoom,
-                     custom_layout=custom_layout, vin="v_raw") + f"[v0]ass={name}.ass:fontsdir=f[v]{audio_filter}"
+                     custom_layout=custom_layout, vin="v_raw") + f"[v0]ass={name}.ass:fontsdir=f{vf_extra}[v]{audio_filter}"
         base = ["ffmpeg", "-y", "-v", "error"] + seek_args + [
                 "-filter_complex", fc, "-map", "[v]", "-map", "[a]",
                 "-avoid_negative_ts", "make_zero",
@@ -843,7 +854,7 @@ def _render_in(work: Path, src: Path, out_dir: Path, name: str, start, end, layo
                 seek_args += ["-stream_loop", "-1", "-i", str(bgm_path)]
             fc = _filter(layout, fg_h, face, facecam_pos=facecam_pos, facecam_delay=facecam_delay,
                          facecam_offset_y=facecam_offset_y, game_offset_x=game_offset_x, zoom=zoom,
-                         custom_layout=custom_layout) + f"[v0]ass={name}.ass:fontsdir=f[v];[1:a]asetpts=PTS-STARTPTS,volume={bgm_vol_f:.2f}[bgma];[0:a:0][bgma]amix=inputs=2:duration=first:dropout_transition=2[a_mix];[a_mix]{af_chain}[a]"
+                         custom_layout=custom_layout) + f"[v0]ass={name}.ass:fontsdir=f{vf_extra}[v];[1:a]asetpts=PTS-STARTPTS,volume={bgm_vol_f:.2f}[bgma];[0:a:0][bgma]amix=inputs=2:duration=first:dropout_transition=2[a_mix];[a_mix]{af_chain}[a]"
             base = ["ffmpeg", "-y", "-v", "error"] + seek_args + [
                     "-filter_complex", fc, "-map", "[v]", "-map", "[a]",
                     "-avoid_negative_ts", "make_zero",
@@ -852,7 +863,7 @@ def _render_in(work: Path, src: Path, out_dir: Path, name: str, start, end, layo
         else:
             fc = _filter(layout, fg_h, face, facecam_pos=facecam_pos, facecam_delay=facecam_delay,
                          facecam_offset_y=facecam_offset_y, game_offset_x=game_offset_x, zoom=zoom,
-                         custom_layout=custom_layout) + f"[v0]ass={name}.ass:fontsdir=f[v]"
+                         custom_layout=custom_layout) + f"[v0]ass={name}.ass:fontsdir=f{vf_extra}[v]"
             base = ["ffmpeg", "-y", "-v", "error"] + seek_args + [
                     "-filter_complex", fc, "-map", "[v]", "-map", "0:a:0",
                     "-af", af_chain,

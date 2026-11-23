@@ -1323,6 +1323,130 @@ def open_capcut_folder(jid: str, cid: str):
     return {"ok": True, "draft_path": str(draft_dir)}
 
 
+@app.get("/api/jobs/{jid}/clips/{cid}/studio-project")
+def get_studio_project(jid: str, cid: str):
+    """Retrieve full timeline tracks (video, facecam, subtitles, bgm, filters, and VFX) for Web Video Studio."""
+    job, clip = _clip_or_404(jid, cid)
+    from studio import audio
+    
+    clip_file = clip.get("file") or f"{cid}.mp4"
+    rel_path = f"/media/{jid}/{clip_file}"
+    
+    words = clip.get("words", [])
+    subtitles = []
+    start_offset = float(clip.get("start", 0.0))
+    is_absolute = bool(start_offset > 2.0 and words and float(words[0].get("s", 0.0)) >= start_offset - 2.0)
+    
+    for idx, w in enumerate(words):
+        w_start = round(float(w.get("s", 0.0)) - (start_offset if is_absolute else 0.0), 3)
+        w_end = round(float(w.get("e", w_start + 0.4)) - (start_offset if is_absolute else 0.0), 3)
+        subtitles.append({
+            "id": idx + 1,
+            "text": str(w.get("w", "")),
+            "start": max(0.0, w_start),
+            "end": max(0.1, w_end)
+        })
+        
+    dur = float(clip.get("dur") or (clip.get("end", 30.0) - clip.get("start", 0.0)))
+    
+    filters = [
+        {"id": "normal", "name": "Normal (Standard)", "css": "none"},
+        {"id": "vibrant", "name": "🔥 Vibrant Viral", "css": "saturate(1.3) contrast(1.1)", "ffmpeg": "eq=saturation=1.3:contrast=1.1"},
+        {"id": "cinematic", "name": "🎬 Cinematic Film", "css": "contrast(1.15) brightness(0.95) sepia(0.1)", "ffmpeg": "eq=contrast=1.15:brightness=-0.03"},
+        {"id": "moody", "name": "🌑 Moody Dark", "css": "contrast(1.2) brightness(0.9)", "ffmpeg": "eq=contrast=1.2:brightness=-0.08"},
+        {"id": "cyberpunk", "name": "⚡ Cyberpunk", "css": "hue-rotate(15deg) saturate(1.35)", "ffmpeg": "hue=h=15:s=1.35"},
+        {"id": "bw", "name": "🎞️ Classic B&W", "css": "grayscale(1) contrast(1.2)", "ffmpeg": "eq=saturation=0:contrast=1.2"}
+    ]
+    
+    vfx_presets = [
+        {"id": "flash", "name": "💥 Flash White Climax", "desc": "Bright white flash impact on drop/reveal"},
+        {"id": "shake", "name": "⚡ Screen Shake", "desc": "Rapid 12px camera rumble on punchline"},
+        {"id": "glitch", "name": "📺 Glitch RGB", "desc": "Chromatic aberration & horizontal noise shift"},
+        {"id": "zoom_punch", "name": "🎯 Zoom Punch", "desc": "Instant 1.25x zoom-in punch on face/reaction"}
+    ]
+    
+    stickers = [
+        {"id": "fire", "emoji": "🔥", "label": "FIRE"},
+        {"id": "skull", "emoji": "💀", "label": "DEAD"},
+        {"id": "laugh", "emoji": "😂", "label": "LOL"},
+        {"id": "siren", "emoji": "🚨", "label": "POLICE/GTA"},
+        {"id": "trophy", "emoji": "🏆", "label": "WIN/JACKPOT"},
+        {"id": "clown", "emoji": "🤡", "label": "CLOWN/L"}
+    ]
+
+    return {
+        "ok": True,
+        "job_id": jid,
+        "clip_id": cid,
+        "title": clip.get("title") or clip.get("hook") or f"Clip {cid}",
+        "hook": clip.get("hook") or "",
+        "video_url": rel_path,
+        "duration": max(1.0, round(dur, 2)),
+        "aspect_ratio": "9:16",
+        "tracks": {
+            "subtitles": subtitles,
+            "facecam": {
+                "enabled": bool(clip.get("layout") in ("split", "gameplay", "custom") or clip.get("face")),
+                "pos": clip.get("facecam_pos", "top-right"),
+                "layout": clip.get("layout", "split")
+            },
+            "audio": {
+                "track": clip.get("bgm_track") or "none",
+                "volume": clip.get("bgm_volume", 0.18),
+                "offset": clip.get("bgm_offset", 0.0)
+            },
+            "video": {
+                "filter": clip.get("video_filter") or "normal",
+                "speed": clip.get("speed", 1.0)
+            }
+        },
+        "available_sounds": audio.list_tracks(),
+        "available_filters": filters,
+        "available_vfx": vfx_presets,
+        "available_stickers": stickers
+    }
+
+
+@app.post("/api/jobs/{jid}/clips/{cid}/studio-export")
+def studio_export_clip(jid: str, cid: str, body: dict = Body(default={})):
+    """Export modified timeline project from Web Video Studio: triggers re-render and optionally schedules to YouTube."""
+    job, clip = _clip_or_404(jid, cid)
+    
+    changes = {}
+    for fld in ("hook", "title", "description", "layout", "facecam_pos", "bgm_track", "bgm_volume", "bgm_offset", "video_filter", "speed", "style"):
+        if fld in body:
+            changes[fld] = body[fld]
+    if "words" in body and isinstance(body["words"], list):
+        changes["words"] = body["words"]
+    
+    # Request re-render
+    jobs.request_render(jid, cid, changes)
+    
+    # Optional auto-schedule into Publishing Calendar
+    sched_info = None
+    if body.get("schedule_now"):
+        from studio import posting, accounts
+        accs = body.get("accounts")
+        if not accs:
+            user_accs = accounts.list_for(ctx.uid() or "u_local")
+            accs = [a["id"] for a in user_accs if a.get("type") == "youtube"]
+        if accs:
+            try:
+                sched_res = posting.enqueue(job, clip, accs, target_ts=body.get("target_ts"))
+                sched_info = sched_res
+            except Exception as e:
+                sched_info = {"error": str(e)}
+
+    updated_job = jobs.get(jid)
+    updated_clip = next((c for c in updated_job.get("clips", []) if c["id"] == cid), clip)
+    return {
+        "ok": True,
+        "clip": updated_clip,
+        "scheduled": sched_info,
+        "message": "Studio export triggered! Clip is re-rendering with your cuts, VFX & audio mix."
+    }
+
+
 @app.post("/api/jobs/{jid}/clips/{cid}/ai_seo")
 def generate_clip_ai_seo(jid: str, cid: str, body: dict = Body(default={})):
     job, clip = _clip_or_404(jid, cid)

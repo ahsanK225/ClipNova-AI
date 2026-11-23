@@ -178,3 +178,16 @@ F:\Games\GTA 6 CLIPPING\
   - Collapsible `<details class="card">` accordions for `Viral Hook Banner`, `Viral Climax Teaser`, `Background Music`, and `Layout Studio` in `#clipdlg`.
   - Squeezed `.meters` grid (`minmax(130px, 170px) minmax(130px, 170px) minmax(360px, 1fr)`) allowing full readability of `Latest AI Decisions`.
   - Route & Subtab persistence across F5 refresh using `fromPath` calendar regex and `localStorage`.
+
+
+### 18. Web Video Studio (In-Browser CapCut-Style Multi-Track Editor)
+- **Frontend Timeline & Editor**: `web/index.html` (`drawVideoStudioTab()`, `renderStudioWorkspace()`, `saveStudioExport()`)
+  - 9:16 vertical player viewport with real-time CSS color grading filters and transport controls.
+  - Subtitle word-level highlight overlay and double-click in-place typo editing.
+  - 5-tab tool drawer: Filters (Normal, Vibrant, Cinematic, Moody, Cyberpunk, B&W), VFX (Flash, Shake, Glitch, Zoom Punch), Audio & BGM mix, Subtitles, Layout.
+  - Interactive multi-track timeline with Time Ruler, draggable Red/Cyan Playhead Needle, Subtitles word blocks track, Video cut track, Facecam track, Audio waveform track, and VFX track.
+- **Backend Project & Export Endpoints**: `studio/server.py`
+  - `GET /api/jobs/{jid}/clips/{cid}/studio-project`: Returns full timeline project contract.
+  - `POST /api/jobs/{jid}/clips/{cid}/studio-export`: Triggers FFmpeg re-render and optional 1-click scheduling into YouTube Publishing Calendar at USA Peak Velocity slot.
+- **FFmpeg Color Grading Engine**: `studio/render.py` (`VIDEO_FILTERS`)
+  - Injects `eq` and `hue` filtergraphs directly into the video filter pipeline.
