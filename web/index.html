@@ -3828,23 +3828,35 @@ async function drawVideoStudioTab() {
 }
 
 
+window.openWebStudio = function(jid, cid) {
+  const currentJid = jid || window._studioClip?.jid || D.jid;
+  const currentCid = cid || window._studioClip?.cid || D.cid;
+  if (currentJid && currentCid) {
+    window._studioClip = { jid: currentJid, cid: currentCid };
+  }
+  const dlg = $("#clipdlg");
+  if (dlg && typeof dlg.close === "function" && dlg.open) dlg.close();
+  setTab("studio");
+  toast("🎬 Loaded saved clip in Video Studio!", "ok");
+};
+
 window.launchOpenCutNewTab = async function(jid, cid) {
   const currentJid = jid || window._studioClip?.jid || D.jid;
   const currentCid = cid || window._studioClip?.cid || D.cid;
   
-  // 1. Open OpenCut in a fresh browser tab
-  window.open("https://opencut.app", "_blank");
+  // 1. Open OpenCut Projects directly (bypassing marketing landing page)
+  window.open("https://opencut.app/projects", "_blank");
   
   // 2. Highlight the video file in Windows Explorer for drag & drop
   if (currentJid && currentCid) {
     try {
       await send(`/api/jobs/${encodeURIComponent(currentJid)}/clips/${encodeURIComponent(currentCid)}/open-folder`, {});
-      toast("🚀 OpenCut opened in new tab! Clip video file is highlighted in Explorer. Drag it into OpenCut!", "ok");
+      toast("🌐 OpenCut Projects opened! Clip is highlighted in Windows Explorer — drag it into OpenCut to edit!", "ok", 7000);
     } catch {
-      toast("🚀 OpenCut opened in new tab! Import your clip into OpenCut.", "ok");
+      toast("🌐 OpenCut Projects opened in new tab! Drag your clip into OpenCut.", "ok");
     }
   } else {
-    toast("🚀 OpenCut opened in new tab!", "ok");
+    toast("🌐 OpenCut Projects opened!", "ok");
   }
 };
 
@@ -3902,8 +3914,11 @@ function renderStudioWorkspace() {
           </button>
         </div>
         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-          <button type="button" class="btn sm" onclick="launchOpenCutNewTab()" style="background:linear-gradient(135deg,#6366F1,#00F0FF);color:#020617;font-weight:900;border:none;box-shadow:0 0 16px rgba(0,240,255,0.45);padding:6px 14px;border-radius:8px;display:inline-flex;align-items:center;gap:6px;cursor:pointer" title="Open full OpenCut CapCut-style video editor in a new browser tab with your clip file">
-            <span>🌐</span> Open in OpenCut (New Tab)
+          <button type="button" class="btn sm" data-act="export_capcut" data-j="${_studioClip?.jid || D.jid}" data-c="${esc(_studioClip?.cid || D.cid)}" style="background:linear-gradient(135deg,#6366F1,#0088FF);color:#FFFFFF;font-weight:800;border:none;box-shadow:0 0 12px rgba(99,102,241,0.35);padding:6px 12px;border-radius:8px;display:inline-flex;align-items:center;gap:6px;cursor:pointer" title="Automatically creates project in CapCut Desktop with video, captions, and hook on timeline">
+            <span>🚀</span> Auto-Create CapCut Project
+          </button>
+          <button type="button" class="btn sm" onclick="launchOpenCutNewTab()" style="background:#1E293B;border:1px solid #334155;color:#E2E8F0;font-weight:700;padding:6px 12px;border-radius:8px;display:inline-flex;align-items:center;gap:6px;cursor:pointer" title="Open OpenCut Projects in a new tab">
+            <span>🌐</span> OpenCut Projects
           </button>
           <button type="button" class="btn sm" id="studio_btn_render" onclick="saveStudioExport(false)" style="background:#1E293B;border:1px solid #334155;color:#E2E8F0;font-weight:600">
             💾 Save &amp; Re-render MP4
@@ -5554,14 +5569,14 @@ function drawClipDlg(full) {
           </div>
           <p class="sub" style="margin-top:4px">${esc(c.reason || bInfo.desc)}</p></div><button class="btn icon ghost" data-act="closedlg" aria-label="Close">${ic("x")}</button></div>
         <div style="display:flex;gap:8px;align-items:center;margin:8px 0 10px 0;flex-wrap:wrap">
-          <button type="button" class="btn sm" onclick="launchOpenCutNewTab('${j.id}', '${esc(c.id)}')" style="background:linear-gradient(135deg,#6366F1,#00F0FF);color:#020617;font-weight:800;border:none;display:inline-flex;align-items:center;gap:5px;box-shadow:0 0 10px rgba(0,240,255,0.25);border-radius:6px;padding:4px 10px;cursor:pointer" title="Open full OpenCut CapCut-style video editor in a new browser tab with your clip file">
-            <span>🌐</span> Open in OpenCut (New Tab)
+          <button type="button" class="btn sm" onclick="openWebStudio('${j.id}', '${esc(c.id)}')" style="background:linear-gradient(135deg,#00FF88,#00F0FF);color:#020617;font-weight:900;border:none;display:inline-flex;align-items:center;gap:6px;box-shadow:0 0 12px rgba(0,255,136,0.35);border-radius:6px;padding:5px 12px;cursor:pointer" title="Directly edit this saved clip live inside the built-in Video Studio (filters, VFX, timeline)">
+            <span>🎬</span> Edit in Built-in Studio (Clip Ready)
           </button>
-          <button type="button" class="btn sm" data-act="export_capcut" data-j="${j.id}" data-c="${esc(c.id)}" style="background:linear-gradient(135deg,#00F0FF,#0088FF);color:#050505;font-weight:800;border:none;display:inline-flex;align-items:center;gap:5px;border-radius:6px;padding:4px 10px" title="Export this clip into a full native CapCut desktop project">
-            <span>🚀</span> CapCut Desktop Bridge
+          <button type="button" class="btn sm" data-act="export_capcut" data-j="${j.id}" data-c="${esc(c.id)}" style="background:linear-gradient(135deg,#6366F1,#0088FF);color:#FFFFFF;font-weight:800;border:none;display:inline-flex;align-items:center;gap:6px;border-radius:6px;padding:5px 12px;cursor:pointer" title="Automatically creates the project inside CapCut Desktop with video, captions, and hook on timeline">
+            <span>🚀</span> Auto-Create CapCut Project
           </button>
-          <button type="button" class="btn sm" data-act="open_studio_from_dlg" data-j="${j.id}" data-c="${esc(c.id)}" style="background:var(--bg-3);border:1px solid var(--line);color:var(--text);display:inline-flex;align-items:center;gap:5px;border-radius:6px;padding:4px 10px" title="Open Layout & Timing in Video Studio">
-            <span>🎨</span> Layout &amp; Timing Studio
+          <button type="button" class="btn sm" onclick="launchOpenCutNewTab('${j.id}', '${esc(c.id)}')" style="background:var(--bg-3);border:1px solid var(--line);color:var(--text);font-weight:700;display:inline-flex;align-items:center;gap:6px;border-radius:6px;padding:5px 12px;cursor:pointer" title="Open OpenCut Projects in a new browser tab and drag & drop this clip">
+            <span>🌐</span> OpenCut Web (Projects)
           </button>
         </div>
         <!-- Card 1: Viral Hook & Captions (Collapsible Accordion) -->
@@ -8495,7 +8510,13 @@ document.addEventListener("click", async e => {
       }
       return;
     }
-    if (a === "open_web_studio" || a === "launch_opencut_new_tab") {
+    if (a === "open_web_studio") {
+      const jid = d.j || D.jid;
+      const cid = d.c || D.cid;
+      openWebStudio(jid, cid);
+      return;
+    }
+    if (a === "launch_opencut_new_tab") {
       const jid = d.j || D.jid;
       const cid = d.c || D.cid;
       launchOpenCutNewTab(jid, cid);
@@ -8884,8 +8905,9 @@ document.addEventListener("click", async e => {
       b.innerHTML = `<span>⏳</span> Exporting to CapCut Desktop…`;
       try {
         const res = await send(`/api/jobs/${encodeURIComponent(jid)}/clips/${encodeURIComponent(cid)}/export-capcut`, {});
-        toast(`🎬 CapCut Desktop draft ready! Project "${res.draft_name}" created. Open CapCut to edit tracks, transitions & effects!`, "ok", 7000);
-        b.innerHTML = `<span>✅</span> Exported to CapCut!`;
+        send(`/api/jobs/${encodeURIComponent(jid)}/clips/${encodeURIComponent(cid)}/open-capcut-folder`, {}).catch(() => {});
+        toast(`🚀 CapCut project "${res.draft_name}" created automatically! Draft folder opened in Explorer. Open CapCut Desktop to edit your video, captions & hook tracks!`, "ok", 7000);
+        b.innerHTML = `<span>✅</span> Project Created in CapCut!`;
         setTimeout(() => { b.innerHTML = origHtml; b.disabled = false; }, 3500);
       } catch (err) {
         toast("CapCut export failed: " + err.message, "bad");

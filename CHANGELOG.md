@@ -1,6 +1,37 @@
 ﻿# Changelog
 All notable project changes are documented here.
 
+## [2026-11-24] — Multi-Editor Architecture: Direct Built-in Studio Saved-Clip Loader, CapCut Desktop Auto-Project & OpenCut Projects Direct Link
+
+### Added
+- **Multi-Editor Architecture for Creator Ease (`web/index.html`, `studio/capcut/export.py`)**:
+  - **Saved Clip Direct Loader in Built-in Video Studio (`openWebStudio`)**:
+    - Implemented `window.openWebStudio(jid, cid)` in `web/index.html`.
+    - Clicking `🎬 Edit in Built-in Studio (Clip Ready)` or the `🎬` icon on any clip card directly sets `window._studioClip = { jid, cid }` and navigates to the Video Studio tab.
+    - The saved clip is immediately loaded into the 9:16 vertical player, timeline ruler, filters, VFX, and subtitle editor with zero manual drag-and-drop or project creation required ("wahi jo clip saved he ossi ko show kry").
+  - **CapCut Desktop Auto-Project Generation (`export_capcut`)**:
+    - Clicking `🚀 Auto-Create CapCut Project` automatically runs `export_clip_to_capcut()`, creating a complete CapCut draft inside `%LOCALAPPDATA%\CapCut\User Data\Projects\com.lveditor.draft\PeakCut_<clip_id>\`.
+    - The project draft includes: Video track (9:16 vertical video), Subtitle track (word-level animated captions), and Hook track (viral heading banner).
+    - Automatically opens the draft folder in Windows Explorer so creators can see the project and launch CapCut to find their clip already placed on the timeline ("khud hi projects ban jane chaye").
+  - **OpenCut Projects Direct Link (`launchOpenCutNewTab`)**:
+    - Updated `window.launchOpenCutNewTab` to point directly to `https://opencut.app/projects` instead of the marketing landing page `https://opencut.app`.
+    - Automatically invokes `/open-folder` to highlight the `.mp4` file in Windows Explorer for seamless drag-and-drop.
+  - **Clip Detail Modal (`#clipdlg`) 3 Distinct Quick Studio Buttons**:
+    - `🎬 Edit in Built-in Studio (Clip Ready)`: Green/Cyan gradient button loading the saved clip directly into the in-app editor.
+    - `🚀 Auto-Create CapCut Project`: Purple/Blue gradient button auto-generating the project draft in CapCut Desktop.
+    - `🌐 OpenCut Web (Projects)`: Direct launcher to OpenCut projects dashboard.
+  - **Studio Top Action Bar**:
+    - Added `🚀 Auto-Create CapCut Project` alongside `🌐 OpenCut Projects` for 1-click external draft generation.
+
+### Tests and Verification
+- Executed unit test suite `tests/test_clip_clean_seo.py` and `tests/test_video_studio.py` (8/8 passed).
+- Live HTTP verification on `http://127.0.0.1:8765/`:
+  - `openWebStudio present`: True
+  - `Edit in Built-in Studio button`: True
+  - `Auto-Create CapCut Project button`: True
+  - `OpenCut Projects link`: True
+- Fresh server daemon running on port 8765.
+
 ## [2026-11-24] — Full OpenCut Web Editor Integration (New Tab Launch & Drag-and-Drop Bridge)
 
 ### Added
