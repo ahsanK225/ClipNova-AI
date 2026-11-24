@@ -1,6 +1,21 @@
 ﻿# Changelog
 All notable project changes are documented here.
 
+## [2026-11-24] — 100% Archive Re-Render Completed & Crash Recovery (222/222 Clips)
+
+### Added
+- **Full Library Re-Render Completion**:
+  - Successfully completed the background FFmpeg re-rendering across the entire OhnePixel library.
+  - Audited 249 clips across 28 jobs: exactly **222/222 source-backed clips** are 100% rendered with updated MP4 video streams (burning Canary Yellow punch hooks into video frames) and synchronized `.jpg` cover thumbnails.
+  - Zero clips remaining in the render queue.
+- **Job Metadata Crash Recovery (`scratch/repair_corrupted_jobs.py`)**:
+  - Recovered 5 zero-padded `job.json` files that experienced write-interruption during unexpected Windows host shutdowns.
+  - Reconstructed complete job manifests from intact `clips/clip*.json` sidecars, restoring all folders and clips in the web dashboard.
+- **Web Studio Daemon Live**:
+  - PeakCut FastAPI web server running on port 8765 (`/healthz` -> `{"ok":true}`).
+
+
+
 ## [2026-11-24] — Complete Dialogue-Grounded SEO Pipeline & Background Re-Render for All 236 OhnePixel Clips
 
 ### Added
