@@ -1,6 +1,22 @@
 ﻿# Changelog
 All notable project changes are documented here.
 
+## [2026-11-25] — Custom Layout Studio Upgrades & Light/Dark Cosmetic Polish
+
+### Added
+- **Visual Custom Layout & Facecam Studio Upgrades (`PeakCut/web/index.html`, `#custom_layout_dlg`)**:
+  - Added pinned always-visible bottom footer action bar (`Apply to This Clip & Re-Render`, `Apply to ALL Clips`, `Save Creator Default`, `Cancel`) so primary actions never hide below scroll.
+  - Added `🎯 Center Box` (`clsCenterActiveBox()`), `📐 Match Aspect` (`clsSnapGameplay916()`), `🛡️ Safe Zones` toggle (`clsToggleSafeZones()`, `#cls_safezone_overlay`), and precision keyboard arrow-key nudging (`2px` / `Shift+Arrow 10px`).
+- **Missing Thumbnail Asset (`PeakCut/web/brand/layout-custom.jpg`)**:
+  - Generated custom layout preview thumbnail eliminating `/brand/layout-custom.jpg` 404 responses.
+
+### Fixed
+- **Widescreen Studio Dialog & Light Mode Live Card Contrast (`PeakCut/web/index.html`)**:
+  - Enforced `1200px` widescreen sizing (`#custom_layout_dlg`), `flex-shrink: 0` on preset bars, Light Mode readable `--heading` text on `.lc-title h3`, `.stat b`, `.evbtn`, `a.lnk`, `.plan b`, and narrow modal wrapping on `Save SEO & Title (Instant - No Re-render)`.
+
+### Tests and Verification
+- Executed `tests/test_nextgen_upgrade.py` (20/20 PASS), 7 UI/SEO/BGM unittest suites (`33 tests OK`), `/brand/layout-custom.jpg` HTTP `200`, `tests/run.py` (`All tests passed.`), and verified widescreen `1200x836.6 px` Studio + Light Mode live stats + Safe Zones in browser (`final_step_46.png`).
+
 ## [2026-11-25] — Next-Gen Upgrade: Official `google-genai` SDK, Free-Tier Policy, Two-Pass Multimodal Clipping & Consolidated YouTube Shorts UI
 
 ### Added
