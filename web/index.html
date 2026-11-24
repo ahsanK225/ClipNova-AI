@@ -5541,96 +5541,78 @@ function drawClipDlg(full) {
           </div>
         </details>
 
-        <!-- Card: Viral Background Music & Meme Sounds (Collapsible Accordion) -->
-        <details class="card" ${(c.bgm_track && c.bgm_track !== 'none') ? 'open' : ''} style="margin:0 0 10px 0;background:var(--bg-2);border:1px solid var(--line);border-radius:10px;padding:12px">
+        <!-- Card: Layout & Framing Studio (Custom Bounding Boxes, Presets & Live Re-render) -->
+        <details class="card" open style="margin:0 0 10px 0;background:var(--bg-2);border:1px solid var(--line);border-radius:10px;padding:12px">
           <summary style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;list-style:none">
-            <h3 style="margin:0;font-size:13px;display:flex;align-items:center;gap:6px"><span>🎵</span> Background Music &amp; Meme Sounds</h3>
+            <h3 style="margin:0;font-size:13px;display:flex;align-items:center;gap:6px"><span>🎨</span> Layout &amp; Framing Studio</h3>
             <div style="display:flex;align-items:center;gap:8px">
-              <span class="pill" style="font-size:10px;padding:2px 8px;border-radius:10px;background:rgba(0,240,255,0.15);color:var(--accent,#00F0FF);border:1px solid rgba(0,240,255,0.3);font-weight:700">⚡ Live Sync (No Re-render)</span>
+              <span class="sub" style="font-size:10px">(Split, PIP, Framing &amp; Presets)</span>
               <span class="accordion-chevron">▾</span>
             </div>
           </summary>
           <div style="margin-top:10px">
-            <p class="sub" style="font-size:11px;margin:0 0 10px 0;line-height:1.4">
-              Select viral background music or meme sounds. Video ke sath <b>LIVE</b> suniye bina re-render ke intezar ke!
-            </p>
-
-            <!-- Real-Time Volume & Live Sync Controls -->
-            <div style="background:var(--bg-3);border:1px solid var(--line);border-radius:8px;padding:8px 10px;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
-              <div style="display:flex;align-items:center;gap:8px;flex:1;min-width:180px">
-                <span style="font-size:12px">🔊</span>
-                <span style="font-size:11px;font-weight:600">Music Volume:</span>
-                <input type="range" id="dlg_bgm_vol" min="0" max="100" value="${Math.round((c.bgm_volume ?? 0.18) * 100)}" style="flex:1;accent-color:var(--accent,#00F0FF);cursor:pointer" oninput="updateBgmVolume(this.value)">
-                <b id="dlg_bgm_vol_txt" style="font-size:11px;min-width:32px;color:var(--accent,#00F0FF);font-family:monospace">${Math.round((c.bgm_volume ?? 0.18) * 100)}%</b>
+            <div style="display:flex;gap:12px;align-items:center;margin-bottom:8px">
+              <div style="position:relative;width:52px;height:92px;border-radius:10px;border:2px solid var(--line,#2a221d);background:#000;overflow:hidden;flex-shrink:0;box-shadow:0 4px 12px rgba(0,0,0,0.4)">
+                <img id="dlg_layout_img" src="${getLayoutPreviewImg(c.layout || 'split_half', c.facecam_pos)}" style="width:100%;height:100%;object-fit:cover;display:block" alt="Preview">
               </div>
-              <div style="display:flex;align-items:center;gap:6px">
-                <input type="hidden" data-f="bgm_track" id="dlg_bgm_track" value="${esc(c.bgm_track || 'none')}">
-                <input type="hidden" data-f="bgm_volume" id="dlg_bgm_volume_input" value="${c.bgm_volume ?? 0.18}">
-                <input type="hidden" data-f="bgm_offset" id="dlg_bgm_offset_input" value="${c.bgm_offset ?? 0}">
-                <button type="button" class="btn sm" id="btn_bgm_preview_toggle" onclick="toggleBgmSyncPreview()" style="font-size:11px;padding:3px 9px;background:rgba(255,255,255,0.06);border:1px solid var(--line);border-radius:6px;cursor:pointer">
-                  <span>🔊</span> Sync: <b id="bgm_sync_status" style="color:#00FF88">ON</b>
-                </button>
-                <label class="btn sm" style="font-size:11px;padding:3px 9px;cursor:pointer;background:linear-gradient(135deg,#00F0FF,#0099FF);color:#050505;font-weight:700;border:none;border-radius:6px;display:inline-flex;align-items:center;gap:4px">
-                  <span>➕</span> Upload
-                  <input type="file" id="dlg_bgm_uploader" accept="audio/*" style="display:none" onchange="uploadCustomAudioTrack(this)">
-                </label>
-              </div>
-            </div>
-
-            <!-- Audio Trim & Start Offset Controller (CapCut-style Range Selector) -->
-            <div id="dlg_bgm_trim_box" style="display:${(c.bgm_track && c.bgm_track !== 'none') ? 'block' : 'none'};background:rgba(0,240,255,0.04);border:1px dashed rgba(0,240,255,0.25);border-radius:8px;padding:9px 12px;margin-bottom:10px">
-              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
-                <div style="display:flex;align-items:center;gap:6px">
-                  <span style="font-size:12px">✂️</span>
-                  <b style="font-size:11px;color:var(--accent,#00F0FF)">Audio Start Position (Sound Trim)</b>
-                  <span class="sub" style="font-size:10px;color:var(--text-dim)">(CapCut-style: choose which section plays)</span>
+              <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:6px">
+                <div class="two" style="margin:0">
+                  <label class="f" style="margin:0">Layout<select data-f="layout" onchange="updateClipDlgLayoutPreview()">${opts(S.status.layouts, c.layout || "split_half")}</select></label>
+                  <label class="f" style="margin:0">Webcam Position<select data-f="facecam_pos" onchange="updateClipDlgLayoutPreview()">
+                    <option value="top-right" ${(!c.facecam_pos || c.facecam_pos === "top-right") ? "selected" : ""}>Top / Split Screen</option>
+                    <option value="top-left" ${c.facecam_pos === "top-left" ? "selected" : ""}>Top Left (PIP)</option>
+                    <option value="bottom-left" ${c.facecam_pos === "bottom-left" ? "selected" : ""}>Bottom Left (Above UI)</option>
+                    <option value="bottom-right" ${c.facecam_pos === "bottom-right" ? "selected" : ""}>Bottom Right (Above UI)</option>
+                  </select></label>
                 </div>
-                <div style="display:flex;align-items:center;gap:8px">
-                  <span style="font-size:11px;font-family:monospace;color:#F1F5F9">
-                    Start: <b id="dlg_bgm_offset_txt" style="color:var(--accent,#00F0FF)">${(() => { const o = c.bgm_offset || 0; const m = Math.floor(o / 60); const s = Math.floor(o % 60); return `${m}:${s < 10 ? '0' : ''}${s}`; })()}</b> / <span id="dlg_bgm_dur_txt" style="color:var(--text-dim)">--:--</span>
-                  </span>
-                </div>
-              </div>
-              <div style="display:flex;align-items:center;gap:10px">
-                <input type="range" id="dlg_bgm_offset_slider" min="0" max="60" step="0.5" value="${c.bgm_offset || 0}"
-                       style="flex:1;accent-color:var(--accent,#00F0FF);cursor:pointer;height:6px"
-                       oninput="onBgmOffsetScrub(this.value)"
-                       title="Scrub to choose which section of the music/sound to play in this clip">
-              </div>
-              <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;margin-top:7px;flex-wrap:wrap">
-                <div style="display:flex;align-items:center;gap:4px">
-                  <button type="button" class="btn sm" onclick="setBgmOffset(0)" style="font-size:9.5px;padding:2px 7px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid var(--line);cursor:pointer" title="Start sound from beginning">⏮️ 0:00 (Start)</button>
-                  <button type="button" class="btn sm" onclick="setBgmOffset(10)" style="font-size:9.5px;padding:2px 7px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid var(--line);cursor:pointer" title="Start at 10 seconds">+10s</button>
-                  <button type="button" class="btn sm" onclick="setBgmOffset(15)" style="font-size:9.5px;padding:2px 7px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid var(--line);cursor:pointer" title="Start at 15 seconds (typical drop)">⚡ 0:15 (Drop)</button>
-                  <button type="button" class="btn sm" onclick="setBgmOffset(30)" style="font-size:9.5px;padding:2px 7px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid var(--line);cursor:pointer" title="Start at 30 seconds">+30s</button>
-                </div>
-                <div style="display:flex;align-items:center;gap:6px">
-                  <button type="button" class="btn sm" onclick="auditionBgmFromOffset()" style="font-size:9.5px;padding:2px 9px;border-radius:4px;background:rgba(0,255,136,0.12);border:1px solid rgba(0,255,136,0.3);color:#00FF88;cursor:pointer;font-weight:600">
-                    🎧 Listen from here
+                <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+                  <button type="button" class="btn sm" data-act="open_custom_layout_studio_clip" style="background:linear-gradient(135deg,#00F0FF,#0099FF);color:#050505;border:none;padding:4px 10px;font-size:11px;font-weight:800;border-radius:6px;cursor:pointer;flex:1">🎨 Custom Studio</button>
+                  <button type="button" class="btn sm" data-act="open_layout_gallery" style="padding:4px 10px;font-size:11px;height:auto">🖼️ Compare</button>
+                  <button type="button" class="btn sm" data-act="remake" style="background:linear-gradient(135deg,#10B981,#059669);color:#fff;font-weight:800;border:none;border-radius:6px;padding:4px 12px;cursor:pointer;display:inline-flex;align-items:center;gap:5px" title="Burn this layout permanently into the MP4 video file (~15s)">
+                    <span>⚡</span> Re-make Video (~15s)
                   </button>
-                  <span id="dlg_bgm_clip_dur_hint" style="font-size:9.5px;color:var(--text-sub)">Clip plays ${(c.end && c.start) ? Math.round(c.end - c.start) : 30}s</span>
                 </div>
               </div>
             </div>
-
-            <!-- Category Filter Tabs -->
-            <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
-              <button type="button" class="btn sm bgm-filter-btn" data-cat="all" onclick="filterBgmTracks('all')" style="font-size:10px;padding:2px 8px;border-radius:12px;background:var(--accent,#00F0FF);color:#000;font-weight:700;border:none;cursor:pointer">🔥 All</button>
-              <button type="button" class="btn sm bgm-filter-btn" data-cat="music" onclick="filterBgmTracks('music')" style="font-size:10px;padding:2px 8px;border-radius:12px;background:var(--bg-3);color:var(--text);border:1px solid var(--line);cursor:pointer">🎵 Beats &amp; Music</button>
-              <button type="button" class="btn sm bgm-filter-btn" data-cat="meme" onclick="filterBgmTracks('meme')" style="font-size:10px;padding:2px 8px;border-radius:12px;background:var(--bg-3);color:var(--text);border:1px solid var(--line);cursor:pointer">💥 Meme Sounds</button>
-              <button type="button" class="btn sm bgm-filter-btn" data-cat="custom" onclick="filterBgmTracks('custom')" style="font-size:10px;padding:2px 8px;border-radius:12px;background:var(--bg-3);color:var(--text);border:1px solid var(--line);cursor:pointer">📁 My Uploads</button>
-            </div>
-
-            <!-- Sound Cards Grid -->
-            <div id="dlg_bgm_cards" style="display:grid;grid-template-columns:repeat(auto-fill, minmax(170px, 1fr));gap:6px;max-height:220px;overflow-y:auto;padding-right:4px">
-              <div style="padding:15px;text-align:center;color:var(--text-sub);font-size:11px">Loading sound library…</div>
-            </div>
+            <!-- Creator's Saved Presets Row -->
+            ${(() => {
+              const cr = creator() || (j.creator ? S.creators.find(x => x.id === j.creator) : null);
+              const presets = cr?.custom_presets || {};
+              const pnames = Object.keys(presets);
+              if (!pnames.length) return '';
+              return `
+                <div style="background:#161210;border:1px solid #3A2C24;border-radius:8px;padding:6px 10px;margin-top:6px">
+                  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+                    <span style="font-size:10px;font-weight:700;color:#00F0FF;display:flex;align-items:center;gap:4px">
+                      <span>🎨</span> Saved Layout Presets:
+                    </span>
+                    <span class="sub" style="font-size:9px">Click to apply &amp; re-render</span>
+                  </div>
+                  <div style="display:flex;flex-wrap:wrap;gap:6px">
+                    ${pnames.map(pn => {
+                      const isSel = (c.active_preset === pn) || (c.layout === 'custom' && c.active_preset === pn);
+                      return `
+                        <div style="display:inline-flex;align-items:center;gap:3px;background:${isSel ? '#14282D' : '#221A15'};border:1px solid ${isSel ? '#00F0FF' : '#443226'};border-radius:6px;padding:2px 5px">
+                          <button type="button" onclick="applyPresetToClip('${esc(pn)}', true)" title="Apply '${esc(pn)}' and re-render" style="border:none;background:transparent;color:${isSel ? '#00F0FF' : '#F1F5F9'};font-size:10px;font-weight:700;cursor:pointer;padding:0;display:inline-flex;align-items:center;gap:3px">
+                            ${isSel ? '⭐' : '🏷️'} <b>${esc(pn)}</b>
+                          </button>
+                          <button type="button" onclick="applyPresetToAllClips('${esc(pn)}')" title="Apply to ALL clips in this job" style="background:#FF8C00;color:#000;border:none;border-radius:3px;font-size:9px;font-weight:800;padding:1px 4px;cursor:pointer">
+                            🚀 All
+                          </button>
+                        </div>
+                      `;
+                    }).join('')}
+                  </div>
+                </div>
+              `;
+            })()}
           </div>
         </details>
 
-        <!-- Preserved Clip Layout & Timing Parameters (Managed in Video Studio) -->
-        <input type="hidden" data-f="layout" value="${esc(c.layout || 'split_half')}">
-        <input type="hidden" data-f="facecam_pos" value="${esc(c.facecam_pos || 'top-right')}">
+        <!-- Preserved Timing & Audio Parameters -->
+        <input type="hidden" data-f="bgm_track" value="${esc(c.bgm_track || 'none')}">
+        <input type="hidden" data-f="bgm_volume" value="${c.bgm_volume ?? 0.18}">
+        <input type="hidden" data-f="bgm_offset" value="${c.bgm_offset ?? 0}">
         <input type="hidden" data-f="start" value="${c.start}">
         <input type="hidden" data-f="end" value="${c.end}">
         <input type="hidden" data-f="audio_delay" value="${c.audio_delay ?? 0.0}">

@@ -1,6 +1,33 @@
 ﻿# Changelog
 All notable project changes are documented here.
 
+## [2026-11-24] — Restored Layout & Framing Studio Card & Removed Music Section in Clip Modal
+
+### Removed
+- **Background Music & Meme Sounds Accordion (`web/index.html`)**:
+  - Removed the bulky `🎵 Background Music & Meme Sounds` card from `#clipdlg` per user screenshot request, eliminating clutter in the clip editor modal.
+
+### Added / Restored
+- **Layout & Framing Studio Card in Clip Modal (`web/index.html`)**:
+  - Restored full interactive `🎨 Layout & Framing Studio` card in `#clipdlg`, allowing users to customize layout on a per-clip basis.
+  - Features:
+    - **Live 9:16 Thumbnail Preview** (`#dlg_layout_img`): Dynamically updates as layout or facecam position changes.
+    - **Layout Selector** (`data-f="layout"`): Dropdown with all available framing options (`Classic Split 50/50 ⭐`, `Reaction Split`, `Custom Visual Layout 🎨`, `Gameplay Focus (Corner PIP)`, `Fullscreen Gameplay (No Cam)`, `Original 16:9 + Blurred Background`, etc.).
+    - **Webcam Position Selector** (`data-f="facecam_pos"`): Top / Split Screen, Top Left (PIP), Bottom Left, Bottom Right.
+    - **🎨 Custom Studio Button**: Launches interactive 16:9 bounding box drag-and-drop editor for that specific clip (`open_custom_layout_studio_clip`).
+    - **🖼️ Compare Button**: Opens Layout Gallery comparison modal (`open_layout_gallery`).
+    - **⚡ Re-make Video (~15s) Button**: Prominent inline button inside the Layout card to immediately re-render the clip with the selected layout without scrolling.
+    - **Creator Saved Presets Row**: 1-click apply and re-render buttons for all custom presets saved on the creator.
+
+### Tests and Verification
+- **Node.js JavaScript AST Validation**: 2 scripts analyzed; Script 2 (548,360 characters) passed with 0 syntax errors (`ALL_SCRIPTS_SYNTAX_VALID`).
+- **Visual Browser Verification**: Browser subagent inspected `http://localhost:8765/app/creators/ohnepixel`, confirming:
+  - BGM section completely removed (0 instances in DOM).
+  - Layout & Framing Studio card visible, open, displaying live thumbnail, layout select, position select, and action buttons.
+  - Evidence artifact: [layout_studio_restored_verified.png](file:///C:/Users/ahsan/.gemini/antigravity/brain/40a5da71-2657-4e1a-b4e1-538d17e55324/layout_studio_restored_verified.png).
+
+
+
 ## [2026-11-24] — 100% Archive Re-Render Completed & Crash Recovery (222/222 Clips)
 
 ### Added
