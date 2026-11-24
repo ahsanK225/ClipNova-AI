@@ -113,7 +113,7 @@ on_clip_ready: list = []   # callbacks (job, clip), run once when a clip first f
 DEFAULTS = {"max_clips": 6, "min_len": 15, "max_len": 60, "style": "bounce", "layout": "split_half", "quality": 1080,
             "range_start": None, "range_end": None, "captions": True, "facecam_pos": "top-right",
             "audio_delay": 0.0, "facecam_delay": 0.0, "hook_style": "neon", "outro_cta": True, "outro_text": "",
-            "hook_text": "", "description_text": "", "lang": "en"}
+            "hook_text": "", "description_text": "", "trim_silence": False, "lang": "en"}
 
 
 LIMITS = {"max_clips": (1, 20), "min_len": (5, 120), "max_len": (10, 180), "quality": (360, 1080)}
@@ -128,7 +128,7 @@ def clean_options(options) -> dict:
                 raise ValueError("Captions must be on or off.")
             out[k] = v
             continue
-        if k == "outro_cta":
+        if k in ("outro_cta", "trim_silence"):
             out[k] = bool(v)
             continue
         if k in ("hook_text", "description_text"):     # kept even when empty: it clears the creator's own text for this video
@@ -181,6 +181,7 @@ def public(job) -> dict:
     if not out["source"].get("name"):
         out["source"]["name"] = job.get("title") or job.get("id") or "Video"
     out["clips"] = [{k: v for k, v in c.items() if k not in ("src", "fixed_words", "fixed_for", "_aligned_words")} for c in (job.get("clips") or [])]
+    out["rev"] = int(job.get("_rev") or 0)
     ai = job.get("ai") or {}
     out["ai"] = {"tokens": ai.get("tokens", 0), "note": ai.get("note", ""), "used": bool(ai.get("model"))}   # never the model, never raw errors
     if job.get("status") == "queued":
@@ -196,6 +197,7 @@ def public(job) -> dict:
 def save(job):
     ctx.bump(job.get("user"))
     with _lock:
+        job["_rev"] = int(job.get("_rev") or 0) + 1
         d = Path(job["dir"])
         for _ in range(5):
             try:
@@ -258,6 +260,7 @@ def _load_file(f: Path, uid: str):
     job.setdefault("kind", "video")
     job.setdefault("creator", None)
     job.setdefault("clips", [])
+    job.setdefault("_rev", 1)
     if not isinstance(job.get("source"), dict):
         job["source"] = {"type": "live" if job.get("kind") == "live" else "url",
                          "url": job.get("url") or "", "name": job.get("title") or job.get("id") or "Video"}
@@ -737,6 +740,28 @@ def _f(v):
         return -1.0
 
 
+def trim_dead_air(words: list, start: float, end: float, lead_pad: float = 0.8,
+                  tail_pad: float = 1.2, min_len: float = 12.0) -> tuple[float, float]:
+    """Trim >2s silent dead air from clip start/end while keeping >=min_len duration and exact timeline sync."""
+    s, e = float(start), float(end)
+    if e - s <= min_len or not words:
+        return round(s, 2), round(e, 2)
+    in_span = [w for w in words if isinstance(w, dict) and s <= _f(w.get("s")) <= e]
+    if not in_span:
+        return round(s, 2), round(e, 2)
+    first_t = min(_f(w.get("s")) for w in in_span)
+    last_t = max(_f(w.get("e")) if _f(w.get("e")) > 0 else _f(w.get("s")) for w in in_span)
+    if first_t - s > 2.0:
+        cand_s = max(s, first_t - lead_pad)
+        if e - cand_s >= min_len:
+            s = cand_s
+    if e - last_t > 2.5:
+        cand_e = min(e, last_t + tail_pad)
+        if cand_e - s >= min_len:
+            e = cand_e
+    return round(s, 2), round(e, 2)
+
+
 def render_one(job, clip, words):
     user = job.get("user") or "u_local"
     try:
@@ -794,6 +819,11 @@ def render_one(job, clip, words):
         clip.setdefault("hook_style", o.get("hook_style") or cr.get("hook_style") or "neon")
         clip.setdefault("outro_cta", o.get("outro_cta", cr.get("outro_cta", True)))
         clip.setdefault("outro_text", o.get("outro_text") or cr.get("outro_text"))
+        if (clip.get("version", 0) == 0 and not clip.get("manual_words")
+                and (clip.get("trim_silence") or o.get("trim_silence") or cr.get("trim_silence"))):
+            ns, ne = trim_dead_air(words or [], clip["start"], clip["end"], min_len=min(12.0, float(o.get("min_len") or 12.0)))
+            if ns >= clip["start"] and ne <= clip["end"] and ne - ns >= 5.0:
+                clip["start"], clip["end"] = ns, ne
 
         # Automated Multimodal Visual Scene Analysis:
         # If the hook is generic, clichéd, or requested, examine an actual visual frame from the clip

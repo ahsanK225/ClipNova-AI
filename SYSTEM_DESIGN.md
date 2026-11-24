@@ -510,3 +510,21 @@ Integrated directly in `studio/brain.py` and `studio/posting.py`:
    - Generalized Level 1 intelligent reaction phrase triggers across creators using default `MASTER_TRIGGER_WORDS` while preserving custom triggers and strict Pure-AI (`""`) bypass; expanded `ohnepixel.py` with Roman Urdu & universal streamer hype phrases; added `brain._apply_yellow_punch()` for single Canary Yellow `*WORD*` emphasis on multimodal hooks.
 4. **Dynamic Full-Cam vs Corner-Cam Detection (`studio/facecam.py`, `studio/render.py`)**:
    - Added `facecam.is_fullscreen_cam()` (`render_clip()` switches `gameplay`/`split`/`split_half` to `crop` if box covers >=45% area or 3-frame analysis detects flat unbordered corner backdrop with active center subject).
+
+---
+
+## 30. Phase 3 Architecture: Growth, Multi-Platform Chat, Delta Sync & Modularity
+1. **Multi-Platform Live Chat Feeds (`studio/chat_feeds.py`, `studio/live.py`)**:
+   - Extracted Twitch IRC alongside new public YouTube Live Chat continuation poller (`extract_youtube_video_id`, `_yt_parse_actions`, `run_youtube_chat`) and Kick v2 chatroom poller (`run_kick_chat`), all feeding `Session._record_chat_msg()` uniformly.
+   - Kick poller stops cleanly with a clear status note (`chat_note`) on HTTP 403/anti-bot responses without attempting any CAPTCHA/WAF bypass.
+2. **Honest Community Post Workflow (`studio/accounts.py`, `studio/posting.py`, `web/index.html`)**:
+   - Replaces optimistic fake success when YouTube InnerTube `create_post` fails or omits `postId`: returns `ok=False, needs_manual=True` and marks posts `status="needs_manual_post"`, rendered in `#clipdlg` as `📢 Ready to Post · Open Tab ↗`.
+3. **Opt-In Dead-Air Silence Trim (`studio/jobs.py`, `studio/creators.py`, `web/index.html`)**:
+   - Adds `trim_silence: bool` (`False` default) per creator/job and `jobs.trim_dead_air()` trimming leading pauses `>2.0s` and trailing silence `>2.5s` while respecting `min_len` and keeping word timestamps synced.
+   - Mode B keyword fallback (`ohnepixel.evaluate_keyword_fallback()`) exposes the same `"signals"` schema as Mode A (`brain.judge_multimodal_moment()`).
+4. **Incremental Library Delta Sync (`studio/jobs.py`, `studio/server.py`, `web/index.html`)**:
+   - Tracks monotonic per-job `_rev` in `jobs._load_file()` / `jobs.save()` / `jobs.public()`.
+   - `/api/sync?delta=1&known=id:rev,...` returns only changed/new `jobs`, `unchanged` IDs, and `deleted` IDs while keeping the default `delta=0` response 100% backward-compatible.
+5. **Modular Code Organization & Workspace Hygiene (`studio/routes/calendar_routes.py`, `web/clipnova_hero.js`)**:
+   - Extracted 8 calendar/analytics/community routes into `studio/routes/calendar_routes.py` (`APIRouter` mounted on `server.app`) and extracted the hero canvas animation engine into `web/clipnova_hero.js` (served at `/assets/clipnova_hero.js`).
+   - Restored `analytics._save_data()` atomic `.bak` writer alongside `analytics._load_data()`, and cleaned 97 stale temporary media files (~70.3 MB) from `scratch/`.

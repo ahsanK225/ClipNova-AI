@@ -486,6 +486,15 @@ def evaluate_keyword_fallback(
     - Level 3: Common words alone are NEVER clipped (score < 50)
     """
     cls = classify_transcript(words_or_text, game=game)
+    max_z = round(float(audio_zscore), 2)
+    rx_est = int(min(100, max(0, max_z * 25 + (25 if cls.get("laughter_detected") else 0))))
+    def _signals(kw: int, rx: int) -> dict[str, Any]:
+        return {
+            "keyword": {"score": kw, "weight": 0.40, "matches": cls["matches"], "tier": cls["tier"]},
+            "reaction": {"score": rx, "weight": 0.60, "max_z": max_z, "laughter": bool(cls.get("laughter_detected", False))},
+            "visual": {"score": 0, "weight": 0.0, "event": "none", "detected": False, "has_frame": False},
+        }
+
     if not cls["eligible"]:
         return {
             "mode": "MODE B (KEYWORD FALLBACK)",
@@ -495,6 +504,7 @@ def evaluate_keyword_fallback(
             "priority": "SKIP",
             "reason": cls["skip_reason"] or "Mundane moment",
             "matches": cls["matches"],
+            "signals": _signals(cls["score"], rx_est),
             "breakdown": {"keyword": cls["score"], "reaction": 0, "visual": 0},
         }
 
@@ -520,6 +530,7 @@ def evaluate_keyword_fallback(
                 "priority": "SKIP",
                 "reason": "Community expression without reaction spike or chat excitement",
                 "matches": cls["matches"],
+                "signals": _signals(score, rx_est),
                 "breakdown": {"keyword": score, "reaction": int(audio_zscore * 8), "visual": 0},
             }
         score = max(70, min(90, score + int(audio_zscore * 8)))
@@ -534,6 +545,7 @@ def evaluate_keyword_fallback(
             "priority": "SKIP",
             "reason": "Common words require AI multimodal verification",
             "matches": cls["matches"],
+            "signals": _signals(score, rx_est),
             "breakdown": {"keyword": score, "reaction": 0, "visual": 0},
         }
 
@@ -546,5 +558,6 @@ def evaluate_keyword_fallback(
         "priority": priority,
         "reason": reason,
         "matches": cls["matches"],
+        "signals": _signals(score, rx_est),
         "breakdown": {"keyword": score, "reaction": int(audio_zscore * 8), "visual": 0},
     }

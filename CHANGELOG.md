@@ -1,6 +1,42 @@
 ﻿# Changelog
 All notable project changes are documented here.
 
+## [2026-11-25] — Phase 3 (Growth, Multi-Platform Chat, Delta Sync & Modularity)
+
+### Added
+- **YouTube Live Chat & Kick Live Chat Feeds (`studio/chat_feeds.py`, `studio/live.py`)**:
+  - Extracted unified multi-platform chat engine (`studio/chat_feeds.py`) with `detect_platform()`, `extract_youtube_video_id()`, `_yt_parse_actions()`, public YouTube InnerTube continuation poller (`run_youtube_chat`), Kick v2 chatroom API poller (`run_kick_chat` with graceful Cloudflare/HTTP 403 stop without bypass), and Twitch IRC (`run_twitch_chat`), feeding `live.Session._record_chat_msg()` uniformly.
+- **Opt-In Dead-Air Silence Trim (`studio/jobs.py`, `studio/creators.py`, `web/index.html`)**:
+  - Added per-creator / per-job `trim_silence: bool` (`False` default) toggle in Setup (`data-k="trim_silence"`), plus `jobs.trim_dead_air()` trimming leading pauses `>2.0s` and trailing pauses `>2.5s` while respecting `min_len` and keeping word timestamps aligned.
+- **Monotonic Delta Library Sync (`studio/jobs.py`, `studio/server.py`, `web/index.html`)**:
+  - Added monotonic `_rev` counters in `jobs._load_file()`, `jobs.save()`, and `jobs.public()`, plus `/api/sync?delta=1&known=id:rev,...` returning only updated/new `jobs`, `unchanged` IDs, and `deleted` IDs while preserving full `delta=0` compatibility; wired client-side delta merge in `tick()`.
+- **Modular Calendar Routes & Hero Canvas Asset (`studio/routes/calendar_routes.py`, `web/clipnova_hero.js`)**:
+  - Split 8 Calendar, Analytics Velocity, and Community Post routes into `studio/routes/calendar_routes.py` (`APIRouter` mounted on `server.app`).
+  - Extracted hero canvas animation into `web/clipnova_hero.js` served via `/assets/clipnova_hero.js`.
+- **Phase 3 Test Suite (`tests/test_phase3_upgrades.py`, `tests/run.py`)**:
+  - Added 22 automated Phase 3 checks covering chat parsers, Kick 403 graceful stop, honest community UX, `trim_dead_air`, `delta=1` sync, modular routes, and `/assets/clipnova_hero.js`; registered as suite #35 in `tests/run.py`.
+
+### Changed
+- **Honest Community Post Workflow (`studio/accounts.py`, `studio/posting.py`, `web/index.html`)**:
+  - Replaced optimistic fake success when YouTube InnerTube fails or omits `postId` with `ok=False, needs_manual=True`, marking posts `status="needs_manual_post"` and showing `📢 Ready to Post · Open Tab ↗` in the UI.
+- **Mode B Keyword Fallback Signals Parity (`studio/ohnepixel.py`)**:
+  - Included `"signals"` dict (`keyword`, `reaction`, `visual`) in `evaluate_keyword_fallback()` matching `brain.judge_multimodal_moment()`.
+
+### Fixed
+- **Missing `analytics._save_data()` (`studio/analytics.py`)**:
+  - Restored atomic `_save_data(cid, data)` (using `safe.atomic_write_text(..., backup=True)`) needed by `save_analytics_settings()` and `record_views_snapshot()`.
+- **Isolated Calendar Test Seed & Obsolete Modal BGM Assertion (`tests/test_usa_publishing_calendar.py`, `tests/test_bgm_and_meme_sounds.py`)**:
+  - Seeded `"IShowSpeed"` inside `test_creator_calendar_endpoint` for clean temp `PEAKCUT_DATA` runs, and updated `test_frontend_has_bgm_card_and_controls` to verify the deprecated modal BGM accordion stayed removed while Layout Studio controls remained intact.
+
+### Cleaned
+- Removed 97 temporary media/scratch files (~70.3 MB) from `scratch/`.
+
+### Tests and Verification
+- **Node.js JS Syntax Check**: `PeakCut/web/clipnova_hero.js` and `PeakCut/web/index.html` inline `<script>` (`1 blocks`) parsed cleanly (exit code `0`).
+- **Master Runner (`PeakCut/tests/run.py`)**: All **35 / 35** suites passed (`All tests passed.`, exit code `0`, including `phase 3 upgrades` 22/22 checks).
+- **12 Standalone Test Suites (`PEAKCUT_DATA` isolated temp dir, `PYTHONPATH=PeakCut`)**: **12 / 12** passed (`failed=0 total=12`): `test_phase3_upgrades.py`, `test_analytics_calendar.py` (6/6), `test_usa_publishing_calendar.py` (8/8), `test_bgm_and_meme_sounds.py` (6/6), `test_ohnepixel_engine.py` (12/12), `test_creators_trigger_words.py` (7/7), `test_trigger_timeline.py` (6/6), `test_hook_banner_sync.py` (4/4), `test_hook_single_yellow.py` (3/3), `test_hook_overlay_no_duplicate.py` (6/6), `test_ai_verdicts_clean_ui.py` (5/5), `test_capcut_and_styles.py`.
+- **Live Server & Browser Verification (`http://localhost:8765`)**: Verified `/healthz` (`200 {"ok":true}`), `/assets/clipnova_hero.js` (`200`), `/api/sync?v=stale&delta=1&known=...` (`200 delta=True unchanged=10`), `/api/calendar/slots` (`200 slots=6`), `#clipHeroCanvas`, `[data-k="trim_silence"]` in Setup, and `/api/creators/ohnepixel/calendar` (`200`) rendered in Calendar tab (`final_step_10.png`).
+
 ## [2026-11-25] — Phase 1 (Speed & Stability) & Phase 2 (Viral Quality & Workflow) Platform Upgrades
 
 ### Added

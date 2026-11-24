@@ -118,8 +118,15 @@ def _post_community(p):
         res = accounts.youtube_post_community(acc, formatted_text, video_id=p.get("video_post_id"))
         p["remote_id"] = res.get("remote_id", "")
         p["url"] = res.get("url", "")
-        p.update(status="posted", posted_at=time.time(), error=None)
-        creators.log(p["creator"], f"📢 YouTube Community Post ready (+30m) for {acc['name']}: {title}")
+        if res.get("ok") and p["remote_id"]:
+            clip["community_posted"] = True
+            p.update(status="posted", posted_at=time.time(), error=None)
+            creators.log(p["creator"], f"📢 YouTube Community Post published for {acc['name']}: {title}")
+        else:
+            clip["community_posted"] = False
+            clip["community_ready"] = True
+            p.update(status="needs_manual_post", posted_at=time.time(), error=None)
+            creators.log(p["creator"], f"📢 Community Post text ready to copy & post for {acc['name']}: {title}")
         jobs.save(job)
     except Exception as e:
         p["tries"] += 1

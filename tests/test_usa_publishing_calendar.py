@@ -132,9 +132,12 @@ class TestUSAPublishingCalendar(unittest.TestCase):
         """Verify GET /api/creators/{cid}/calendar endpoint structure and responses."""
         from fastapi.testclient import TestClient
         from studio.server import app
-        from studio import auth, db
+        from studio import auth, creators, ctx, db
 
         db.init()
+        with ctx.as_user("u_local"):
+            if not creators.get("ishowspeed"):
+                creators.create({"name": "IShowSpeed"})
         client = TestClient(app, base_url="http://127.0.0.1:8765")
         tok = auth.start_session("u_local")
         res = client.get("/api/creators/ishowspeed/calendar", cookies={"s": tok}, headers={"Host": "127.0.0.1:8765"})

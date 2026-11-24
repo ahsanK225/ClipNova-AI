@@ -44,6 +44,7 @@ F:\Games\GTA 6 CLIPPING\
 │   │   ├── asr.py                          # Speech recognition & word-level timing (sherpa-onnx)
 │   │   ├── audio.py                        # Audio engine: background music, viral meme sounds library, path security & safe uploads
 │   │   ├── brain.py                        # Universal grounding (anti-hallucination), multimodal scene analysis, dual AI judges & SEO
+│   │   ├── chat_feeds.py                   # Unified live chat feeds: Twitch IRC, YouTube InnerTube continuation poller & Kick v2 API (403-safe)
 │   │   ├── config.py                       # App configuration & environment parsing
 │   │   ├── creators.py                     # Creator workspace profiles, trigger words & settings
 │   │   ├── db.py                           # SQLite / SQLAlchemy persistence
@@ -62,13 +63,17 @@ F:\Games\GTA 6 CLIPPING\
 │   │   ├── ohnepixel.py                    # Intelligent livestream reaction database, tiered phrases (EN/DE/Roman Urdu), false-positive protection & Mode B fallback
 │   │   ├── posting.py                      # YouTube Shorts cloud scheduling, GPU 2K upscale ladder, IG, TikTok & channel exclusivity
 │   │   ├── render.py                       # FFmpeg 9:16 vertical render, AMD AMF/NVENC/QSV GPU + libx264 fallback, split layouts, dynamic full-cam crop, Bouncy/Hormozi/MrBeast subtitles & Hook styles
+│   │   ├── routes\                         # Modular FastAPI APIRouter submodules
+│   │   │   ├── __init__.py
+│   │   │   └── calendar_routes.py          # Extracted Calendar, Analytics Velocity & Community Post API routes
 │   │   ├── safe.py                         # User-safe error redaction & Windows-resilient atomic file persistence (.tmp + .bak auto-recovery)
-│   │   ├── server.py                       # FastAPI application & HTTP routes (CapCut export endpoints, caption word editor API, multi-key pool, presets)
+│   │   ├── server.py                       # FastAPI application, Gate, delta sync (/api/sync), static asset routes & mounted APIRouters
 │   │   └── storage.py                      # Local file, clip & recording management
-│   ├── tests\                              # Test suite (34 comprehensive suites in run.py + standalone suites)
-│   │   ├── run.py                          # Master test runner (725+ automated checks)
+│   ├── tests\                              # Test suite (35 comprehensive suites in run.py + standalone suites)
+│   │   ├── run.py                          # Master test runner (automated verification across 35 suites)
 │   │   ├── test_phase1_upgrades.py         # Phase 1 tests: atomic .bak recovery, GPU AMF/CPU fallback, ASR cache reuse, route dedup & yt_tags
 │   │   ├── test_phase2_upgrades.py         # Phase 2 tests: caption word editor API, multi-frame live AI, Roman Urdu pack, full-cam check & UI filter bar
+│   │   ├── test_phase3_upgrades.py         # Phase 3 tests: YouTube/Kick chat parsers, honest community UX, dead-air trim, delta sync, modular router & hero asset
 │   │   ├── test_ohnepixel_engine.py        # OhnePixel intelligent detection & false-positive suite (12 scenarios)
 │   │   ├── test_hashtags.py                # Hashtags generation tests
 │   │   ├── test_jobsave.py                 # Windows file locking resilience tests
@@ -92,7 +97,8 @@ F:\Games\GTA 6 CLIPPING\
 │   │   │   ├── layout-blur.jpg             # Original 16:9 + Ambient Blurred Video Background
 │   │   │   └── layout-zoom.jpg             # Zoomed 16:9 + Ambient Blurred Video Background
 │   │   ├── audio\                          # Curated background tracks & viral meme sounds (.mp3)
-│   │   └── index.html                      # UI dashboard with visual layout previews, multi-key pool & live player
+│   │   ├── clipnova_hero.js                # Extracted hero canvas animation module served at /assets/clipnova_hero.js
+│   │   └── index.html                      # UI dashboard with visual layout previews, delta sync poller, trim_silence toggle & live player
 │   ├── tests/                              # Automated test suites
 │   │   ├── test_stream_chat_and_scroll.py  # Unit tests for stream card live chat elevation, compact stats & scroll auto-stick/preservation
 │   │   ├── test_ai_verdicts_clean_ui.py    # Unit tests for clean single-line AI decisions, removal of what was just said & compact height

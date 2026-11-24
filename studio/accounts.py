@@ -471,12 +471,14 @@ def youtube_post_community(acc, text: str, video_id: str = None) -> dict:
                            json=body, headers=headers, timeout=15)
             if r.status_code == 200:
                 data = r.json()
-                post_id = data.get("postId") or data.get("id") or ""
-                return {"ok": True, "remote_id": post_id, "url": comm_url}
+                post_id = str(data.get("postId") or data.get("id") or "").strip()
+                if post_id:
+                    return {"ok": True, "remote_id": post_id, "url": comm_url}
         except Exception as be:
             print(f"[youtube] InnerTube backstage notice: {be}")
 
-    return {"ok": True, "remote_id": "", "url": comm_url}
+    return {"ok": False, "needs_manual": True, "remote_id": "", "url": comm_url,
+            "reason": "YouTube Data API v3 does not expose Community Post creation; copy text & post on Channel tab."}
 
 
 def youtube_views(acc, ids: list) -> dict:

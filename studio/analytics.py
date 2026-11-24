@@ -98,6 +98,12 @@ def _load_data(cid: str) -> dict:
     }
 
 
+def _save_data(cid: str, data: dict):
+    with _lock:
+        f = _analytics_file(cid)
+        safe.atomic_write_text(f, json.dumps(data, indent=2), backup=True)
+
+
 def circular_hour_diff(h1: float, h2: float) -> float:
     """Returns minimum circular distance between two hours on a 24-hour clock."""
     diff = abs(h1 - h2) % 24

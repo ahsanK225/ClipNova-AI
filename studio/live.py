@@ -11,7 +11,7 @@ from pathlib import Path
 
 import numpy as np
 
-from . import ai, alerts, auth, brain, config, creators, ctx, facecam, games, hashtags, jobs, load, media, safe, transcribe, usage, ohnepixel
+from . import ai, alerts, auth, brain, chat_feeds, config, creators, ctx, facecam, games, hashtags, jobs, load, media, safe, transcribe, usage, ohnepixel
 
 # ":username!user@host PRIVMSG #channel :the message"
 _NICK = re.compile(r"(?m)^:([A-Za-z0-9_]{2,25})!")
@@ -153,6 +153,7 @@ class Session:
         self.chat_kept = 0                   # the second this was last pruned at
         self.chat_total = 0
         self.chat_on = False
+        self.chat_note = ""
         self.recent_chat_msgs = collections.deque(maxlen=60)  # live buffer of incoming chat messages
         self.channel = None
         self.last_check = 0.0
@@ -241,10 +242,11 @@ class Session:
         SESSIONS[self.job["id"]] = self
         threading.Thread(target=ctx.bind(self._ingest), daemon=True).start()
         threading.Thread(target=ctx.bind(self._analyze), daemon=True).start()
-        m = re.match(r"^https?://(?:www\.)?twitch\.tv/([A-Za-z0-9_]+)", self.job["source"]["url"])
-        if m:
-            self.channel = m.group(1).lower()
-            threading.Thread(target=ctx.bind(self._chat), args=(self.channel,), daemon=True).start()
+        url = (self.job.get("source") or {}).get("url") or self.job.get("url") or ""
+        plat, target = chat_feeds.detect_platform(url)
+        if plat:
+            self.channel = target
+            threading.Thread(target=ctx.bind(chat_feeds.run_chat_loop), args=(self,), daemon=True).start()
 
     def stop(self, note="Stopped by you"):
         """Instant for the user: the card and the creator show as stopped straight away. Clips already being made
@@ -402,49 +404,27 @@ class Session:
                     except OSError:          # already gone: a finished recording clears the buffer
                         pass
 
-    # ---------------------------------------------------------------- chat (Twitch only)
+    # ---------------------------------------------------------------- chat (Twitch, YouTube, Kick)
+    def _record_chat_msg(self, user: str, msg: str) -> None:
+        """Record an incoming chat message and increment per-second viewer velocity."""
+        with self.lock:
+            second = int(self.samples / SR)
+            self.chat[second] += 1
+            self.chat_total += 1
+            who = str(user or "").strip()
+            if who:
+                self.chat_users.setdefault(second, set()).add(who.lower())
+                self.chat_kept = _trim_names(self.chat_users, second, self.chat_kept)
+                clean_msg = str(msg or "").strip()
+                if clean_msg:
+                    self.recent_chat_msgs.append({
+                        "user": who[:40],
+                        "msg": clean_msg[:140],
+                        "t": time.time(),
+                    })
+
     def _chat(self, channel):
-        while not self.stop_flag.is_set() and not self.ended:
-            try:
-                raw = socket.create_connection(("irc.chat.twitch.tv", 6697), timeout=20)
-                s = ssl.create_default_context().wrap_socket(raw, server_hostname="irc.chat.twitch.tv")
-                s.sendall(f"NICK justinfan{int(time.time()) % 90000 + 10000}\r\nJOIN #{channel}\r\n".encode())
-                s.settimeout(30)
-                rest = b""
-                self.chat_on = True
-                while not self.stop_flag.is_set() and not self.ended:
-                    try:
-                        data = s.recv(8192)
-                    except socket.timeout:
-                        continue
-                    if not data:
-                        break
-                    *lines, rest = (rest + data).split(b"\r\n")
-                    for line in lines:
-                        if line.startswith(b"PING"):
-                            s.sendall(b"PONG :tmi.twitch.tv\r\n")
-                        elif b" PRIVMSG #" in line:
-                            with self.lock:
-                                second = int(self.samples / SR)
-                                self.chat[second] += 1
-                                self.chat_total += 1
-                                line_str = line.decode("utf-8", "replace")
-                                who = _NICK.findall(line_str)
-                                if who:
-                                    self.chat_users.setdefault(second, set()).add(who[0].lower())
-                                    self.chat_kept = _trim_names(self.chat_users, second, self.chat_kept)
-                                    parts = line_str.split(f" PRIVMSG #{channel} :", 1)
-                                    if len(parts) > 1 and parts[1].strip():
-                                        self.recent_chat_msgs.append({
-                                            "user": who[0],
-                                            "msg": parts[1].strip()[:140],
-                                            "t": time.time(),
-                                        })
-                s.close()
-            except Exception:  # noqa: BLE001
-                pass
-            self.chat_on = False
-            self.stop_flag.wait(5)
+        chat_feeds.run_twitch_chat(self, channel)
 
     def _chat_spike(self, s, e):
         """True if chat was at least 3x busier than usual during (and just after) these seconds.

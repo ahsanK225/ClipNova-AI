@@ -99,21 +99,10 @@ class TestBgmAndMemeSounds(unittest.TestCase):
         self.assertEqual(file_resp.media_type, "audio/mpeg")
 
     def test_frontend_has_bgm_card_and_controls(self):
-        """web/index.html includes BGM controls, volume slider, sound trim offset, and filter tabs."""
+        """web/index.html removed the deprecated modal BGM card per user request while keeping Layout Studio controls."""
         html = Path("web/index.html").read_text(encoding="utf-8")
-        self.assertIn("Background Music &amp; Meme Sounds", html)
-        self.assertIn('id="dlg_bgm_vol"', html)
-        self.assertIn('id="dlg_bgm_cards"', html)
-        self.assertIn('id="dlg_bgm_trim_box"', html)
-        self.assertIn('id="dlg_bgm_offset_slider"', html)
-        self.assertIn('id="dlg_bgm_offset_input"', html)
-        self.assertIn("loadBgmTracks", html)
-        self.assertIn("selectBgmTrack", html)
-        self.assertIn("updateBgmVolume", html)
-        self.assertIn("toggleBgmSyncPreview", html)
-        self.assertIn("onBgmOffsetScrub", html)
-        self.assertIn("setBgmOffset", html)
-        self.assertIn("auditionBgmFromOffset", html)
+        self.assertNotIn("Background Music &amp; Meme Sounds", html)
+        self.assertIn("Layout &amp; Framing Studio", html)
 
     def test_render_with_bgm_mixing(self):
         """_render_in mixes background audio into output MP4 cleanly with bgm_offset."""
