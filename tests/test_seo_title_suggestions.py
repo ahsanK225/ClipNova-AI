@@ -99,16 +99,16 @@ class TestSeoTitleSuggestions(unittest.TestCase):
                 self.assertEqual(c_reload["titles"], res["titles"])
 
     def test_frontend_has_title_and_seo_pills(self):
-        """web/index.html includes #dlg_title_pills, #dlg_seo_title_pills, btn_ai_titles, and handlers."""
+        """web/index.html includes consolidated #dlg_youtube_shorts_panel, #dlg_title_pills, btn_ai_titles, and no duplicate seo_title pills."""
         html_path = Path("web/index.html")
         self.assertTrue(html_path.is_file())
         html = html_path.read_text(encoding="utf-8")
+        self.assertIn('id="dlg_youtube_shorts_panel"', html)
         self.assertIn('id="dlg_title_pills"', html)
-        self.assertIn('id="dlg_seo_title_pills"', html)
+        self.assertNotIn('id="dlg_seo_title_pills"', html)
         self.assertIn('data-act="ai_generate_titles"', html)
         self.assertIn('data-act="pick_title"', html)
         self.assertIn('title-pill-btn', html)
-        self.assertIn('seo-title-pill-btn', html)
 
     def test_multimodal_frames_payload_and_hooks(self):
         """jobs.get_clip_frames_payload extracts frames and passes them to brain.generate_viral_hooks."""

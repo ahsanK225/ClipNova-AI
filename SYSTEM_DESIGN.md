@@ -85,6 +85,17 @@ flowchart TD
   3. **Multi-Threaded Parallel Re-Render**: `scratch/apply_custom_expert_seo.py` updates metadata across `job.json` and sidecar files `clips/{cid}.json`, then spawns parallel FFmpeg workers to re-burn ASS subtitle banners and regenerate fresh `.jpg` cover thumbnails.
   4. **YouTube Custom Thumbnail Sync**: Because YouTube forbids replacing existing uploaded video streams without re-uploading, users can upload the freshly regenerated `clip005.jpg` as a Custom Thumbnail directly in YouTube Studio without re-uploading the video.
 
+### 3.4 Next-Gen Upgrade: Two-Pass Multimodal Clipping, Free-Tier SDK & Consolidated Shorts UI
+- **Google Gen AI SDK & Free-Tier Policy (`studio/gemini_client.py`, `studio/ai.py`)**:
+  - Migrated Gemini integration to `google-genai>=3.2.0` (`v1beta`) with `DEFAULT_FREE_PAIR = ["gemini-4-hydrogen", "gemini-3.5-flash-lite"]`.
+  - Strict `free_only` policy excludes paid-only models (`gemini-4-carbon`, `gemini-4-argon`, `gemini-4-neon`, `gemini-2.5-pro`, `gemini-omni-*`), blocks paid fallback escalation, honors project-level 429 quotas without auto-key-rotation bypass, caches completed responses in `data/cache/ai/*.json`, and surfaces explicit manual Google AI Studio tier verification steps (`/api/ai/tier-status`).
+- **Two-Pass Multimodal Discovery & Canonical YouTube Dedupe (`studio/brain.py`, `studio/media.py`, `studio/jobs.py`)**:
+  - **Pass 1**: Combines spoken transcript chunks, audio loudness peaks, backward `"clip that"` trigger expansion (`_find_trigger_backtrack_windows`), and quiet sampled visual keyframes (`_find_quiet_visual_candidates` via `extract_overview_keyframes`) so silent facecam reactions qualify.
+  - **Pass 2**: Reviews shortlisted `video/mp4` + audio proxies (`extract_proxy_clip`) to verify setup -> `payoff_at` -> aftermath, returning weighted scores (`compute_weighted_score`), 1-sentence `reason`, and clear `analysis_mode` labels (`multimodal_video_audio`, `frames_and_transcript`, `transcript_only`).
+  - **Canonical Dedupe**: Normalizes `watch?v=`, `youtu.be/`, `/shorts/`, and `/live/` links into `yt:<id>`, skipping previously exported spans while allowing failed (`error`) clips to retry via `POST /api/jobs/{jid}/resume`.
+- **Unified YouTube Shorts Package & Light/Dark UI (`studio/server.py`, `web/index.html`)**:
+  - Single final-cut package endpoint (`POST /api/jobs/{jid}/clips/{cid}/package`) marks `seo_stale` on clip trims, preserves `edited_fields`, and populates distinct `hook`, `title`, `description`, `hashtags` (deduped), `seo_tags`, `pinned_comment`, and `community_text` (`[SHORT_URL]` / live Short URL) inside one `#dlg_youtube_shorts_panel` with ZERO automatic AI calls on open/expand/copy, plus a Light/Dark/System theme toggle (`#themeToggleBtn`).
+
 ---
 
 ## 4. Hardware & Audio/Video Sync Architecture

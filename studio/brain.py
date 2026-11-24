@@ -371,16 +371,20 @@ def retry_wait(e, attempt, timeout=None):
     return min(float(wait), LIVE_MAX_WAIT if timeout else MAX_WAIT)
 
 
-def ask_ai(prompt, schema=None, purpose="AI call", timeout=None):
-    """Try each model in order, with retries for rate limits and overloads (see retry_wait).
+def ask_ai(prompt, schema=None, purpose="AI call", timeout=None, task="general", allow_cache=False):
+    """Try each model in capability-aware order, with retries for rate limits and overloads (see retry_wait).
     Returns (the answer, the model that gave it, tokens used) and notes the tokens in the usage record."""
     if not config.ai_ready():
         raise RuntimeError("The AI is not set up on this server.")
     last = None
-    for model in ai.models():
+    seq = ai.route_models(task) if hasattr(ai, "route_models") else ai.models()
+    for model in seq:
         for attempt in range(TRIES):
             try:
-                out, sent, wrote = ai.call(model, prompt, schema or SCHEMA, timeout)
+                if allow_cache and not getattr(ai, "_using_mock_httpx", lambda: False)():
+                    out, sent, wrote = ai.call(model, prompt, schema or SCHEMA, timeout, allow_cache=True)
+                else:
+                    out, sent, wrote = ai.call(model, prompt, schema or SCHEMA, timeout)
                 usage.record(sent, wrote, purpose)
                 ai.clear_problem()
                 return out, model, sent + wrote
@@ -464,48 +468,410 @@ def _game_rules(game):
     return GAME_RULES.format(game=_safe(games.name_of(game) or str(game), 40), tags=tags)
 
 
-def find_clips(words, db, duration, title="", uploader="", max_clips=6, min_len=15, max_len=60, log=print, game=None):
-    z = loud_zscore(db)
-    lines = make_lines(words, z)
-    if not lines:
-        return [], {"model": None, "note": "No speech found."}
-    found, used_model, tokens = [], None, 0
-    t = 0.0
-    windows = []
-    while t < duration:
-        windows.append((t, min(duration, t + WINDOW_SEC)))
-        t += WINDOW_SEC - OVERLAP_SEC
-    per_window = max(2, min(8, int(np.ceil(max_clips * 1.5 / len(windows))) + 1))
-    extra = _game_rules(game)
-    for a, b in windows:
-        chunk = [l for l in lines if a <= l["s"] < b]
-        if len(chunk) < 3:
+DEFAULT_SCORE_WEIGHTS = {
+    "hook_strength": 0.20,
+    "entertainment": 0.15,
+    "emotional_reaction": 0.15,
+    "retention": 0.15,
+    "context_clarity": 0.10,
+    "payoff_quality": 0.10,
+    "visual_interest": 0.10,
+    "originality": 0.05,
+}
+
+
+def compute_weighted_score(dims: dict, weights: dict | None = None) -> int:
+    """Compute a 0-100 explainable score from component sub-scores."""
+    wmap = weights or DEFAULT_SCORE_WEIGHTS
+    total_w, total_v = 0.0, 0.0
+    for k, w in wmap.items():
+        val = _num(dims.get(k), -1.0)
+        if 0.0 <= val <= 100.0:
+            total_w += float(w)
+            total_v += float(w) * val
+    if total_w <= 0:
+        return max(0, min(100, int(_num(dims.get("score"), 0))))
+    return max(0, min(100, int(round(total_v / total_w))))
+
+
+_BACKTRACK_TRIGGERS = re.compile(
+    r"\b(?:clip that|clip it|clip this|clip karo|ye clip karo|isko clip karo|what just happened|did you see that|wait what)\b",
+    re.I,
+)
+
+
+def _find_trigger_backtrack_windows(words: list, duration: float, min_len: int, max_len: int) -> list[dict]:
+    """When a streamer says 'clip that' AFTER an event, search backward 15-26s so setup + event + reaction fit in one window."""
+    if not words:
+        return []
+    out, last_t = [], -999.0
+    for i, w in enumerate(words):
+        phrase = " ".join(str(x.get("w", "")) for x in words[i:min(len(words), i + 4)])
+        if _BACKTRACK_TRIGGERS.search(phrase):
+            t = _num(w.get("s"), 0.0)
+            if t - last_t < 15.0:
+                continue
+            last_t = t
+            s = max(0.0, t - min(max_len * 0.72, 26.0))
+            e = min(duration, max(s + min_len, t + 8.0))
+            if e - s > max_len:
+                s = max(0.0, e - max_len)
+            out.append({
+                "start": round(s, 2),
+                "end": round(e, 2),
+                "payoff_at": round(max(s + 2.0, t - 2.0), 2),
+                "setup_at": round(s, 2),
+                "score": 82,
+                "category": "funny",
+                "hook": "WAIT FOR WHAT HAPPENED",
+                "title": "Streamer Reacts Live #Shorts",
+                "description": "Viewer-requested highlight captured with full pre-reaction setup.",
+                "hashtags": ["Shorts", "Gaming"],
+                "reason": f"Streamer reacted right after the event at {t:.1f}s; captured setup before reaction.",
+                "_trigger_backtrack": True,
+            })
+    return out
+
+
+QUIET_DISCOVERY_SCHEMA = {
+    "type": "ARRAY",
+    "items": {
+        "type": "OBJECT",
+        "properties": {
+            "frame_index": {"type": "INTEGER"},
+            "timestamp": {"type": "NUMBER"},
+            "interesting": {"type": "BOOLEAN"},
+            "score": {"type": "INTEGER"},
+            "category": {"type": "STRING"},
+            "what_happened": {"type": "STRING"},
+            "reason": {"type": "STRING"},
+        },
+        "required": ["frame_index", "timestamp", "interesting", "score", "what_happened", "reason"],
+    },
+}
+
+
+def _find_quiet_visual_candidates(keyframes: list[tuple[float, bytes]], words: list, duration: float,
+                                  min_len: int, max_len: int, title: str, uploader: str, game: str | None) -> tuple[list[dict], str, int]:
+    """Pass 1B: Discover visual moments in quiet sections with sparse or zero speech."""
+    if not keyframes or not ai.ready():
+        return [], "", 0
+    quiet_frames = []
+    for idx, (ts, blob) in enumerate(keyframes):
+        near_words = sum(1 for w in words if abs(_num(w.get("s"), -999) - ts) <= 8.0)
+        if near_words <= 14 or not words:
+            quiet_frames.append((idx, ts, blob))
+    if not quiet_frames:
+        return [], "", 0
+    batch = quiet_frames[:8]
+    ts_list = ", ".join(f"frame[{i}]={t:.1f}s" for i, (_, t, _) in enumerate(batch))
+    prompt = (
+        f"You are screening sampled video frames from quiet stretches of a gaming/streaming video ({ts_list}).\n"
+        f"Video title: {_safe(title) or 'unknown'} | Creator: {_safe(uploader) or 'Streamer'} | Game: {_safe(game) or 'unknown'}\n"
+        "Look for silent facecam reactions (disbelief, suppressed laugh, jaw drop, staring at camera), funny gameplay bugs/glitches, "
+        "unexpected crashes, item reveals, or visual payoffs that work even WITHOUT loud shouting.\n"
+        "Mark interesting=false for static menus, empty walking, or loading screens. Return JSON array."
+    )
+    try:
+        out, sent, wrote, mod = ai.see_media(
+            prompt, [("image/jpeg", b) for _, _, b in batch], schema=QUIET_DISCOVERY_SCHEMA, timeout=30.0, task="discovery"
+        )
+    except Exception:
+        return [], "", 0
+    cands = []
+    for item in (out if isinstance(out, list) else []):
+        if not isinstance(item, dict) or not item.get("interesting"):
             continue
-        prompt = (HEAD.format(title=_safe(title) or "unknown", uploader=_safe(uploader) or "unknown", n=per_window)
-                  + extra
-                  + _rules(min_len, max_len, _fmt(chunk)))
-        try:
-            out, used_model, spent = ask_ai(prompt, purpose="Video: finding clips")
-            tokens += spent
-            found += [c for c in out if isinstance(c, dict) and a - 5 <= float(c.get("start", -1)) < b]
-        except Exception as e:  # noqa: BLE001
-            log(f"AI window {a:.0f}-{b:.0f}s failed: {e}")
+        fidx = int(_num(item.get("frame_index"), -1))
+        ts = batch[fidx][1] if 0 <= fidx < len(batch) else _num(item.get("timestamp"), -1.0)
+        sc = int(_num(item.get("score"), 0))
+        if ts < 0 or ts > duration or sc < 62:
+            continue
+        s = max(0.0, ts - max(8.0, min_len * 0.55))
+        e = min(duration, max(s + min_len, ts + min(14.0, max_len * 0.45)))
+        if e - s > max_len:
+            e = min(duration, s + max_len)
+        cands.append({
+            "start": round(s, 2),
+            "end": round(e, 2),
+            "payoff_at": round(ts, 2),
+            "setup_at": round(s, 2),
+            "score": sc,
+            "category": str(item.get("category") or "funny").lower(),
+            "hook": "SILENT VISUAL MOMENT",
+            "title": str(item.get("what_happened") or "Unexpected Moment #Shorts")[:70],
+            "description": str(item.get("what_happened") or ""),
+            "hashtags": ["Shorts", "Gaming"],
+            "reason": str(item.get("reason") or "Visual payoff captured during a quiet stretch.")[:200],
+            "_quiet_visual": True,
+        })
+    return cands, mod, sent + wrote
+
+
+PASS2_REVIEW_SCHEMA = {
+    "type": "OBJECT",
+    "properties": {
+        "keep": {"type": "BOOLEAN"},
+        "start": {"type": "NUMBER"},
+        "end": {"type": "NUMBER"},
+        "payoff_at": {"type": "NUMBER"},
+        "setup_at": {"type": "NUMBER"},
+        "reason": {"type": "STRING"},
+        "category": {"type": "STRING"},
+        "confidence": {"type": "STRING"},
+        "hook_strength": {"type": "INTEGER"},
+        "entertainment": {"type": "INTEGER"},
+        "emotional_reaction": {"type": "INTEGER"},
+        "retention": {"type": "INTEGER"},
+        "context_clarity": {"type": "INTEGER"},
+        "payoff_quality": {"type": "INTEGER"},
+        "visual_interest": {"type": "INTEGER"},
+        "originality": {"type": "INTEGER"},
+        "hook": {"type": "STRING"},
+        "hooks": {"type": "ARRAY", "items": {"type": "STRING"}},
+        "title": {"type": "STRING"},
+        "titles": {"type": "ARRAY", "items": {"type": "STRING"}},
+        "description": {"type": "STRING"},
+        "hashtags": {"type": "ARRAY", "items": {"type": "STRING"}},
+        "seo_tags": {"type": "ARRAY", "items": {"type": "STRING"}},
+        "pinned_comment": {"type": "STRING"},
+    },
+    "required": ["keep", "start", "end", "payoff_at", "reason", "hook_strength", "payoff_quality", "context_clarity", "hook", "title"],
+}
+
+
+def _review_candidate_pass2(
+    cand: dict,
+    media_parts: list[tuple[str, bytes]],
+    window_start: float,
+    window_end: float,
+    transcript_slice: str,
+    title: str,
+    uploader: str,
+    game: str | None,
+    min_len: int,
+    max_len: int,
+    weights: dict | None = None,
+) -> tuple[dict | None, str, int, str]:
+    """Pass 2: Deep multimodal review of an actual video+audio or multi-frame window around a candidate."""
+    if not media_parts or not ai.ready():
+        return None, "", 0, "transcript_only"
+    has_av = any(m.startswith("video/") or m.startswith("audio/") for m, _ in media_parts)
+    analysis_kind = "multimodal_video_audio" if has_av else "frames_and_transcript"
+    prompt = (
+        f"You are reviewing a candidate clip window spanning SOURCE timestamps {window_start:.1f}s to {window_end:.1f}s "
+        f"(clip media duration: {max(1.0, window_end - window_start):.1f}s).\n"
+        f"Source title (metadata): {_safe(title) or 'unknown'}\n"
+        f"Creator (metadata, use ONLY if verified/relevant): {_safe(uploader) or 'unknown'}\n"
+        f"Game (metadata, use ONLY if clearly visible): {_safe(game) or 'unverified'}\n"
+        f"Speech inside window (timestamps are in SOURCE seconds):\n{_safe(transcript_slice, 2200) or '(quiet / minimal speech)'}\n\n"
+        "EVALUATE HONESTLY:\n"
+        "1. What actually happens on screen + in audio? Watch the setup, climax, and streamer reaction (even silent facecam reactions count!).\n"
+        "2. REJECT (`keep: false`) if this is just an empty loud shout/swear word, weak reaction with no payoff, repetitive menu, or missing setup.\n"
+        "3. Choose tight SOURCE timestamps `start`, `end`, `setup_at`, and `payoff_at` (within {window_start:.1f}..{window_end:.1f}, length {min_len}..{max_len}s):\n"
+        "   - Start early enough so a brand-new viewer immediately understands the setup.\n"
+        "   - Finish cleanly AFTER `payoff_at` and reaction land.\n"
+        "4. Write ONE plain, honest sentence in `reason` explaining why the moment works.\n"
+        "5. Score 0-100 on each rubric dimension honestly (do not inflate scores).\n"
+        "6. Also draft distinct `hook` (1-2s on-screen punch), `title` (<=100 chars), `description`, `hashtags`, `seo_tags`, `pinned_comment`."
+    ).format(window_start=window_start, window_end=window_end, min_len=min_len, max_len=max_len)
+
+    out, sent, wrote, used_model = ai.see_media(prompt, media_parts, schema=PASS2_REVIEW_SCHEMA, timeout=45.0, task="deep_review")
+    if not isinstance(out, dict):
+        return None, used_model, sent + wrote, analysis_kind
+    if not out.get("keep", True):
+        return {"_rejected": True, "reason": str(out.get("reason") or "Weak payoff/context")}, used_model, sent + wrote, analysis_kind
+
+    dims = {k: int(_num(out.get(k), 70)) for k in DEFAULT_SCORE_WEIGHTS}
+    w_score = compute_weighted_score(dims, weights)
+    # Normalize relative timestamps if model answered 0..(window_end-window_start) instead of source timestamps.
+    raw_s = _num(out.get("start"), cand["start"])
+    raw_e = _num(out.get("end"), cand["end"])
+    raw_p = _num(out.get("payoff_at"), cand.get("payoff_at") or (raw_s + (raw_e - raw_s) * 0.65))
+    raw_setup = _num(out.get("setup_at"), raw_s)
+    if raw_e <= (window_end - window_start) + 2.0 and window_start > 5.0 and raw_s < window_start - 2.0:
+        raw_s += window_start
+        raw_e += window_start
+        raw_p += window_start
+        raw_setup += window_start
+    s = max(window_start, min(window_end - 3.0, raw_s))
+    e = min(window_end, max(s + min(min_len, max(5.0, window_end - window_start)), raw_e))
+    payoff = max(s, min(e, raw_p))
+    merged = {
+        **cand,
+        **{k: v for k, v in out.items() if v is not None and k not in ("start", "end", "score")},
+        "start": round(s, 2),
+        "end": round(e, 2),
+        "payoff_at": round(payoff, 2),
+        "setup_at": round(max(s, min(payoff, raw_setup)), 2),
+        "score": w_score,
+        "score_breakdown": dims,
+        "hook_score": dims["hook_strength"],
+        "retention_score": dims["retention"],
+        "confidence": str(out.get("confidence") or ("high" if w_score >= 78 else "medium")).lower(),
+        "analysis_mode": analysis_kind,
+    }
+    return merged, used_model, sent + wrote, analysis_kind
+
+
+def find_clips(words, db, duration, title="", uploader="", max_clips=6, min_len=15, max_len=60, log=print, game=None,
+               keyframes=None, review_media=None, score_weights=None):
+    """Two-pass multimodal highlight discovery:
+    Pass 1 scans speech, loudness peaks, trigger backtrack cues, and quiet visual keyframes.
+    Pass 2 reviews shortlisted candidate windows (actual video+audio or multi-frames) with gemini-4-hydrogen
+    to validate setup -> payoff -> reaction boundaries and reject weak shouts."""
+    z = loud_zscore(db) if db is not None and len(db) else np.zeros(max(1, int(duration or 1)))
+    lines = make_lines(words, z)
+    has_keyframes = bool(keyframes)
+    if not lines and not has_keyframes:
+        return [], {"model": None, "note": "No speech or keyframes found.", "analysis_mode": "none"}
+
+    found, used_model, tokens = [], None, 0
+    mode_used = "transcript_only"
+    per_window = max(2, min(8, int(np.ceil(max_clips * 1.5 / max(1, math.ceil(max(1.0, duration) / WINDOW_SEC)))) + 1))
+    extra = _game_rules(game)
+
+    # Pass 1A: Spoken windows + loudness cues
+    if lines:
+        t = 0.0
+        windows = []
+        while t < duration:
+            windows.append((t, min(duration, t + WINDOW_SEC)))
+            t += WINDOW_SEC - OVERLAP_SEC
+        per_window = max(2, min(8, int(np.ceil(max_clips * 1.5 / max(1, len(windows)))) + 1))
+        for a, b in windows:
+            chunk = [l for l in lines if a <= l["s"] < b]
+            if len(chunk) < 3:
+                continue
+            prompt = (HEAD.format(title=_safe(title) or "unknown", uploader=_safe(uploader) or "unknown", n=per_window)
+                      + extra
+                      + _rules(min_len, max_len, _fmt(chunk)))
+            try:
+                out, used_model, spent = ask_ai(prompt, purpose="Pass 1: candidate discovery", task="discovery", allow_cache=True)
+                tokens += spent
+                if isinstance(out, dict):
+                    out = out.get("clips") or out.get("moments") or out.get("items") or ([out] if "start" in out else [])
+                cand_items = [c for c in (out if isinstance(out, list) else []) if isinstance(c, dict) and a - 5 <= _num(c.get("start"), -1) < b]
+                if not cand_items and len(chunk) >= 12 and used_model and used_model != "gemini-4-hydrogen":
+                    out2, m2, s2 = ask_ai(prompt, purpose="Pass 1: candidate retry", task="reasoning", allow_cache=False)
+                    tokens += s2
+                    used_model = m2 or used_model
+                    if isinstance(out2, dict):
+                        out2 = out2.get("clips") or out2.get("moments") or out2.get("items") or ([out2] if "start" in out2 else [])
+                    cand_items = [c for c in (out2 if isinstance(out2, list) else []) if isinstance(c, dict) and a - 5 <= _num(c.get("start"), -1) < b]
+                found += cand_items
+            except Exception as e:  # noqa: BLE001
+                log(f"AI window {a:.0f}-{b:.0f}s failed: {e}")
+
+    # Pass 1B: Backward search from post-event 'clip that' cues
+    bt_cands = _find_trigger_backtrack_windows(words, duration, min_len, max_len)
+    for btc in bt_cands:
+        if not any(min(btc["end"], _num(c.get("end"), 0)) - max(btc["start"], _num(c.get("start"), 0)) > 6.0 for c in found):
+            found.append(btc)
+
+    # Pass 1C: Sampled visual keyframes in quiet stretches (handles low/no speech moments!)
+    if keyframes:
+        q_cands, q_mod, q_tok = _find_quiet_visual_candidates(keyframes, words, duration, min_len, max_len, title, uploader, game)
+        tokens += q_tok
+        if q_mod:
+            used_model = used_model or q_mod
+            mode_used = "frames_and_transcript"
+        for qc in q_cands:
+            if not any(min(qc["end"], _num(c.get("end"), 0)) - max(qc["start"], _num(c.get("start"), 0)) > 6.0 for c in found):
+                found.append(qc)
+
     note = ""
-    if not used_model:
-        found = fallback_by_loudness(db, words, max_clips, max_len, duration)
-        note = "The AI was unavailable, so clips were picked by loudness only."
-    clips = []
+    if not used_model and not found:
+        if lines or (db is not None and len(db) >= 5):
+            found = fallback_by_loudness(db, words, max_clips, max_len, duration)
+            note = "The AI was unavailable, so clips were picked by loudness only."
+            mode_used = "loudness_fallback"
+    elif used_model and mode_used == "transcript_only" and not review_media:
+        note = "Transcript-only selection (no multimodal video/frame review pass ran)."
+
+    # Deduplicate shortlist before expensive Pass 2 deep review
+    shortlist = []
     for c in sorted(found, key=lambda c: -_num(c.get("score"))):
-        s, e = _snap(c, lines, words, min_len, max_len, duration)
+        cs, ce = max(0.0, _num(c.get("start"), 0.0)), min(duration, _num(c.get("end"), 0.0))
+        if ce <= cs:
+            continue
+        if _overlaps(cs, ce, shortlist):
+            continue
+        shortlist.append({**c, "start": cs, "end": ce})
+        if len(shortlist) >= max(max_clips + 2, max_clips):
+            break
+
+    # Pass 2: Deep multimodal review of each shortlisted window when media callback is supplied & not Fast mode
+    reviewed = []
+    if shortlist and review_media and ai.ready() and ai.analysis_mode() != "fast":
+        for cand in shortlist:
+            w_a = max(0.0, cand["start"] - 6.0)
+            w_b = min(duration, cand["end"] + 4.0)
+            try:
+                mparts = review_media(w_a, w_b)
+            except Exception:
+                mparts = []
+            if not mparts:
+                reviewed.append(cand)
+                continue
+            w_lines = [l for l in lines if w_a - 1.0 <= l["s"] <= w_b + 1.0]
+            try:
+                rev, rmod, rtok, akind = _review_candidate_pass2(
+                    cand, mparts, w_a, w_b, _fmt(w_lines), title, uploader, game, min_len, max_len, weights=score_weights
+                )
+                tokens += rtok
+                if rmod:
+                    used_model = rmod
+                if rev is None:
+                    reviewed.append(cand)
+                elif rev.get("_rejected"):
+                    log(f"Pass 2 rejected candidate {cand['start']:.1f}-{cand['end']:.1f}s: {rev.get('reason')}")
+                    continue
+                else:
+                    mode_used = akind
+                    reviewed.append(rev)
+            except Exception as e:
+                log(f"Pass 2 review failed ({cand['start']:.1f}-{cand['end']:.1f}s), keeping Pass 1: {e}")
+                reviewed.append(cand)
+    else:
+        reviewed = shortlist
+
+    # Deterministic media-boundary validation + quality-over-quantity threshold
+    clips = []
+    for c in sorted(reviewed, key=lambda c: -_num(c.get("score"))):
+        if lines and any(c["start"] <= _num(w.get("s"), -1) <= c["end"] for w in words):
+            s, e = _snap(c, lines, words, min_len, max_len, duration)
+        else:
+            # Quiet/visual clip: validate cleanly inside [0, duration] and [min_len, max_len]
+            s = max(0.0, round(_num(c.get("start"), 0.0), 2))
+            e = min(duration, round(_num(c.get("end"), s + min_len), 2))
+            if e - s < min(min_len, duration):
+                e = min(duration, round(s + min(min_len, duration), 2))
+            if e - s > max_len:
+                e = round(s + max_len, 2)
         if e - s < min(min_len, duration) - 1:
             continue
         if _overlaps(s, e, clips):
-            continue  # overlaps a better clip
-        clips.append(_tidy(c, s, e, game))
+            continue
+        tidied = _tidy(c, s, e, game)
+        # Preserve Pass 2 / two-pass structured provenance fields
+        raw_payoff = _num(c.get("payoff_at"), round(s + (e - s) * 0.65, 2))
+        tidied["payoff_at"] = round(max(s, min(e, raw_payoff)), 2)
+        tidied["setup_at"] = round(max(s, min(tidied["payoff_at"], _num(c.get("setup_at"), s))), 2)
+        tidied["analysis_mode"] = c.get("analysis_mode") or mode_used
+        tidied["confidence"] = c.get("confidence") or ("high" if tidied["score"] >= 80 else "medium")
+        if c.get("score_breakdown"):
+            tidied["score_breakdown"] = c["score_breakdown"]
+            tidied["hook_score"] = c.get("hook_score", tidied["score"])
+            tidied["retention_score"] = c.get("retention_score", tidied["score"])
+        # Quality-over-quantity: don't pad clips scoring below 55 if AI actually ran
+        if used_model and tidied["score"] < 55 and len(clips) >= 1:
+            continue
+        clips.append(tidied)
         if len(clips) >= max_clips:
             break
     clips.sort(key=lambda c: c["start"])
-    return clips, {"model": used_model, "tokens": tokens, "note": note}
+    return clips, {"model": used_model, "tokens": tokens, "note": note, "analysis_mode": mode_used}
 
 
 def find_live_clips(words, z, now, chat=None, title="", uploader="", min_len=15, max_len=60, existing=(), game=None):
@@ -1524,3 +1890,202 @@ def _fix_caption_words(words: list, title: str = "", lang: str = "") -> list:
         if new:
             fixed.append(dict(w, w=new))
     return fixed or words
+
+
+FINAL_CUT_PACKAGE_SCHEMA = {
+    "type": "OBJECT",
+    "properties": {
+        "hook": {"type": "STRING"},
+        "hooks": {"type": "ARRAY", "items": {"type": "STRING"}},
+        "title": {"type": "STRING"},
+        "titles": {"type": "ARRAY", "items": {"type": "STRING"}},
+        "description": {"type": "STRING"},
+        "hashtags": {"type": "ARRAY", "items": {"type": "STRING"}},
+        "seo_tags": {"type": "ARRAY", "items": {"type": "STRING"}},
+        "pinned_comment": {"type": "STRING"},
+        "community_text": {"type": "STRING"},
+        "reason": {"type": "STRING"},
+        "spoken_quote_verified": {"type": "STRING"},
+    },
+    "required": ["hook", "title", "description", "hashtags", "seo_tags", "pinned_comment", "community_text"],
+}
+
+
+def build_community_post(title: str, description: str, pinned_comment: str = "", hashtags_list: list | None = None,
+                         short_url: str = "", body_hint: str = "") -> str:
+    """Format one clean YouTube Community post with real URL when published or explicit [SHORT_URL] placeholder."""
+    link_target = (short_url or "").strip() or "[SHORT_URL]"
+    lead = (body_hint or "").strip()
+    if lead:
+        # Ensure placeholder/URL sits clearly in the Community Post without duplicate trailing links
+        if "[SHORT_URL]" in lead and (short_url or "").strip():
+            lead = lead.replace("[SHORT_URL]", short_url.strip())
+        elif link_target not in lead:
+            lead = f"{lead}\n\nWatch the Short: {link_target}"
+        return lead[:1200].strip()
+    parts = [f"{title or 'New Short is live!'}\n\nWatch the Short: {link_target}"]
+    clean_desc = (description or "").strip()
+    if clean_desc and clean_desc.lower() != (title or "").strip().lower():
+        parts.append(re.sub(r"(?:#\w+\s*)+$", "", clean_desc).strip())
+    if pinned_comment:
+        parts.append(pinned_comment.strip())
+    htags = " ".join(f"#{str(h).lstrip('#')}" for h in (hashtags_list or [])[:5] if str(h).strip())
+    if htags:
+        parts.append(htags)
+    return "\n\n".join(p for p in parts if p)[:1200]
+
+
+def _dedupe_hashtags(raw: list | str, game: str | None = None, uploader: str = "") -> list[str]:
+    items = raw.split() if isinstance(raw, str) else list(raw or [])
+    seen, out = set(), []
+    for h in items:
+        clean = re.sub(r"\W", "", str(h or ""))[:30]
+        if clean and clean.lower() not in seen:
+            seen.add(clean.lower())
+            out.append(clean)
+    if "shorts" not in seen:
+        out.append("Shorts")
+        seen.add("shorts")
+    if game and game.lower() not in ("none", "gaming", "unverified"):
+        gtag = re.sub(r"\W", "", game)[:24]
+        if gtag and gtag.lower() not in seen:
+            out.append(gtag)
+            seen.add(gtag.lower())
+    return out[:6]
+
+
+def generate_final_cut_package(
+    media_parts: list[tuple[str, bytes]] | None,
+    transcript_text: str = "",
+    duration: float = 0.0,
+    title: str = "",
+    uploader: str = "",
+    game: str | None = None,
+    lang: str = "en",
+    short_url: str = "",
+    preserve_fields: dict | None = None,
+    regenerate_fields: list[str] | None = None,
+    tone: str | None = None,
+    timeout: float = 45.0,
+) -> dict:
+    """Analyze the exact final cut (video+audio or frames + exact cut transcript) in ONE structured request
+    and generate one cohesive, non-repetitive YouTube Shorts package while preserving manual user edits."""
+    has_video = bool(media_parts and any(m.startswith("video/") for m, _ in media_parts))
+    has_images = bool(media_parts and any(m.startswith("image/") for m, _ in media_parts))
+    analysis_mode = (
+        "multimodal_video_audio" if has_video else
+        ("frames_and_transcript" if has_images else "transcript_only")
+    )
+    lang_code = (lang or "en").strip().lower()
+    lang_instruction = "Write ALL output fields in natural English." if lang_code.startswith("en") or not lang_code else (
+        f"Write output respecting language '{lang_code}' (Roman letters for Hindi/Urdu if spoken; otherwise clear English)."
+    )
+    up_meta = _safe(uploader, 80)
+    game_meta = _safe(game, 60) if game and str(game).lower() not in ("none", "unverified") else ""
+    url_token = (short_url or "").strip() or "[SHORT_URL]"
+    spoken = _safe(transcript_text, 2400) or "(minimal or no spoken dialogue — ground strictly in visible actions & sound)"
+
+    prompt = (
+        f"You are analyzing the EXACT final exported/trimmed YouTube Short ({duration:.1f}s).\n"
+        f"Source video title (metadata): {_safe(title, 140) or 'unknown'}\n"
+        f"Creator (use ONLY if supported by footage/metadata): {up_meta or 'unverified'}\n"
+        f"Game/Topic (use ONLY if supported by footage/metadata): {game_meta or 'unverified'}\n"
+        f"Final cut spoken transcript:\n\"{spoken}\"\n\n"
+        f"Tone hint: {_safe(tone or 'natural engaging Shorts editor', 80)}\n"
+        f"{lang_instruction}\n\n"
+        "STRICT GROUNDING & ANTI-DUPLICATION RULES:\n"
+        "1. Base every field on specific actions, dialogue, or reactions present in THIS exact cut.\n"
+        "2. Verify any quoted words against the transcript/audio above. If uncertain about exact wording, paraphrase.\n"
+        "3. Never invent unrelated creator names, wrong games, or events outside this cut.\n"
+        "4. Give EACH field a distinct job so they NEVER repeat the same sentence:\n"
+        "   - hook: 2-6 punchy words for the first 1-2s on-screen banner (highlight 1 punch word with *ASTERISKS*).\n"
+        "   - hooks: 4 distinct hook alternatives (curiosity, funny, reaction, suspense/direct).\n"
+        "   - title: One recommended YouTube Shorts title (<=90 chars, natural phrasing, NOT identical to hook).\n"
+        "   - titles: 4 genuinely distinct clickable title options ending with #Shorts.\n"
+        "   - description: Concise 1-2 sentence summary explaining what happens & why it hits (no hashtag stuffing).\n"
+        "   - hashtags: 3-5 relevant hashtags without # sign.\n"
+        "   - seo_tags: 8-14 comma-free YouTube search keyword phrases.\n"
+        "   - pinned_comment: One specific conversation question referencing an exact detail/reaction from the cut.\n"
+        f"   - community_text: One ready-to-copy YouTube Community post teasing this clip and including `{url_token}` cleanly.\n"
+        "   - reason: One plain sentence explaining why this cut works for a new viewer."
+    )
+
+    used_model = ""
+    raw: dict = {}
+    if ai.ready():
+        try:
+            if media_parts:
+                res, _ti, _to, used_model = ai.see_media(prompt, media_parts, schema=FINAL_CUT_PACKAGE_SCHEMA, timeout=timeout, task="seo")
+            else:
+                res, used_model, _tot = ask_ai(prompt, schema=FINAL_CUT_PACKAGE_SCHEMA, purpose="Final-cut Shorts SEO", timeout=timeout, task="seo", allow_cache=True)
+            if isinstance(res, list) and res and isinstance(res[0], dict):
+                res = res[0]
+            if isinstance(res, dict):
+                raw = res
+        except Exception:
+            raw = {}
+
+    if not raw or not (raw.get("title") or raw.get("hook")):
+        fb = fallback_seo(title=title, uploader=uploader, game=game, text=transcript_text)
+        raw = {
+            **fb,
+            "community_text": build_community_post(fb.get("seo_title") or fb["title"], fb["description"], fb["pinned_comment"], fb["hashtags"], short_url),
+        }
+        if not used_model:
+            analysis_mode = "offline_fallback"
+
+    clean_hook_txt = _apply_yellow_punch(roman.to_roman(_text(raw.get("hook"), 90)).upper())
+    hooks_list = [_apply_yellow_punch(roman.to_roman(_text(h, 90)).upper()) for h in (raw.get("hooks") or []) if str(h).strip()][:5]
+    if clean_hook_txt and clean_hook_txt not in hooks_list:
+        hooks_list.insert(0, clean_hook_txt)
+
+    rec_title = roman.to_roman(_text(raw.get("title"), 95)) or f"{up_meta or 'Gaming'} Moment #Shorts"
+    if "#shorts" not in rec_title.lower():
+        rec_title = f"{rec_title} #Shorts"[:100].strip()
+    titles_list = []
+    for t in (raw.get("titles") or []):
+        tc = roman.to_roman(_text(t, 95))
+        if tc:
+            if "#shorts" not in tc.lower():
+                tc = f"{tc} #Shorts"[:100].strip()
+            if tc not in titles_list:
+                titles_list.append(tc)
+    if rec_title not in titles_list:
+        titles_list.insert(0, rec_title)
+
+    clean_desc = roman.to_roman(_text(raw.get("description"), 600)) or f"Watch this moment from {title or 'the stream'}."
+    clean_desc = re.sub(r"(?:\s+#\w+)+\s*$", "", clean_desc).strip()
+    htags = _dedupe_hashtags(raw.get("hashtags") or [], game_meta, up_meta)
+    stags = [roman.to_roman(re.sub(r"[^\w\s-]", "", str(t)).strip()) for t in (raw.get("seo_tags") or []) if str(t).strip()]
+    stags = [t for i, t in enumerate(stags) if t and t.lower() not in {x.lower() for x in stags[:i]}][:15]
+    if not stags:
+        stags = [x.lower() for x in htags]
+    pin = roman.to_roman(_text(raw.get("pinned_comment"), 300)) or "What was the funniest part of this clip?"
+    comm = build_community_post(rec_title, clean_desc, pin, htags, short_url, body_hint=str(raw.get("community_text") or ""))
+
+    pkg = {
+        "hook": clean_hook_txt or (hooks_list[0] if hooks_list else "WATCH THIS MOMENT"),
+        "hooks": hooks_list[:5],
+        "title": rec_title,
+        "seo_title": rec_title,
+        "titles": titles_list[:4],
+        "description": clean_desc,
+        "hashtags": htags,
+        "seo_tags": stags,
+        "pinned_comment": pin,
+        "community_text": comm,
+        "reason": _text(raw.get("reason"), 200) or "",
+        "analysis_mode": analysis_mode,
+        "analysis_model": used_model or ai.last_active_model() or "offline",
+        "seo_stale": False,
+    }
+
+    # Preserve manually edited fields when partially regenerating or refreshing
+    if preserve_fields:
+        regen = {str(x) for x in (regenerate_fields or [])}
+        for k, v in preserve_fields.items():
+            if k not in regen and v not in (None, "", []):
+                pkg[k] = v
+                if k == "title" and "seo_title" not in regen:
+                    pkg["seo_title"] = v
+    return pkg

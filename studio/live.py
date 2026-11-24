@@ -535,6 +535,26 @@ class Session:
         must = st["must_clip_min"] > 0 and time.time() - last_clip >= st["must_clip_min"] * 60
         verdict = {"t": round(now), "wall_t": time.time(), "transcript": None, "reaction": None, "trigger": why, "model": ai.last_active_model()}
         if len(win) < 8:
+            # Allow quiet visual moments to qualify via sampled stream frames when AI is available
+            q_frames = []
+            if ai.ready():
+                raw_fb = self._extract_window_frames(ws, now, count=4)
+                if raw_fb:
+                    step = max(1.0, (now - ws) / max(1, len(raw_fb)))
+                    q_frames = [(round(ws + (i + 0.5) * step, 2), b) for i, b in enumerate(raw_fb)]
+            if q_frames:
+                qcands, _qmod, qtok = brain._find_quiet_visual_candidates(
+                    q_frames, win, now, st["min_len"], st["max_len"], self.job["title"], self.job["uploader"], self._game()
+                )
+                self.tokens += qtok
+                for qc in qcands[:1]:
+                    is_dup = any(max(0.0, min(qc["end"], k["end"]) - max(qc["start"], k["start"])) >= 6.0 for k in self.job["clips"])
+                    if not is_dup and qc.get("score", 0) >= max(65, st["min_score"] - 10):
+                        qc.update(source="ai_auto", clip_type="ai_auto", priority="HIGH PRIORITY",
+                                  detection_mode="MODE A (QUIET VISUAL)", analysis_mode="frames_and_transcript")
+                        self._add_clip(qc)
+                        self.checks += 1
+                        return self._verdict(verdict, f"Quiet visual highlight: {qc.get('reason', '')[:70]}")
             self.skipped += 1
             return self._verdict(verdict, "Skipped: nobody talking")
         hourly_cap = st.get("live_per_hour", 25)
@@ -978,7 +998,15 @@ class Session:
         if not c.get("seo_tags") or not len(c.get("seo_tags", [])):
             c["seo_tags"] = [t for t in games.tags_of(self._game())] + [gname.lower(), f"{gname.lower()} gameplay", streamer.lower(), "shorts", "gaming", "viral", "funny moments"]
         if not c.get("pinned_comment") or not str(c.get("pinned_comment")).strip():
-            c["pinned_comment"] = f"Would you have survived this in {gname}? 😂 Drop your thoughts below! 👇"
+            c["pinned_comment"] = f"What stood out most in this {gname} moment?"
+        c.setdefault("payoff_at", round(float(c.get("start", 0.0)) + max(1.0, float(c.get("end", 30.0)) - float(c.get("start", 0.0))) * 0.65, 2))
+        c.setdefault("analysis_mode", "frames_and_transcript" if c.get("detection_mode", "").startswith("MODE A") else "transcript_only")
+        c.setdefault("community_text", brain.build_community_post(
+            c.get("seo_title") or c.get("title") or "",
+            c.get("description") or "",
+            c.get("pinned_comment") or "",
+            c.get("hashtags") or [],
+        ))
         facecam_delay = float(self.settings.get("facecam_delay") or self.job.get("options", {}).get("facecam_delay") or 0.0)
         audio_delay = float(self.settings.get("audio_delay") if self.settings.get("audio_delay") is not None else (self.job.get("options", {}).get("audio_delay") if self.job.get("options", {}).get("audio_delay") is not None else 0.0))
         facecam_pos = self.settings.get("facecam_pos") or self.job.get("options", {}).get("facecam_pos") or "top-right"

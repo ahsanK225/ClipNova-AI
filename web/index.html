@@ -3,6 +3,14 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<script>
+try {
+  const _t = localStorage.getItem("peakcut-theme") || "dark";
+  const _m = document.querySelector('meta[name="color-scheme"]');
+  if (_m && (_t === "light" || _t === "dark" || _t === "light dark")) _m.content = _t;
+} catch {}
+</script>
 <title>ClipNova AI - Autonomous Live Stream &amp; Video Clipper</title>
 <link rel="icon" type="image/png" href="/brand/favicon.png?v=3">
 <link rel="icon" type="image/svg+xml" href="/brand/favicon.svg?v=3">
@@ -15,57 +23,83 @@
 :root{
   --brand:#6366F1;--brand-press:#4F46E5;--brand-ink:#FFFFFF;--brand-soft:rgba(99,102,241,0.16);--brand-line:rgba(99,102,241,0.35);--brand-deep:#4338CA;
   --brand-gradient:linear-gradient(135deg, #6366F1 0%, #8B5CF6 50%, #EC4899 100%);
-  --accent-cyan:#00F0FF;--accent-gradient:linear-gradient(135deg, #00F0FF, #0099FF);
+  --accent:#00F0FF;--accent-cyan:#00F0FF;--accent-gradient:linear-gradient(135deg, #00F0FF, #0099FF);
   --frame:#090B10;--frame-2:#121624;--frame-line:rgba(255,255,255,.08);--frame-text:#F8FAFC;--frame-dim:#94A3B8;
-  --bg:#0C0F17;--bg-2:#131826;--muted:#171E30;--line:#21293E;--line-2:#2B354F;
-  --card-bg:#131826;
-  --text:#F1F5F9;--dim:#94A3B8;--faint:#64748B;
+  --bg:#0C0F17;--bg-1:#0d1117;--bg-2:#131826;--bg-3:#171E30;--muted:#171E30;--line:#21293E;--line-2:#2B354F;
+  --card-bg:#131826;--topbar-bg:rgba(12,15,23,0.85);--overlay-bg:rgba(15,23,42,0.55);
+  --heading:#FFFFFF;--text:#F1F5F9;--text-sub:#94A3B8;--text-dim:#94A3B8;--dim:#94A3B8;--faint:#64748B;
   --good:#10B981;--good-soft:rgba(16,185,129,0.16);--bad:#EF4444;--bad-soft:rgba(239,68,68,0.16);--live:#EF4444;
   --r-lg:16px;--r:12px;--r-sm:8px;
   color-scheme:dark;
 }
-/* OpusClip Modern AI Studio Theme Overrides */
+@media (prefers-color-scheme: light){
+  :root{
+    --bg:#F8FAFC;--bg-1:#F1F5F9;--bg-2:#FFFFFF;--bg-3:#EEF2F6;--muted:#E2E8F0;--line:#CBD5E1;--line-2:#94A3B8;
+    --card-bg:#FFFFFF;--topbar-bg:rgba(248,250,252,0.92);--overlay-bg:rgba(241,245,249,0.92);
+    --heading:#0F172A;--text:#0F172A;--text-sub:#475569;--text-dim:#475569;--dim:#475569;--faint:#64748B;
+    --accent:#0284C7;--accent-cyan:#0284C7;
+    --frame:#0F172A;--frame-2:#1E293B;--frame-line:rgba(255,255,255,0.12);--frame-text:#F8FAFC;--frame-dim:#94A3B8;
+    color-scheme:light;
+  }
+}
+:root:has(> head > meta[name="color-scheme"][content="light"]){
+  --bg:#F8FAFC;--bg-1:#F1F5F9;--bg-2:#FFFFFF;--bg-3:#EEF2F6;--muted:#E2E8F0;--line:#CBD5E1;--line-2:#94A3B8;
+  --card-bg:#FFFFFF;--topbar-bg:rgba(248,250,252,0.92);--overlay-bg:rgba(241,245,249,0.92);
+  --heading:#0F172A;--text:#0F172A;--text-sub:#475569;--text-dim:#475569;--dim:#475569;--faint:#64748B;
+  --accent:#0284C7;--accent-cyan:#0284C7;
+  --frame:#0F172A;--frame-2:#1E293B;--frame-line:rgba(255,255,255,0.12);--frame-text:#F8FAFC;--frame-dim:#94A3B8;
+  color-scheme:light;
+}
+:root:has(> head > meta[name="color-scheme"][content="dark"]){
+  --bg:#0C0F17;--bg-1:#0d1117;--bg-2:#131826;--bg-3:#171E30;--muted:#171E30;--line:#21293E;--line-2:#2B354F;
+  --card-bg:#131826;--topbar-bg:rgba(12,15,23,0.85);--overlay-bg:rgba(15,23,42,0.55);
+  --heading:#FFFFFF;--text:#F1F5F9;--text-sub:#94A3B8;--text-dim:#94A3B8;--dim:#94A3B8;--faint:#64748B;
+  --accent:#00F0FF;--accent-cyan:#00F0FF;
+  --frame:#090B10;--frame-2:#121624;--frame-line:rgba(255,255,255,.08);--frame-text:#F8FAFC;--frame-dim:#94A3B8;
+  color-scheme:dark;
+}
+/* ClipNova Modern AI Studio Theme Overrides */
 main{background:var(--bg)!important;color:var(--text)!important}
-.card,.tile,.composer,.clip,.livecard,.plan,dialog,.ai-home,.pop,.ntoast{background:var(--muted)!important;border-color:var(--line)!important;color:var(--text)!important;box-shadow:0 10px 30px rgba(0,0,0,0.45)!important}
-.card>h2,.card-head h2,.dlg h2,.topbar h1,.chan .who b,h3,h4{color:#FFFFFF!important}
+.card,.tile,.composer,.clip,.livecard,.plan,dialog,.ai-home,.pop,.ntoast{background:var(--card-bg)!important;border-color:var(--line)!important;color:var(--text)!important;box-shadow:0 10px 30px rgba(0,0,0,0.18)!important}
+.card>h2,.card-head h2,.dlg h2,.topbar h1,.chan .who b,h3,h4{color:var(--heading)!important}
 .help,.sub,.dim{color:var(--dim)!important}
 .btn{background:var(--bg-2)!important;border:1px solid var(--line-2)!important;color:var(--text)!important;border-radius:var(--r)!important;transition:all .2s cubic-bezier(.16,1,.3,1)!important}
-.btn:hover{background:var(--line)!important;border-color:rgba(99,102,241,0.5)!important;color:#FFFFFF!important}
+.btn:hover{background:var(--muted)!important;border-color:rgba(99,102,241,0.5)!important;color:var(--heading)!important}
 .btn.primary{background:var(--brand-gradient)!important;border:none!important;color:#FFFFFF!important;box-shadow:0 4px 16px rgba(99,102,241,0.4)!important}
 .btn.primary:hover{transform:translateY(-1px)!important;box-shadow:0 6px 24px rgba(99,102,241,0.6)!important}
-:where(input:not([type=checkbox],[type=radio],[type=file],[type=range]),select,textarea){background:var(--bg-2)!important;border:1px solid var(--line-2)!important;color:#FFFFFF!important;border-radius:var(--r-sm)!important}
-:where(input:not([type=checkbox],[type=radio],[type=file],[type=range]),select,textarea):focus{border-color:#00F0FF!important;box-shadow:0 0 0 2px rgba(0,240,255,0.25)!important}
+:where(input:not([type=checkbox],[type=radio],[type=file],[type=range]),select,textarea){background:var(--bg-2)!important;border:1px solid var(--line-2)!important;color:var(--text)!important;border-radius:var(--r-sm)!important}
+:where(input:not([type=checkbox],[type=radio],[type=file],[type=range]),select,textarea):focus{border-color:var(--accent)!important;box-shadow:0 0 0 2px rgba(99,102,241,0.22)!important}
 
 /* Posting accounts checkbox pills & switches */
-label.ck{display:inline-flex!important;align-items:center!important;gap:8px!important;height:38px!important;padding:0 14px!important;border-radius:var(--r)!important;cursor:pointer!important;background:var(--bg-2)!important;border:1px solid var(--line-2)!important;color:#FFFFFF!important;font-weight:500!important;transition:all .18s cubic-bezier(.16,1,.3,1)!important}
-label.ck:hover{background:var(--line)!important;border-color:rgba(0,240,255,0.45)!important;color:#FFFFFF!important}
-label.ck:has(input:checked){background:rgba(99,102,241,0.25)!important;border-color:#00F0FF!important;color:#FFFFFF!important;box-shadow:0 0 12px rgba(0,240,255,0.3)!important}
-label.ck input{accent-color:#00F0FF!important;width:16px!important;height:16px!important;margin:0!important;cursor:pointer!important}
+label.ck{display:inline-flex!important;align-items:center!important;gap:8px!important;height:38px!important;padding:0 14px!important;border-radius:var(--r)!important;cursor:pointer!important;background:var(--bg-2)!important;border:1px solid var(--line-2)!important;color:var(--text)!important;font-weight:500!important;transition:all .18s cubic-bezier(.16,1,.3,1)!important}
+label.ck:hover{background:var(--muted)!important;border-color:rgba(99,102,241,0.45)!important;color:var(--heading)!important}
+label.ck:has(input:checked){background:rgba(99,102,241,0.22)!important;border-color:var(--accent)!important;color:var(--heading)!important;box-shadow:0 0 12px rgba(99,102,241,0.25)!important}
+label.ck input{accent-color:var(--accent)!important;width:16px!important;height:16px!important;margin:0!important;cursor:pointer!important}
 
 label.sw input{background:var(--line-2)!important;border:1px solid var(--line)!important}
-label.sw input:checked{background:var(--brand-gradient)!important;border-color:#00F0FF!important;box-shadow:0 0 10px rgba(0,240,255,0.35)!important}
+label.sw input:checked{background:var(--brand-gradient)!important;border-color:var(--accent)!important;box-shadow:0 0 10px rgba(99,102,241,0.3)!important}
 label.sw input::after{background:#FFFFFF!important}
-label.sw span{color:#FFFFFF!important}
+label.sw span{color:var(--text)!important}
 label.sw small{color:var(--dim)!important}
 
 /* Savebar & Warning/Notice Banner Overrides */
-.savebar{background:var(--bg-2)!important;border:1px solid #00F0FF!important;color:#FFFFFF!important;box-shadow:0 10px 30px rgba(0,0,0,0.8), 0 0 16px rgba(0,240,255,0.35)!important}
-.savebar>span{color:#FFFFFF!important}
-.savebar>span svg{color:#00F0FF!important}
-.vb{background:rgba(99,102,241,0.15)!important;border:1px solid rgba(0,240,255,0.35)!important;color:#FFFFFF!important;box-shadow:0 4px 20px rgba(0,0,0,0.4)!important}
-.vb svg{color:#00F0FF!important}
+.savebar{background:var(--bg-2)!important;border:1px solid var(--accent)!important;color:var(--heading)!important;box-shadow:0 10px 30px rgba(0,0,0,0.3), 0 0 16px rgba(99,102,241,0.25)!important}
+.savebar>span{color:var(--heading)!important}
+.savebar>span svg{color:var(--accent)!important}
+.vb{background:rgba(99,102,241,0.12)!important;border:1px solid rgba(99,102,241,0.35)!important;color:var(--text)!important;box-shadow:0 4px 16px rgba(0,0,0,0.15)!important}
+.vb svg{color:var(--accent)!important}
 
-/* Table, Step & Modal Dark Overrides */
-tr:hover>td{background:var(--line)!important}
+/* Table, Step & Modal Theme Overrides */
+tr:hover>td{background:var(--muted)!important}
 th{background:var(--bg-2)!important;color:var(--dim)!important;border-color:var(--line)!important}
 td{border-color:var(--line)!important;color:var(--text)!important}
-.step{background:var(--bg-2)!important;border:1px solid var(--line)!important;color:#FFFFFF!important}
-.step:hover{background:var(--line)!important;border-color:rgba(99,102,241,0.5)!important}
-.step .n{background:var(--line-2)!important;border-color:var(--line)!important;color:#00F0FF!important}
+.step{background:var(--bg-2)!important;border:1px solid var(--line)!important;color:var(--text)!important}
+.step:hover{background:var(--muted)!important;border-color:rgba(99,102,241,0.5)!important}
+.step .n{background:var(--bg-3)!important;border-color:var(--line)!important;color:var(--accent)!important}
 .note{background:var(--bg-2)!important;border:1px solid var(--line)!important;color:var(--text)!important}
-.tr-card,.pop,.ntoast{background:var(--bg-2)!important;border:1px solid var(--line-2)!important;color:#FFFFFF!important;box-shadow:0 12px 36px rgba(0,0,0,0.6)!important}
+.tr-card,.pop,.ntoast{background:var(--bg-2)!important;border:1px solid var(--line-2)!important;color:var(--text)!important;box-shadow:0 12px 36px rgba(0,0,0,0.25)!important}
 dialog{background:var(--bg-2)!important;border:1px solid var(--line-2)!important;color:var(--text)!important}
-.topbar{background:rgba(12,15,23,0.85)!important;backdrop-filter:blur(14px)!important;border-bottom:1px solid var(--line)!important}
+.topbar{background:var(--topbar-bg)!important;backdrop-filter:blur(14px)!important;border-bottom:1px solid var(--line)!important}
 .side{background:var(--frame)!important;border-right:1px solid var(--frame-line)!important}
 .nav-item.on{background:var(--brand-gradient)!important;color:#FFFFFF!important;box-shadow:0 4px 14px rgba(99,102,241,0.3)!important}
 .nav-item.on svg{color:#FFFFFF!important}
@@ -1345,7 +1379,7 @@ details.card[open] > summary .accordion-chevron {
   <div class="scrim" data-act="menu"></div>
   <main id="main">
     <header class="topbar"><button class="icon-btn menu" data-act="menu" id="menuBtn" aria-label="Open menu"></button>
-      <span id="tpic"></span><div class="titles"><h1 id="title"></h1><p id="subtitle"></p></div><nav class="utabs" id="utabs" role="tablist" aria-label="Creator sections"></nav><div id="global_ai_bar"></div><div class="row" id="actions"></div></header>
+      <span id="tpic"></span><div class="titles"><h1 id="title"></h1><p id="subtitle"></p></div><nav class="utabs" id="utabs" role="tablist" aria-label="Creator sections"></nav><button type="button" class="btn sm ghost" id="themeToggleBtn" data-act="cycle_theme" title="Switch Theme (Dark / Light / System)" aria-label="Switch color theme" style="height:30px;padding:0 9px;font-size:12px;border-radius:16px;flex-shrink:0">🌙 Dark</button><div id="global_ai_bar"></div><div class="row" id="actions"></div></header>
     <div id="vbanner"></div>
     <div id="heroSlot"></div>
     <div class="content" id="view"></div>
@@ -1884,7 +1918,29 @@ function drawShell() {  const nav = (v, icon, label, extra = "") => `<button cla
   put($("#tpic"), pic); $("#tpic").classList.toggle("live", !!(c && (c.live_job || liveOn(c).length)));
   put($("#utabs"), tabs); moveInd(); $(".topbar").classList.toggle("tabbed", !!tabs);
   put($("#title"), `<span>${esc(title)}</span>`); put($("#subtitle"), subHtml ?? esc(sub)); put($("#actions"), act);
+  if (typeof updateThemeToggleBtn === "function") updateThemeToggleBtn();
   renderGlobalAiBar();
+}
+
+function getThemePreference() {
+  try {
+    const v = localStorage.getItem("peakcut-theme");
+    return (v === "light" || v === "dark" || v === "light dark") ? v : "dark";
+  } catch { return "dark"; }
+}
+function applyTheme(mode) {
+  const m = (mode === "light" || mode === "dark" || mode === "light dark") ? mode : "dark";
+  try { localStorage.setItem("peakcut-theme", m); } catch {}
+  const meta = document.querySelector('meta[name="color-scheme"]');
+  if (meta) meta.setAttribute("content", m);
+  updateThemeToggleBtn();
+}
+function updateThemeToggleBtn() {
+  const btn = $("#themeToggleBtn");
+  if (!btn) return;
+  const cur = getThemePreference();
+  btn.textContent = cur === "light" ? "☀️ Light" : cur === "light dark" ? "💻 System" : "🌙 Dark";
+  btn.setAttribute("aria-label", `Theme: ${cur}. Click to switch.`);
 }
 
 async function renderGlobalAiBar() {
@@ -1911,10 +1967,10 @@ async function renderGlobalAiBar() {
 
   const FALLBACK_MODELS = {
     gemini: [
-      {id: "gemini-3.5-flash-lite", name: "Gemini 3.5 Flash Lite (Free · Fast)", is_free: true},
-      {id: "gemini-flash-lite-latest", name: "Gemini Flash Lite (Latest · Free)", is_free: true},
-      {id: "gemini-3-flash-preview", name: "Gemini 3 Flash Preview (Free)", is_free: true},
-      {id: "gemini-3.8-flash", name: "Gemini 3.8 Flash (Latest Flagship)", is_free: true}
+      {id: "gemini-4-hydrogen", name: "Gemini 4 Hydrogen (Recommended · Free Tier)", is_free: true},
+      {id: "gemini-3.5-flash-lite", name: "Gemini 3.5 Flash Lite (Verified Free Fallback)", is_free: true},
+      {id: "gemini-3.8-flash", name: "Gemini 3.8 Flash (Free Tier)", is_free: true},
+      {id: "gemini-3.6-flash", name: "Gemini 3.6 Flash (Free Tier)", is_free: true}
     ],
     openrouter: [
       {id: "google/gemini-2.0-flash-exp:free", name: "Gemini 2.0 Flash Exp (Free)", is_free: true},
@@ -1958,7 +2014,7 @@ async function renderGlobalAiBar() {
 
   el.innerHTML = `
     <div class="global-ai-pill" style="display:inline-flex;align-items:center;gap:6px;background:var(--bg-2);border:1px solid var(--line);border-radius:20px;padding:3px 10px;margin:0 8px;flex-shrink:0">
-      <span style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;display:flex;align-items:center;gap:4px">
+      <span style="font-size:10px;font-weight:700;color:var(--dim);text-transform:uppercase;letter-spacing:0.5px;display:flex;align-items:center;gap:4px">
         <span style="color:#f59e0b">⚡</span> AI Model:
       </span>
       <select id="top_ai_provider" data-act="top_ai_prov_change" title="Switch AI Service Provider" style="font-size:11px;font-weight:700;background:transparent;border:none;color:var(--text);cursor:pointer;outline:none">
@@ -2993,10 +3049,10 @@ function ensureClipFilterBar(root, totalClips, shownClips, filterActive) {
   if (!bar && root.parentElement) {
     bar = document.createElement("div");
     bar.id = "clip_filter_bar";
-    bar.style.cssText = "display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:10px 0 14px 0;padding:8px 12px;background:rgba(18,24,38,0.85);border:1px solid var(--line);border-radius:12px";
+    bar.style.cssText = "display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:10px 0 14px 0;padding:8px 12px;background:var(--bg-2);border:1px solid var(--line);border-radius:12px";
     bar.innerHTML = `
-      <input id="clip_search_q" type="search" placeholder="🔍 Search clips by title, hook, tags or reason…" autocomplete="off" style="flex:1 1 220px;width:auto;min-width:180px;height:34px;background:var(--bg-1,#0d1117);border:1px solid var(--line);border-radius:8px;color:var(--text,#f1f5f9);padding:5px 10px;font-size:12.5px">
-      <select id="clip_filter_status" aria-label="Filter clips" style="flex:0 0 auto;width:auto;height:34px;background:var(--bg-1,#0d1117);border:1px solid var(--line);border-radius:8px;color:var(--text,#f1f5f9);padding:4px 10px;font-size:12px;font-weight:600">
+      <input id="clip_search_q" type="search" placeholder="🔍 Search clips by title, hook, tags or reason…" autocomplete="off" style="flex:1 1 220px;width:auto;min-width:180px;height:34px;background:var(--bg);border:1px solid var(--line);border-radius:8px;color:var(--text);padding:5px 10px;font-size:12.5px">
+      <select id="clip_filter_status" aria-label="Filter clips" style="flex:0 0 auto;width:auto;height:34px;background:var(--bg);border:1px solid var(--line);border-radius:8px;color:var(--text);padding:4px 10px;font-size:12px;font-weight:600">
         <option value="all">All Status</option>
         <option value="unposted">Unposted Only</option>
         <option value="scheduled">Scheduled</option>
@@ -3004,7 +3060,7 @@ function ensureClipFilterBar(root, totalClips, shownClips, filterActive) {
         <option value="top80">Top Score (80+)</option>
         <option value="done">Rendered Ready</option>
       </select>
-      <select id="clip_filter_sort" aria-label="Sort clips" style="flex:0 0 auto;width:auto;height:34px;background:var(--bg-1,#0d1117);border:1px solid var(--line);border-radius:8px;color:var(--text,#f1f5f9);padding:4px 10px;font-size:12px;font-weight:600">
+      <select id="clip_filter_sort" aria-label="Sort clips" style="flex:0 0 auto;width:auto;height:34px;background:var(--bg);border:1px solid var(--line);border-radius:8px;color:var(--text);padding:4px 10px;font-size:12px;font-weight:600">
         <option value="newest">Sort: Default Order</option>
         <option value="score">Sort: Highest Score</option>
         <option value="shortest">Sort: Shortest First</option>
@@ -5141,7 +5197,7 @@ const setTabs = () => [
   ...(S.status.user?.is_admin ? [["speech", "Speech models", "chat", "The languages PeakCut can hear"],
                                  ["storage", "Storage", "folder", "Where videos and clips are kept"]] : [])];
 const AI_DEFAULTS = {
-  gemini: {models: "gemini-3.5-flash-lite, gemini-3.1-flash-lite, gemini-flash-lite-latest", base: "", address_hint: "Default Google Generative Language API"},
+  gemini: {models: "gemini-4-hydrogen, gemini-3.5-flash-lite", base: "", address_hint: "Default Google Generative Language API (Official google-genai SDK)"},
   openrouter: {models: "meta-llama/llama-3.3-70b-instruct:free, mistralai/mistral-small-24b-instruct-2501:free", base: "https://openrouter.ai/api/v1", address_hint: "OpenRouter standard API endpoint (https://openrouter.ai/api/v1)"},
   groq: {models: "llama-3.3-70b-versatile, mixtral-8x7b-32768", base: "https://api.groq.com/openai/v1", address_hint: "Groq Cloud OpenAI-compatible endpoint"},
   xai: {models: "grok-2-latest", base: "https://api.x.ai/v1", address_hint: "xAI official API endpoint"},
@@ -5182,8 +5238,65 @@ async function drawSettings() {
   try {
     if (tab === "ai") {
       const k = S.ai = await api("/api/ai");
-      body.innerHTML = `<section class="set-sec"><h2>AI Service &amp; Multi-Key Pool</h2><p class="help">PeakCut uses an AI model to pick highlights, write narrative hooks, and ground video scenes. You can add multiple API keys from Gemini or OpenRouter. PeakCut will automatically rotate to the next key when one reaches its token or rate limit.</p>
-          <div class="ai-state">${k.ready ? `<span class="pill ok">${ic("check")}Ready</span><span class="sub">${esc(k.label)} · ${esc(k.models[0] || "")}</span>` : `<span class="pill warn">Not set up</span><span class="sub">Choose a service, add your key(s) and pick a model.</span>`}</div>
+      const tv = k.tier_verification || {};
+      const telem = k.telemetry || {};
+      const fmtTelem = mid => {
+        const tm = telem[mid];
+        if (!tm || !tm.calls) return "";
+        return ` · ${tm.calls} calls · ${tm.avg_ms || 0}ms${tm.rate_limited_until > Date.now()/1000 ? ' · ⏳ Limited' : ''}`;
+      };
+      body.innerHTML = `<section class="set-sec"><h2>AI Service, Free-Tier Policy &amp; Model Router</h2><p class="help">PeakCut prioritizes verified free-tier Gemini models via the official <code>google-genai</code> SDK (<code>gemini-4-hydrogen</code> primary + <code>gemini-3.5-flash-lite</code> verified fallback). Free Mode Only blocks paid models and respects project-level quotas without auto-rotating keys to bypass rate limits.</p>
+          <div class="ai-state">${k.ready ? `<span class="pill ok">${ic("check")}Ready</span><span class="sub">${esc(k.label)} · ${esc(k.models[0] || "")} · Mode: <b>${esc((k.analysis_mode || "balanced").toUpperCase())}</b>${k.free_only !== false ? " · 🛡️ Free Mode Only" : ""}</span>` : `<span class="pill warn">Not set up</span><span class="sub">Choose a service, add your key(s) and pick a model.</span>`}</div>
+          ${k.provider === "gemini" ? `
+          <div class="card" style="margin:12px 0;background:var(--bg-2);border:1px solid ${tv.status === 'user_confirmed_free' ? 'var(--good)' : '#F59E0B'};border-radius:10px;padding:14px 16px">
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px">
+              <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                <span class="pill ${tv.status === 'user_confirmed_free' ? 'ok' : 'warn'}" style="font-size:11px;font-weight:700">${tv.status === 'user_confirmed_free' ? '✅ Free Tier Verified by User' : '⚠️ Project Billing Tier Unverified'}</span>
+                <b style="font-size:13px">${esc(tv.verified ? "Free-Tier Project Verified" : "Manual Google AI Studio Billing Check Required")}</b>
+              </div>
+              <div style="display:flex;gap:8px;align-items:center">
+                <a class="btn sm" href="${esc(tv.check_url || 'https://aistudio.google.com/apikey')}" target="_blank" rel="noopener">🔗 Open AI Studio</a>
+                ${tv.status !== 'user_confirmed_free' ? `<button type="button" class="btn sm primary" data-act="ai_confirm_free_tier">✅ Confirm Free Tier</button>` : ""}
+              </div>
+            </div>
+            <p class="sub" style="font-size:11.5px;margin:0 0 6px 0">${esc(tv.summary || "Google's API responses do not expose project billing status automatically. Keep paid fallback disabled unless verified.")}</p>
+            <ol style="margin:4px 0 0 18px;padding:0;font-size:11px;color:var(--dim);line-height:1.5">
+              ${(tv.steps || [
+                "Open Google AI Studio -> API keys -> inspect the Project column.",
+                "Verify the plan reads 'Free of charge' and NO Cloud Billing account is linked.",
+                "Click Confirm Free Tier above once checked. Paid fallback remains strictly disabled."
+              ]).map(s => `<li>${esc(s)}</li>`).join("")}
+            </ol>
+          </div>` : ""}
+
+          <div class="card" style="margin:12px 0;background:var(--bg-2);border:1px solid var(--line);border-radius:10px;padding:14px 16px">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px">
+              <b style="font-size:14px">🛡️ Quota, Routing &amp; Two-Pass Analysis Controls</b>
+              <div style="display:flex;gap:8px;align-items:center">
+                <button type="button" class="btn sm" data-act="ai_clear_cache" title="Remove cached pass/SEO responses (${k.cache?.entries || 0} entries, ${k.cache?.size_kb || 0} KB)">🗑️ Clear Cache (${k.cache?.entries || 0})</button>
+                <button type="button" class="btn sm primary" data-act="ai_save_prefs">💾 Save Policy</button>
+              </div>
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(210px, 1fr));gap:10px;align-items:end">
+              <label class="f" style="margin:0">Analysis Mode<select id="pref_analysis_mode">
+                <option value="fast" ${k.analysis_mode === "fast" ? "selected" : ""}>⚡ Fast (Transcript + Keyframes)</option>
+                <option value="balanced" ${(!k.analysis_mode || k.analysis_mode === "balanced") ? "selected" : ""}>🎯 Balanced (2-Pass + Hydrogen Review)</option>
+                <option value="deep" ${k.analysis_mode === "deep" ? "selected" : ""}>🧠 Deep (Extended Context + Verification)</option>
+              </select></label>
+              <label class="f" style="margin:0">Daily AI Call Budget (0 = Unlimited)<input type="number" id="pref_daily_budget" min="0" max="5000" value="${Number(k.daily_budget || 0)}"></label>
+              <label class="f" style="margin:0">Theme Appearance<select onchange="applyTheme(this.value)">
+                <option value="dark" ${getThemePreference() === "dark" ? "selected" : ""}>🌙 Dark Mode (Default)</option>
+                <option value="light" ${getThemePreference() === "light" ? "selected" : ""}>☀️ Light Mode</option>
+                <option value="light dark" ${getThemePreference() === "light dark" ? "selected" : ""}>💻 Match System</option>
+              </select></label>
+            </div>
+            <div style="display:flex;gap:18px;flex-wrap:wrap;margin-top:12px">
+              <label class="sw" style="margin:0;font-size:12px"><input type="checkbox" id="pref_free_only" ${k.free_only !== false ? "checked" : ""}>Free Mode Only (Block Paid Models &amp; Paid Fallback)</label>
+              <label class="sw" style="margin:0;font-size:12px"><input type="checkbox" id="pref_auto_route" ${k.auto_route !== false ? "checked" : ""}>Auto-Route Best Free Model Per Task</label>
+              <label class="sw" style="margin:0;font-size:12px"><input type="checkbox" id="pref_skip_dup" ${k.skip_duplicates !== false ? "checked" : ""}>Skip Previously Exported Clips</label>
+            </div>
+          </div>
+
           <div class="ai-form">
             <label class="f">AI service<select id="ai_provider">${k.providers.map(x => `<option value="${esc(x.id)}" ${x.id === k.provider ? "selected" : ""}>${esc(x.label)}</option>`).join("")}</select></label>
 
@@ -5192,9 +5305,9 @@ async function drawSettings() {
               <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px">
                 <div style="display:flex;align-items:center;gap:8px">
                   <span style="font-size:16px">🎯</span>
-                  <b style="font-size:14px;color:var(--text)">Selected Models &amp; Failover Sequence</b>
+                  <b style="font-size:14px;color:var(--text)">Selected Models &amp; Verified Free Fallback</b>
                 </div>
-                <span class="sub" style="font-size:11px;color:var(--muted)">Kisi bhi model par click karein usay 1st Primary Model banane ke liye</span>
+                <span class="sub" style="font-size:11px;color:var(--dim)">Click any model to make it 1st Primary Model</span>
               </div>
               <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(210px, 1fr));gap:10px">
                 ${(k.models_list && k.models_list.length > 0) ? k.models_list.map((m, mIdx) => `
@@ -5203,13 +5316,13 @@ async function drawSettings() {
                       <span class="pill" style="font-size:10px;font-weight:700;${m.is_primary ? 'background:rgba(16,185,129,0.18);color:#10b981;border:1px solid #10b981;' : 'background:var(--bg-2);color:var(--text);border:1px solid var(--line);'}">
                         ${m.is_primary ? '⚡ 1st Primary Model' : `🔄 Fallback #${mIdx} (Click to Select)`}
                       </span>
-                      <span style="font-size:11px;color:${m.is_primary ? '#10b981' : 'var(--muted)'};font-weight:600">${m.is_primary ? 'Active Now' : 'Standby'}</span>
+                      <span style="font-size:11px;color:${m.is_primary ? '#10b981' : 'var(--dim)'};font-weight:600">${m.is_primary ? 'Active Now' : 'Standby'}</span>
                     </div>
                     <div style="font-family:monospace;font-size:13px;font-weight:700;color:var(--text);letter-spacing:0.3px">
                       ${esc(m.id)}
                     </div>
-                    <div style="font-size:11px;color:var(--muted);line-height:1.3">
-                      ${esc(m.desc)}
+                    <div style="font-size:11px;color:var(--dim);line-height:1.3">
+                      ${esc(m.desc)}${esc(fmtTelem(m.id))}
                     </div>
                   </div>
                 `).join("") : (k.models && k.models.length > 0 ? k.models.map((mid, mIdx) => `
@@ -5217,7 +5330,7 @@ async function drawSettings() {
                     <span class="pill ok" style="font-size:10px;font-weight:700">${mIdx === 0 ? '⚡ Primary Model' : `🔄 Fallback #${mIdx}`}</span>
                     <div style="font-family:monospace;font-size:13px;font-weight:700;margin-top:4px">${esc(mid)}</div>
                   </div>
-                `).join("") : `<div style="font-size:12px;color:var(--muted)">No models configured.</div>`)}
+                `).join("") : `<div style="font-size:12px;color:var(--dim)">No models configured.</div>`)}
               </div>
 
               <!-- Available Free & Recommended Models for this key / service -->
@@ -5227,7 +5340,7 @@ async function drawSettings() {
                     <b style="font-size:12px;color:var(--text);display:flex;align-items:center;gap:6px">
                       <span>✨ Compatible &amp; Free Models for <b>${esc(k.label || k.provider)}</b></span>
                     </b>
-                    <span class="sub" style="font-size:11px;color:var(--muted)">Click any model card below to set as Primary</span>
+                    <span class="sub" style="font-size:11px;color:var(--dim)">Click any model card below to set as Primary</span>
                   </div>
                   <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));gap:8px">
                     ${k.recommended_models.map(rm => {
@@ -5237,10 +5350,10 @@ async function drawSettings() {
                         <div class="rec-model-card" data-act="ai_select_model" data-model="${esc(rm.id)}" title="Click to select ${esc(rm.id)}" style="cursor:pointer;background:var(--bg);border:1px solid ${isSel ? 'var(--accent, #00f0ff)' : inSeq ? 'rgba(0,240,255,0.4)' : 'var(--line)'};border-radius:8px;padding:8px 12px;display:flex;flex-direction:column;gap:4px;transition:all .15s ease;box-shadow:${isSel ? '0 0 8px rgba(0,240,255,0.15)' : 'none'}">
                           <div style="display:flex;align-items:center;justify-content:space-between;gap:4px">
                             <span class="pill" style="font-size:9px;font-weight:700;background:rgba(16,185,129,0.15);color:#10b981;border:1px solid #10b981;padding:1px 6px">${esc(rm.badge || 'Free')}</span>
-                            ${isSel ? '<span style="font-size:10px;font-weight:700;color:var(--accent)">🟢 Selected Primary</span>' : inSeq ? '<span style="font-size:10px;color:var(--muted)">In Pool</span>' : '<span style="font-size:10px;color:var(--accent)">+ Click to Select</span>'}
+                            ${isSel ? '<span style="font-size:10px;font-weight:700;color:var(--accent)">🟢 Selected Primary</span>' : inSeq ? '<span style="font-size:10px;color:var(--dim)">In Pool</span>' : '<span style="font-size:10px;color:var(--accent)">+ Click to Select</span>'}
                           </div>
                           <b style="font-family:monospace;font-size:12px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(rm.id)}</b>
-                          <span style="font-size:10px;color:var(--muted);line-height:1.2">${esc(rm.desc)}</span>
+                          <span style="font-size:10px;color:var(--dim);line-height:1.2">${esc(rm.desc)}</span>
                         </div>
                       `;
                     }).join("")}
@@ -5569,10 +5682,14 @@ function drawClipDlg(full) {
         <div class="job-head" style="margin:0"><div>
           <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
             ${bInfo.dialogBadge}
+            <span class="pill" style="font-size:10px;padding:2px 8px;border-radius:10px;background:var(--bg-3);color:var(--text-sub);border:1px solid var(--line);font-family:monospace">⏱ ${fmt(c.start)} → ${fmt(c.end)} (${Math.max(1, Math.round((c.end || 0) - (c.start || 0)))}s)</span>
+            ${(c.payoff_at !== undefined && c.payoff_at !== null) ? `<span class="pill" style="font-size:10px;padding:2px 8px;border-radius:10px;background:rgba(16,185,129,0.14);color:#10b981;border:1px solid rgba(16,185,129,0.35);font-weight:700">🎯 Payoff @ ${fmt(c.payoff_at)}</span>` : ""}
             ${c.priority ? `<span class="pill" style="font-size:10px;padding:2px 8px;border-radius:10px;background:${c.priority === 'HIGH PRIORITY' ? 'rgba(0,255,136,0.15)' : 'rgba(255,170,0,0.15)'};color:${c.priority === 'HIGH PRIORITY' ? '#00FF88' : '#FFAA00'};border:1px solid ${c.priority === 'HIGH PRIORITY' ? 'rgba(0,255,136,0.3)' : 'rgba(255,170,0,0.3)'};font-weight:700">${esc(c.priority)}</span>` : ""}
-            ${c.detection_mode ? `<span class="pill" style="font-size:10px;padding:2px 8px;border-radius:10px;background:rgba(0,240,255,0.12);color:var(--accent,#00F0FF);border:1px solid rgba(0,240,255,0.3);font-weight:600">${esc(c.detection_mode)}</span>` : ""}
+            ${c.analysis_mode === 'transcript_only' ? `<span class="pill warn" style="font-size:10px;padding:2px 8px;border-radius:10px;background:rgba(245,158,11,0.16);color:#F59E0B;border:1px solid #F59E0B;font-weight:700">⚠️ Transcript-Only Fallback</span>`
+              : (c.analysis_mode || c.detection_mode) ? `<span class="pill" style="font-size:10px;padding:2px 8px;border-radius:10px;background:rgba(0,240,255,0.12);color:var(--accent,#00F0FF);border:1px solid rgba(0,240,255,0.3);font-weight:600">${c.analysis_mode === 'multimodal_video_audio' ? '🎬 Multimodal Video+Audio' : esc(c.detection_mode || c.analysis_mode)}${c.analysis_model ? ' · ' + esc(c.analysis_model) : ''}</span>` : ""}
             ${c.breakdown ? `<span class="pill" style="font-size:10px;padding:2px 8px;border-radius:10px;background:var(--bg-3);color:var(--text-sub);border:1px solid var(--line);font-family:monospace">${esc(c.breakdown)}</span>` : ""}
           </div>
+          ${c.seo_stale ? `<div class="note" id="dlg_seo_stale_banner" style="margin:6px 0 0 0;padding:7px 10px;border-color:#F59E0B;background:rgba(245,158,11,0.12);font-size:11.5px">⚠️ <b>Trimmed after package generation:</b> Payoff may have changed. Click <b>Regenerate Package</b> below to refresh SEO for the final cut.</div>` : ""}
           <div style="display:flex;align-items:center;gap:6px;margin:8px 0;padding:5px 8px;background:var(--bg-3);border-radius:8px;border:1px solid var(--line);font-size:11px;flex-wrap:wrap">
             <span style="color:var(--text-sub);font-weight:600">Review Feedback:</span>
             <button type="button" class="btn sm ghost" data-act="rateclip" data-val="great" style="padding:2px 6px;font-size:11px;${c.feedback === 'great' ? 'background:rgba(0,255,136,0.2);color:#00FF88;font-weight:700' : ''}">⭐ Great</button>
@@ -5736,82 +5853,136 @@ function drawClipDlg(full) {
         <input type="hidden" data-f="game_offset_x" value="${c.game_offset_x || 0}">
         <input type="hidden" data-f="zoom" value="${c.zoom || 1.0}">
         <input type="hidden" data-f="outro_text" value="${esc(c.outro_text || '')}">
-        <div class="row" style="justify-content:space-between;align-items:center"><h3>Post text</h3>
-          <button type="button" class="btn sm" data-act="writetext">Write again with AI</button></div>
         ${(() => {
           const gname = (j.game && j.game !== "None") ? j.game : "Gaming";
           const streamer = j.uploader || "Streamer";
           const gnameTag = gname.replace(/\W+/g, "") || "Gaming";
           const streamerTag = streamer.replace(/\W+/g, "") || "Streamer";
 
-          // 1. Title with hashtags for high reach
-          const baseT = (c.title && c.title.trim()) || `${streamer} ${gname} Insane Moment! 😂`;
-          let autoTitle = baseT;
-          if (!autoTitle.includes("#Shorts") && !autoTitle.includes("#shorts")) {
-            autoTitle = `${autoTitle.replace(/#.*$/, '').trim()} #Shorts #${gnameTag}`.trim();
-          }
+          const autoTitle = (c.title && c.title.trim()) || (c.seo_title && c.seo_title.trim()) || `${streamer} ${gname} Insane Moment! #Shorts`;
+          const autoDesc = (c.description && c.description.trim()) || `Insane moment with ${streamer} in ${gname}! Watch the payoff before the end.`;
+          const rawTags = (c.hashtags && c.hashtags.length) ? c.hashtags.map(h => h.startsWith("#") ? h : "#" + h) : ["#Shorts", `#${gnameTag}`, `#${streamerTag}`, "#Gaming"];
+          const seenH = new Set();
+          const autoHashtags = rawTags.filter(t => { const l = t.toLowerCase(); if (seenH.has(l)) return false; seenH.add(l); return true; }).join(" ");
+          const autoTags = (c.seo_tags && c.seo_tags.length) ? c.seo_tags.join(", ") : `${streamer.toLowerCase()}, ${gname.toLowerCase()}, gaming shorts, funny moments`;
+          const autoComment = (c.pinned_comment && c.pinned_comment.trim()) || `What did you expect to happen right there? Drop your answer below!`;
 
-          // 2. Engaging, fun ("mazy ka") Description with emojis, CTA & viral hashtags
-          const baseD = (c.description && c.description.trim()) || `Insane moment with ${streamer} in ${gname}! Watch till the end.`;
-          let autoDesc = baseD;
-          if (!autoDesc.includes("#")) {
-            autoDesc = `${autoDesc} 😂💀\n\n😂 What would you do in this situation? Let me know in the comments! 👇\n🔔 Subscribe for daily viral ${gname} & ${streamer} clips!\n\n#Shorts #${gnameTag} #${streamerTag} #Gaming #Viral #FunnyMoments #Trending`;
+          let shortUrl = "";
+          if (c.posts) {
+            for (const p of Object.values(c.posts)) {
+              if (p.url && p.url.includes("youtu")) { shortUrl = p.url; break; }
+              if (p.remote_id) { shortUrl = `https://youtube.com/shorts/${p.remote_id}`; break; }
+            }
           }
-
-          const autoSeoTitle = (c.seo_title && c.seo_title.trim()) || (autoTitle.includes("#Shorts") ? autoTitle : `${autoTitle} #Shorts`);
-          const autoTags = (c.seo_tags && c.seo_tags.length) ? c.seo_tags.join(", ") : `${streamer.toLowerCase()}, ${gname.toLowerCase()}, ${gname.toLowerCase()} gameplay, viral gaming, shorts, gaming, funny moments`;
-          const autoComment = (c.pinned_comment && c.pinned_comment.trim()) || `Would you have survived this? 😂 Drop your thoughts below! 👇`;
+          const urlToken = shortUrl || "[SHORT_URL]";
+          let autoCommunity = (c.community_text && c.community_text.trim()) || `New Short from ${streamer}'s ${gname} stream is up: ${urlToken}\n\n${autoComment}\n\n${autoHashtags}`;
+          if (shortUrl && autoCommunity.includes("[SHORT_URL]")) {
+            autoCommunity = autoCommunity.replace(/\[SHORT_URL\]/g, shortUrl);
+          } else if (urlToken && !autoCommunity.includes(urlToken)) {
+            autoCommunity = `${autoCommunity}\n\n▶️ Watch the Short: ${urlToken}`;
+          }
 
           const cleanBase = (c.title && c.title.trim()) ? c.title.replace(/#.*$/, '').trim() : `${streamer} ${gname} Insane Moment!`;
           const fallbackTitles = [
             autoTitle,
-            `${cleanBase}! 😂 #Shorts`,
-            `${streamer} Loses It in ${gname}! 💀 #Shorts`,
-            `What Just Happened in ${gname}?! 😱 #Shorts`,
-            `Would You Have Survived This in ${gname}?! 🔥 #Shorts`
+            `${cleanBase} #Shorts`,
+            `${streamer} Couldn't Believe This in ${gname} #Shorts`,
+            `Watch Till The Payoff in ${gname} #Shorts`
           ];
-          const titleList = (Array.isArray(c.titles) && c.titles.length) ? c.titles : fallbackTitles.slice(0, 4);
+          const titleList = (Array.isArray(c.titles) && c.titles.length) ? c.titles : fallbackTitles;
+          const pkgModeBadge = c.seo_stale
+            ? `<span class="pill warn" style="font-size:10px">⚠️ Needs Refresh</span>`
+            : `<span class="pill ok" style="font-size:10px">${c.analysis_mode === 'transcript_only' ? 'Transcript-Only' : (c.analysis_model ? esc(c.analysis_model) : 'Synced Package')}</span>`;
 
-          return `<label class="f">Title (with Viral Hashtags)<input data-f="title" value="${esc(autoTitle)}"></label>
-          <div id="dlg_title_pills" style="display:flex;flex-wrap:wrap;gap:6px;margin:-4px 0 10px 0">
-            ${titleList.map((t, i) => `
-              <button type="button" class="btn sm title-pill-btn" data-act="pick_title" data-title="${esc(t)}" title="Click to use this title" style="font-size:10px;padding:3px 9px;font-weight:600;background:var(--bg-2);border:1px solid ${autoTitle === t ? 'var(--accent, #00f0ff)' : 'var(--line)'};border-radius:12px;color:${autoTitle === t ? 'var(--accent, #00f0ff)' : 'var(--text)'};cursor:pointer">
-                💡 Title #${i+1}: ${esc(t)}
-              </button>
-            `).join("")}
-          </div>
-          <label class="f">Description (Viral with Emojis & Hashtags)<textarea data-f="description" rows="4">${esc(autoDesc)}</textarea></label>
-          <label class="f">Hashtags<input data-f="hashtags" value="${esc((c.hashtags || []).join(" "))}" placeholder="funny gaming clutch"></label>
-          <div style="background:var(--bg-2);border:1px solid var(--line);border-radius:10px;padding:12px;margin:12px 0">
-            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;gap:6px;flex-wrap:wrap">
-              <h4 style="margin:0;font-size:13px;display:flex;align-items:center;gap:6px"><span style="background:var(--brand);color:#fff;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:700">AI SEO</span> YouTube Shorts SEO</h4>
+          return `<section id="dlg_youtube_shorts_panel" class="card" style="background:var(--bg-2);border:1px solid var(--line);border-radius:10px;padding:12px;margin:8px 0 12px 0">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;gap:8px;flex-wrap:wrap">
+              <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                <h3 style="margin:0;font-size:14px;display:flex;align-items:center;gap:6px"><span style="background:var(--brand);color:#fff;padding:2px 7px;border-radius:5px;font-size:10px;font-weight:700">SHORTS</span> YouTube Shorts</h3>
+                ${pkgModeBadge}
+              </div>
               <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-                <button type="button" class="btn sm" data-act="re_ai_seo" data-j="${j.id}" data-c="${esc(c.id)}" style="background:linear-gradient(135deg,#9146FF,#FF8B33);color:#fff;border:none;font-size:11px;font-weight:600;padding:3px 10px;border-radius:6px;cursor:pointer">✨ AI Scan Video &amp; Fix SEO</button>
-                <button type="button" class="btn sm" data-act="open_clip_folder" data-j="${j.id}" data-c="${esc(c.id)}" title="Highlight clip MP4 file in Windows Explorer for drag &amp; drop into ChatGPT" style="background:#2563eb;color:#fff;border:none;font-size:11px;font-weight:600;padding:3px 10px;border-radius:6px;cursor:pointer;display:inline-flex;align-items:center;gap:4px">📂 Show Clip Video File</button>
-                <button type="button" class="btn sm" data-act="open_chatgpt_bridge" data-j="${j.id}" data-c="${esc(c.id)}" title="Copy engineered clip prompt &amp; open ChatGPT in new tab" style="background:#10a37f;color:#fff;border:none;font-size:11px;font-weight:600;padding:3px 10px;border-radius:6px;cursor:pointer;display:inline-flex;align-items:center;gap:4px">🚀 Open in ChatGPT</button>
-                <button type="button" class="btn sm" data-act="paste_chatgpt_seo" data-j="${j.id}" data-c="${esc(c.id)}" title="Paste text/JSON from ChatGPT to auto-fill SEO fields" style="font-size:11px;padding:3px 8px">📋 Paste from ChatGPT</button>
-                <button type="button" class="btn sm" data-act="copyseo" data-j="${j.id}" data-c="${esc(c.id)}" style="font-size:11px;padding:3px 8px">${ic("copy")}Copy SEO</button>
+                <button type="button" class="btn sm primary" data-act="re_ai_seo" data-j="${j.id}" data-c="${esc(c.id)}" style="font-size:11px;font-weight:700;padding:4px 12px">✨ Regenerate Package</button>
               </div>
             </div>
-            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
-              <label class="f" style="margin-bottom:0;font-size:11px;font-weight:600">Shorts Title (High-CTR with #Shorts)</label>
-              <button type="button" class="btn sm" data-act="ai_generate_titles" id="btn_ai_titles" style="background:linear-gradient(135deg,#06b6d4,#3b82f6);color:#fff;border:none;font-weight:700;font-size:10px;padding:2px 8px;border-radius:12px;cursor:pointer;display:inline-flex;align-items:center;gap:4px">
-                <span>✨</span> AI Title Ideas
-              </button>
+
+            <div class="f" style="margin-bottom:8px">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:3px">
+                <span style="font-size:12px;font-weight:600">Opening Hook (1–2s)</span>
+                <button type="button" class="btn sm ghost" data-act="copy_field" data-field="hook" style="font-size:11px;padding:2px 8px">📋 Copy Hook</button>
+              </div>
+              <input id="dlg_shorts_hook_sync" value="${esc(c.hook || '')}" oninput="const hi=$('#clipdlg [data-f=\\'hook\\']'); if(hi){hi.value=this.value; updateDlgLiveHookOverlay();}" placeholder="1-2 second opening hook synced with banner">
             </div>
-            <label class="f" style="margin-bottom:6px"><input data-f="seo_title" value="${esc(autoSeoTitle)}"></label>
-            <div id="dlg_seo_title_pills" style="display:flex;flex-wrap:wrap;gap:6px;margin:0 0 10px 0">
-              ${titleList.map((t, i) => {
-                const sTitle = t.includes("#Shorts") ? t : `${t} #Shorts`;
-                return `
-                <button type="button" class="btn sm seo-title-pill-btn" data-act="pick_title" data-title="${esc(sTitle)}" title="Click to use this SEO title" style="font-size:10px;padding:3px 9px;font-weight:600;background:var(--bg-2);border:1px solid ${autoSeoTitle === sTitle ? 'var(--accent, #00f0ff)' : 'var(--line)'};border-radius:12px;color:${autoSeoTitle === sTitle ? 'var(--accent, #00f0ff)' : 'var(--text)'};cursor:pointer">
-                  💡 Title #${i+1}: ${esc(sTitle)}
+
+            <div class="f" style="margin-bottom:6px">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:3px;gap:6px">
+                <span style="font-size:12px;font-weight:600">Title</span>
+                <div style="display:flex;gap:6px;align-items:center">
+                  <button type="button" class="btn sm" data-act="ai_generate_titles" id="btn_ai_titles" style="font-size:10px;padding:2px 8px">✨ Title Ideas</button>
+                  <button type="button" class="btn sm ghost" data-act="copy_field" data-field="title" style="font-size:11px;padding:2px 8px">📋 Copy Title</button>
+                </div>
+              </div>
+              <input data-f="title" value="${esc(autoTitle)}">
+            </div>
+            <div id="dlg_title_pills" style="display:flex;flex-wrap:wrap;gap:6px;margin:0 0 10px 0">
+              ${titleList.map((t, i) => `
+                <button type="button" class="btn sm title-pill-btn" data-act="pick_title" data-title="${esc(t)}" title="Click to use this title" style="font-size:10px;padding:3px 9px;font-weight:600;background:var(--bg);border:1px solid ${autoTitle === t ? 'var(--accent, #00f0ff)' : 'var(--line)'};border-radius:12px;color:${autoTitle === t ? 'var(--accent, #00f0ff)' : 'var(--text)'};cursor:pointer">
+                  💡 #${i+1}: ${esc(t)}
                 </button>
-              `}).join("")}
+              `).join("")}
             </div>
-            <label class="f" style="margin-bottom:8px">YouTube Search Tags (for Studio Tags)<input data-f="seo_tags" value="${esc(autoTags)}"></label>
-            <label class="f" style="margin-bottom:0">Pinned Comment Hook<input data-f="pinned_comment" value="${esc(autoComment)}"></label>
-          </div>`;
+
+            <div class="f" style="margin-bottom:8px">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:3px;gap:6px;flex-wrap:wrap">
+                <span style="font-size:12px;font-weight:600">Description</span>
+                <div style="display:flex;gap:6px;align-items:center">
+                  <button type="button" class="btn sm ghost" data-act="copy_field" data-field="description" style="font-size:11px;padding:2px 8px">📋 Copy Description</button>
+                  <button type="button" class="btn sm" data-act="copy" data-j="${j.id}" data-c="${esc(c.id)}" style="font-size:11px;padding:2px 8px">📋 Copy Description + Hashtags</button>
+                </div>
+              </div>
+              <textarea data-f="description" rows="3">${esc(autoDesc)}</textarea>
+            </div>
+
+            <div class="f" style="margin-bottom:8px">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:3px">
+                <span style="font-size:12px;font-weight:600">Hashtags</span>
+                <button type="button" class="btn sm ghost" data-act="copy_field" data-field="hashtags" style="font-size:11px;padding:2px 8px">📋 Copy Hashtags</button>
+              </div>
+              <input data-f="hashtags" value="${esc(autoHashtags)}" placeholder="#Shorts #Gaming">
+            </div>
+
+            <div class="f" style="margin-bottom:8px">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:3px">
+                <span style="font-size:12px;font-weight:600">YouTube Tags (comma-separated)</span>
+                <button type="button" class="btn sm ghost" data-act="copy_field" data-field="seo_tags" style="font-size:11px;padding:2px 8px">📋 Copy Tags</button>
+              </div>
+              <input data-f="seo_tags" value="${esc(autoTags)}">
+            </div>
+
+            <div class="f" style="margin-bottom:8px">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:3px">
+                <span style="font-size:12px;font-weight:600">Pinned Comment</span>
+                <button type="button" class="btn sm ghost" data-act="copypin" data-j="${j.id}" data-c="${esc(c.id)}" style="font-size:11px;padding:2px 8px">📌 Copy Pinned Comment</button>
+              </div>
+              <input data-f="pinned_comment" value="${esc(autoComment)}">
+            </div>
+
+            <div class="f" style="margin-bottom:6px">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:3px;gap:6px;flex-wrap:wrap">
+                <span style="font-size:12px;font-weight:600">Community Post ${shortUrl ? `<span class="pill ok" style="font-size:9px">URL Attached</span>` : `<span class="sub" style="font-size:10px">(Replace <code>[SHORT_URL]</code> when uploaded)</span>`}</span>
+                <button type="button" class="btn sm" data-act="copycomm" data-j="${j.id}" data-c="${esc(c.id)}" style="font-size:11px;padding:2px 8px">📢 Copy Community Post</button>
+              </div>
+              <textarea data-f="community_text" rows="3">${esc(autoCommunity)}</textarea>
+            </div>
+
+            <details style="margin-top:8px;padding-top:8px;border-top:1px dashed var(--line)">
+              <summary style="cursor:pointer;font-size:11px;color:var(--dim);font-weight:600">🤖 More Tools (ChatGPT Bridge &amp; Explorer)</summary>
+              <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">
+                <button type="button" class="btn sm" data-act="open_clip_folder" data-j="${j.id}" data-c="${esc(c.id)}" style="font-size:11px">📂 Show Clip Video File</button>
+                <button type="button" class="btn sm" data-act="open_chatgpt_bridge" data-j="${j.id}" data-c="${esc(c.id)}" style="font-size:11px">🚀 Open in ChatGPT</button>
+                <button type="button" class="btn sm" data-act="paste_chatgpt_seo" data-j="${j.id}" data-c="${esc(c.id)}" style="font-size:11px">📋 Paste from ChatGPT</button>
+              </div>
+            </details>
+          </section>`;
         })()}
         <div style="display:flex;gap:10px;align-items:center;margin:14px 0 16px 0;flex-wrap:wrap">
           <button type="button" class="btn primary" data-act="save_seo_instant" data-j="${j.id}" data-c="${esc(c.id)}" style="background:linear-gradient(135deg,#10B981,#059669);color:#fff;font-weight:800;border:none;font-size:12.5px;padding:9px 18px;border-radius:8px;box-shadow:0 2px 10px rgba(16,185,129,0.3);cursor:pointer;display:inline-flex;align-items:center;gap:6px;flex:1;min-width:220px;justify-content:center" title="Save Title, SEO tags, Description and Hook without re-rendering (~1ms)">
@@ -5840,10 +6011,7 @@ function drawClipDlg(full) {
         })()}
         <div class="row" style="margin-top:auto;padding-top:8px;border-top:1px solid var(--line);flex-wrap:wrap;gap:8px">
           ${c.status === "done" ? `<a class="btn" href="${m}${esc(c.file)}?download=1">${ic("down")}Download</a>` : ""}
-          <button class="btn" data-act="copy" data-j="${j.id}" data-c="${esc(c.id)}">${ic("copy")}Copy post text</button>
-          <button class="btn primary" data-act="copyseo" data-j="${j.id}" data-c="${esc(c.id)}">${ic("copy")}Copy YouTube SEO</button>
-          <button class="btn" data-act="copypin" data-j="${j.id}" data-c="${esc(c.id)}">${ic("copy")}📌 Copy Pinned Comment</button>
-          <button class="btn" data-act="copycomm" data-j="${j.id}" data-c="${esc(c.id)}" style="background:linear-gradient(135deg,rgba(168,85,247,0.2),rgba(147,51,234,0.3));border-color:rgba(168,85,247,0.5);color:#d8b4fe" title="Copy YouTube Community Post text and open Community tab">${ic("copy")}📢 Copy Community Post</button>
+          <button class="btn primary" data-act="copyseo" data-j="${j.id}" data-c="${esc(c.id)}">${ic("copy")}Copy Full Shorts Package</button>
           <button class="btn danger ghost" data-act="delclip" data-j="${j.id}" data-c="${esc(c.id)}">${ic("trash")}Delete from disk</button></div>
       </div></div>`;
     setTimeout(() => { loadBgmTracks(c.bgm_track || "none", c.bgm_volume ?? 0.18, c.bgm_offset ?? 0); if (typeof updateDlgLiveHookOverlay === "function") updateDlgLiveHookOverlay(); if (typeof setupDlgHookSync === "function") setupDlgHookSync(); }, 40);
@@ -5925,13 +6093,15 @@ function postText() {   // the post text and SEO as it is in the clip editor rig
   };
   const htRaw = v("hashtags") || "";
   const tagsRaw = v("seo_tags") || "";
+  const titleVal = v("title") || "";
   return {
-    title: v("title") || "",
+    title: titleVal,
     description: v("description") || "",
-    hashtags: htRaw.split(/[\s,]+/).map(h => h.replace(/^#+/, "")).filter(Boolean),
-    seo_title: v("seo_title") || "",
+    hashtags: [...new Set(htRaw.split(/[\s,]+/).map(h => h.replace(/^#+/, "")).filter(Boolean))],
+    seo_title: titleVal,
     seo_tags: tagsRaw.split(/,\s*/).map(t => t.trim()).filter(Boolean),
     pinned_comment: v("pinned_comment") || "",
+    community_text: v("community_text") || "",
     hook: v("hook") || "",
     hook_style: v("hook_style") || "viral_yellow",
     captions: v("captions") ?? true,
@@ -8460,6 +8630,69 @@ document.addEventListener("click", async e => {
       toast(`Selected layout: ${LAYOUT_PREVIEWS[chosen]?.title || chosen}`, "ok");
       return;
     }
+    if (a === "cycle_theme") {
+      const cur = getThemePreference();
+      const next = cur === "dark" ? "light" : cur === "light" ? "light dark" : "dark";
+      applyTheme(next);
+      toast(`Theme: ${next === "light dark" ? "System" : next}`, "ok");
+      return;
+    }
+    if (a === "ai_save_prefs" || a === "ai_confirm_free_tier") {
+      b.disabled = true;
+      try {
+        const body = a === "ai_confirm_free_tier"
+          ? { confirm_free_tier: true }
+          : {
+              free_only: $("#pref_free_only") ? $("#pref_free_only").checked : true,
+              analysis_mode: $("#pref_analysis_mode")?.value || "balanced",
+              auto_route: $("#pref_auto_route") ? $("#pref_auto_route").checked : true,
+              skip_duplicates: $("#pref_skip_dup") ? $("#pref_skip_dup").checked : true,
+              daily_budget: Number($("#pref_daily_budget")?.value || 0)
+            };
+        const res = await send("/api/ai/preferences", body, "POST");
+        S.ai = res;
+        S.status = await api("/api/status");
+        drawShell();
+        await drawSettings();
+        toast(a === "ai_confirm_free_tier" ? "✅ Google AI Studio Free Tier confirmed!" : "✅ AI policy & quota settings saved!", "ok");
+      } catch (err) {
+        toast("Policy save failed: " + err.message, "bad");
+      } finally { b.disabled = false; }
+      return;
+    }
+    if (a === "ai_clear_cache") {
+      b.disabled = true;
+      try {
+        const res = await send("/api/ai/cache/clear", {}, "POST");
+        toast(`🗑️ Cleared ${res.removed || 0} cached AI entries.`, "ok");
+        await drawSettings();
+      } catch (err) {
+        toast("Cache clear failed: " + err.message, "bad");
+      } finally { b.disabled = false; }
+      return;
+    }
+    if (a === "copy_field") {
+      const fName = d.field || "";
+      const c = jobOf(D.jid)?.clips?.find(x => x.id === D.cid) || {};
+      const live = $("#clipdlg")?.open ? postText() : c;
+      let val = "";
+      if (fName === "hook") val = live.hook || c.hook || "";
+      else if (fName === "title") val = live.title || c.title || "";
+      else if (fName === "description") val = live.description || c.description || "";
+      else if (fName === "hashtags") {
+        const arr = (live.hashtags && live.hashtags.length ? live.hashtags : c.hashtags || []).map(h => h.startsWith("#") ? h : "#" + h);
+        const seen = new Set();
+        val = arr.filter(x => { const l = x.toLowerCase(); if (seen.has(l)) return false; seen.add(l); return true; }).join(" ");
+      } else if (fName === "seo_tags") {
+        val = Array.isArray(live.seo_tags) ? live.seo_tags.join(", ") : (live.seo_tags || (c.seo_tags || []).join(", "));
+      }
+      if (!val.trim()) return toast("Nothing to copy yet.", "warn");
+      await navigator.clipboard.writeText(val.trim());
+      const orig = b.innerHTML;
+      b.textContent = "✓ Copied";
+      setTimeout(() => { if (b.isConnected) b.innerHTML = orig; }, 1600);
+      return toast(`Copied ${fName.replace("_", " ")}!`, "ok");
+    }
     if (a === "aimodels") {
       b.disabled = true;
       try {
@@ -8729,11 +8962,19 @@ document.addEventListener("click", async e => {
       dlg.returnValue = "no"; return dlg.showModal();
     }
     if (a === "copy") {
-      const saved = jobOf(d.j)?.clips?.find(x => x.id === d.c) || {};
-      const c = b.closest("#clipdlg") ? postText() : saved;   // in the editor: what is in the boxes
-      // A description the person wrote is copied as written; otherwise only the tags it does not already end with are added.
-      const tags = saved.fixed_description ? "" : (c.hashtags || []).filter(h => !(c.description || "").includes("#" + h)).map(h => "#" + h).join(" ");
-      await navigator.clipboard.writeText([c.title, c.description, tags].filter(Boolean).join("\n\n")); return toast("Post text copied", "ok");
+      const saved = jobOf(d.j || D.jid)?.clips?.find(x => x.id === (d.c || D.cid)) || {};
+      const c = b.closest("#clipdlg") ? postText() : saved;
+      const desc = (c.description || "").trim();
+      const lowerDesc = desc.toLowerCase();
+      const seen = new Set();
+      const tags = (c.hashtags || []).map(h => h.replace(/^#+/, "").trim()).filter(Boolean).filter(h => {
+        const l = "#" + h.toLowerCase();
+        if (seen.has(l) || lowerDesc.includes(l)) return false;
+        seen.add(l);
+        return true;
+      }).map(h => "#" + h).join(" ");
+      await navigator.clipboard.writeText([desc, tags].filter(Boolean).join("\n\n"));
+      return toast("Description + Hashtags copied!", "ok");
     }
     if (a === "ai_generate_hooks") {
       return window.generateAiViralHooks(b);
@@ -8741,8 +8982,10 @@ document.addEventListener("click", async e => {
     if (a === "pick_hook") {
       const h = d.hook;
       const input = $("#clipdlg [data-f='hook']");
+      const syncIn = $("#dlg_shorts_hook_sync");
       if (input && h) {
         input.value = h;
+        if (syncIn) syncIn.value = h;
         const j = jobOf(D.jid);
         const clp = j?.clips.find(x => x.id === D.cid);
         if (clp) clp.hook = h;
@@ -8796,18 +9039,15 @@ document.addEventListener("click", async e => {
     if (a === "pick_title") {
       const t = d.title;
       const titleIn = $("#clipdlg [data-f='title']");
-      const seoIn = $("#clipdlg [data-f='seo_title']");
       if (titleIn && t) titleIn.value = t;
-      const seoT = t.includes("#Shorts") ? t : `${t} #Shorts`;
-      if (seoIn && t) seoIn.value = seoT;
       const j = jobOf(D.jid);
       const clp = j?.clips.find(x => x.id === D.cid);
       if (clp) {
         clp.title = t;
-        clp.seo_title = seoT;
+        clp.seo_title = t;
       }
-      $$(".title-pill-btn, .seo-title-pill-btn").forEach(btn => {
-        const match = (btn.dataset.title === t || btn.dataset.title === seoT);
+      $$(".title-pill-btn").forEach(btn => {
+        const match = (btn.dataset.title === t);
         btn.style.border = match ? "1px solid var(--accent, #00f0ff)" : "1px solid var(--line)";
         btn.style.color = match ? "var(--accent, #00f0ff)" : "var(--text)";
       });
@@ -8821,8 +9061,8 @@ document.addEventListener("click", async e => {
       if (!jid || !cid) return toast("No clip selected", "bad");
       const origHtml = btn.innerHTML;
       btn.disabled = true;
-      btn.innerHTML = `<span>📸</span> Watching video…`;
-      toast("AI is watching video frames to craft grounded viral titles…", "ok");
+      btn.innerHTML = `<span>📸</span> Watching…`;
+      toast("AI is reviewing clip frames & transcript for title ideas…", "ok");
       try {
         const res = await send(`/api/jobs/${encodeURIComponent(jid)}/clips/${encodeURIComponent(cid)}/titles`, {});
         if (res && res.titles && res.titles.length) {
@@ -8830,28 +9070,19 @@ document.addEventListener("click", async e => {
           const c = j?.clips.find(x => x.id === cid);
           if (c) {
             c.titles = res.titles;
-            if (res.title) c.title = res.title;
+            if (res.title) { c.title = res.title; c.seo_title = res.title; }
           }
           const tIn = $("#clipdlg [data-f='title']");
-          const sIn = $("#clipdlg [data-f='seo_title']");
           if (tIn && res.titles[0]) tIn.value = res.titles[0];
-          const firstSeo = res.titles[0].includes("#Shorts") ? res.titles[0] : `${res.titles[0]} #Shorts`;
-          if (sIn && res.titles[0]) sIn.value = firstSeo;
-
-          const renderTitleBtns = (cls, activeVal) => res.titles.map((t, i) => {
-            const cur = cls.includes("seo") ? (t.includes("#Shorts") ? t : `${t} #Shorts`) : t;
-            const isMatch = (i === 0);
-            return `
-              <button type="button" class="btn sm ${cls}" data-act="pick_title" data-title="${esc(cur)}" title="Click to use this title" style="font-size:10px;padding:3px 9px;font-weight:600;background:var(--bg-2);border:1px solid ${isMatch ? 'var(--accent, #00f0ff)' : 'var(--line)'};border-radius:12px;color:${isMatch ? 'var(--accent, #00f0ff)' : 'var(--text)'};cursor:pointer">
-                💡 Title #${i+1}: ${esc(cur)}
-              </button>
-            `;
-          }).join("");
           const titlePills = $("#dlg_title_pills");
-          const seoTitlePills = $("#dlg_seo_title_pills");
-          if (titlePills) titlePills.innerHTML = renderTitleBtns("title-pill-btn", res.titles[0]);
-          if (seoTitlePills) seoTitlePills.innerHTML = renderTitleBtns("seo-title-pill-btn", firstSeo);
-          toast("✨ 4 grounded viral titles generated from video frames!", "ok");
+          if (titlePills) {
+            titlePills.innerHTML = res.titles.map((t, i) => `
+              <button type="button" class="btn sm title-pill-btn" data-act="pick_title" data-title="${esc(t)}" title="Click to use this title" style="font-size:10px;padding:3px 9px;font-weight:600;background:var(--bg);border:1px solid ${i === 0 ? 'var(--accent, #00f0ff)' : 'var(--line)'};border-radius:12px;color:${i === 0 ? 'var(--accent, #00f0ff)' : 'var(--text)'};cursor:pointer">
+                💡 #${i+1}: ${esc(t)}
+              </button>
+            `).join("");
+          }
+          toast("✨ Title ideas updated from clip evidence!", "ok");
         }
       } catch (err) {
         toast("Failed to generate titles: " + err.message, "bad");
@@ -8862,19 +9093,33 @@ document.addEventListener("click", async e => {
       return;
     }
     if (a === "copyseo") {
-      const c = jobOf(d.j)?.clips?.find(x => x.id === d.c) || {};
-      const j = jobOf(d.j) || {};
+      const c = jobOf(d.j || D.jid)?.clips?.find(x => x.id === (d.c || D.cid)) || {};
+      const j = jobOf(d.j || D.jid) || {};
+      const live = $("#clipdlg")?.open ? postText() : {};
       const gname = (j.game && j.game !== "None") ? j.game : "Gaming";
       const streamer = j.uploader || "Streamer";
-      const autoT = (c.title && c.title.trim()) || `${streamer} ${gname} Insane Moment! 😂`;
-      const title = $("#clipdlg [data-f='seo_title']")?.value.trim() || (c.seo_title && c.seo_title.trim()) || `${autoT} #Shorts`;
-      const desc = $("#clipdlg [data-f='description']")?.value.trim() || (c.description && c.description.trim()) || `Insane moment with ${streamer} in ${gname}! Watch till the end. #Shorts`;
-      const htags = (c.hashtags || []).length ? (c.hashtags || []).map(h => (h.startsWith("#") ? h : "#" + h)).join(" ") : `#Shorts #${gname.replace(/\s+/g, '')} #Gaming #Viral`;
-      const tags = $("#clipdlg [data-f='seo_tags']")?.value.trim() || ((c.seo_tags && c.seo_tags.length) ? c.seo_tags.join(", ") : `${streamer.toLowerCase()}, ${gname.toLowerCase()}, ${gname.toLowerCase()} gameplay, viral gaming, shorts, gaming, funny moments`);
-      const comment = $("#clipdlg [data-f='pinned_comment']")?.value.trim() || (c.pinned_comment && c.pinned_comment.trim()) || `Would you have survived this? 😂 Drop your thoughts below! 👇`;
-      const text = `📌 TITLE (YouTube Shorts):\n${title}\n\n📝 DESCRIPTION:\n${desc}\n\n🏷️ HASHTAGS:\n${htags}\n\n🎯 YOUTUBE SEARCH TAGS (paste in YouTube Studio Tags):\n${tags}\n\n💬 PINNED COMMENT:\n${comment}`;
+      const hook = (live.hook || c.hook || "").trim();
+      const title = (live.title || c.title || c.seo_title || `${streamer} ${gname} #Shorts`).trim();
+      const desc = (live.description || c.description || "").trim();
+      const rawHt = (live.hashtags && live.hashtags.length ? live.hashtags : c.hashtags || []);
+      const seenHt = new Set();
+      const htags = rawHt.map(h => h.startsWith("#") ? h : "#" + h).filter(h => {
+        const l = h.toLowerCase(); if (seenHt.has(l)) return false; seenHt.add(l); return true;
+      }).join(" ") || `#Shorts #${gname.replace(/\s+/g, '')} #Gaming`;
+      const tags = (live.seo_tags && live.seo_tags.length ? live.seo_tags.join(", ") : (c.seo_tags || []).join(", ")) || `${streamer.toLowerCase()}, ${gname.toLowerCase()}, gaming shorts`;
+      const comment = (live.pinned_comment || c.pinned_comment || "").trim();
+      const comm = (live.community_text || c.community_text || "").trim();
+      const text = [
+        hook ? `🎣 HOOK:\n${hook}` : "",
+        `📌 TITLE:\n${title}`,
+        desc ? `📝 DESCRIPTION:\n${desc}` : "",
+        `🏷️ HASHTAGS:\n${htags}`,
+        `🎯 TAGS:\n${tags}`,
+        comment ? `💬 PINNED COMMENT:\n${comment}` : "",
+        comm ? `📢 COMMUNITY POST:\n${comm}` : ""
+      ].filter(Boolean).join("\n\n");
       await navigator.clipboard.writeText(text);
-      return toast("YouTube Shorts SEO copied to clipboard!", "ok");
+      return toast("YouTube Shorts package copied to clipboard!", "ok");
     }
     if (a === "copypin") {
       const j = S.jobs.find(x => x.id === d.j);
@@ -8886,16 +9131,16 @@ document.addEventListener("click", async e => {
       return toast("📌 Pinned comment copied to clipboard!", "ok");
     }
     if (a === "copycomm") {
-      const j = S.jobs.find(x => x.id === d.j);
-      const c = j && j.clips.find(x => x.id === d.c);
+      const j = S.jobs.find(x => x.id === (d.j || D.jid));
+      const c = j && j.clips.find(x => x.id === (d.c || D.cid));
       if (!c) return;
+      const boxComm = $("#clipdlg")?.open ? ($("#clipdlg [data-f='community_text']")?.value || "").trim() : "";
       const streamer = j.uploader || "Streamer";
       const gname = (j.game && j.game !== "None") ? j.game : "Gaming";
-      const autoT = (c.title && c.title.trim()) || `${streamer} ${gname} Insane Moment! 🔥`;
-      const title = $("#clipdlg [data-f='seo_title']")?.value.trim() || (c.seo_title && c.seo_title.trim()) || autoT;
+      const title = $("#clipdlg [data-f='title']")?.value.trim() || (c.title && c.title.trim()) || `${streamer} ${gname} Insane Moment! #Shorts`;
       const desc = $("#clipdlg [data-f='description']")?.value.trim() || (c.description && c.description.trim()) || "";
       const comment = $("#clipdlg [data-f='pinned_comment']")?.value.trim() || (c.pinned_comment && c.pinned_comment.trim()) || "";
-      const tags = (c.hashtags || []).length ? (c.hashtags || []).map(h => (h.startsWith("#") ? h : "#" + h)).join(" ") : `#Shorts #${gname.replace(/\s+/g, '')} #Gaming #Viral`;
+      const tags = (c.hashtags || []).length ? (c.hashtags || []).map(h => (h.startsWith("#") ? h : "#" + h)).join(" ") : `#Shorts #${gname.replace(/\s+/g, '')} #Gaming`;
 
       let shortUrl = "";
       if (c.posts) {
@@ -8904,16 +9149,17 @@ document.addEventListener("click", async e => {
           if (p.remote_id) { shortUrl = `https://youtube.com/shorts/${p.remote_id}`; break; }
         }
       }
-
-      let commText = c.community_text || "";
-      if (!commText || !shortUrl) {
-        const parts = [];
-        parts.push(`🔥 ${title}`);
+      const urlToken = shortUrl || "[SHORT_URL]";
+      let commText = boxComm || (c.community_text || "").trim();
+      if (!commText) {
+        const parts = [`🔥 ${title}`];
         if (desc) parts.push(desc.replace(/#Shorts/g, "").trim());
-        if (shortUrl) parts.push(`▶️ Watch the full Short here:\n${shortUrl}`);
-        if (comment) parts.push(`💬 Community Discussion:\n${comment}`);
+        parts.push(`▶️ Watch the Short here: ${urlToken}`);
+        if (comment) parts.push(`💬 ${comment}`);
         if (tags) parts.push(tags);
         commText = parts.join("\n\n").trim();
+      } else if (shortUrl && commText.includes("[SHORT_URL]")) {
+        commText = commText.replace(/\[SHORT_URL\]/g, shortUrl);
       }
 
       await navigator.clipboard.writeText(commText);
@@ -8957,30 +9203,34 @@ document.addEventListener("click", async e => {
       const jid = d.j || D.jid;
       const cid = d.c || D.cid;
       if (!jid || !cid) return toast("Job ya clip ID nahi mili.", "bad");
-      if (btn) { btn.disabled = true; btn.dataset.orig = btn.innerHTML; btn.innerHTML = "✨ Scanning Video…"; }
-      toast("AI analyzing video frame & dialogue…", "ok");
+      if (btn) { btn.disabled = true; btn.dataset.orig = btn.innerHTML; btn.innerHTML = "✨ Scanning Final Cut…"; }
+      toast("AI analyzing final cut audio & frames…", "ok");
       try {
         const seoModel = localStorage.getItem("peakcut_seo_model") || "auto";
         const seoTone = localStorage.getItem("peakcut_seo_tone") || "auto";
-        const res = await send(`/api/jobs/${encodeURIComponent(jid)}/clips/${encodeURIComponent(cid)}/ai_seo`, {model: seoModel, tone: seoTone});
+        const res = await send(`/api/jobs/${encodeURIComponent(jid)}/clips/${encodeURIComponent(cid)}/package`, {model: seoModel, tone: seoTone});
         if (res && (res.clip || res.hook)) {
           const c = res.clip || res;
           const hookInput = $("#clipdlg [data-f='hook']");
           if (hookInput && c.hook) hookInput.value = c.hook;
+          const hookSync = $("#dlg_shorts_hook_sync");
+          if (hookSync && c.hook) hookSync.value = c.hook;
+          if (typeof updateDlgLiveHookOverlay === "function") updateDlgLiveHookOverlay();
           const titleInput = $("#clipdlg [data-f='title']");
-          if (titleInput && c.title) titleInput.value = c.title;
+          if (titleInput && (c.title || c.seo_title)) titleInput.value = c.title || c.seo_title;
           const descInput = $("#clipdlg [data-f='description']");
           if (descInput && c.description) descInput.value = c.description;
           const hashtagsInput = $("#clipdlg [data-f='hashtags']");
-          if (hashtagsInput && c.hashtags) hashtagsInput.value = Array.isArray(c.hashtags) ? c.hashtags.join(" ") : c.hashtags;
-          const seoTitleInput = $("#clipdlg [data-f='seo_title']");
-          if (seoTitleInput && (c.seo_title || c.title)) seoTitleInput.value = c.seo_title || c.title;
+          if (hashtagsInput && c.hashtags) hashtagsInput.value = Array.isArray(c.hashtags) ? c.hashtags.map(h => h.startsWith("#") ? h : "#" + h).join(" ") : c.hashtags;
           const seoTagsInput = $("#clipdlg [data-f='seo_tags']");
           if (seoTagsInput && (c.seo_tags || c.hashtags)) seoTagsInput.value = Array.isArray(c.seo_tags) ? c.seo_tags.join(", ") : c.seo_tags;
           const pinInput = $("#clipdlg [data-f='pinned_comment']");
           if (pinInput && c.pinned_comment) pinInput.value = c.pinned_comment;
+          const commInput = $("#clipdlg [data-f='community_text']");
+          if (commInput && c.community_text) commInput.value = c.community_text;
+          $("#dlg_seo_stale_banner")?.remove();
 
-          // Dynamically refresh hook and title pills:
+          // Refresh hook and unified title pills:
           const hookPills = $("#dlg_hook_pills");
           if (hookPills && c.hooks && c.hooks.length) {
             const curH = (c.hook || "").trim().toLowerCase();
@@ -8994,19 +9244,15 @@ document.addEventListener("click", async e => {
             }).join("");
           }
           const titlePills = $("#dlg_title_pills");
-          const seoTitlePills = $("#dlg_seo_title_pills");
-          if (c.titles && c.titles.length) {
-            const renderTitleBtns = (cls, activeVal) => c.titles.map((t, i) => {
-              const cur = cls.includes("seo") ? (t.includes("#Shorts") ? t : `${t} #Shorts`) : t;
-              const isMatch = (activeVal === cur || activeVal === t);
+          if (titlePills && c.titles && c.titles.length) {
+            titlePills.innerHTML = c.titles.map((t, i) => {
+              const isMatch = (c.title === t || i === 0);
               return `
-                <button type="button" class="btn sm ${cls}" data-act="pick_title" data-title="${esc(cur)}" title="Click to use this title" style="font-size:10px;padding:3px 9px;font-weight:600;background:var(--bg-2);border:1px solid ${isMatch ? 'var(--accent, #00f0ff)' : 'var(--line)'};border-radius:12px;color:${isMatch ? 'var(--accent, #00f0ff)' : 'var(--text)'};cursor:pointer">
-                  💡 Title #${i+1}: ${esc(cur)}
+                <button type="button" class="btn sm title-pill-btn" data-act="pick_title" data-title="${esc(t)}" title="Click to use this title" style="font-size:10px;padding:3px 9px;font-weight:600;background:var(--bg);border:1px solid ${isMatch ? 'var(--accent, #00f0ff)' : 'var(--line)'};border-radius:12px;color:${isMatch ? 'var(--accent, #00f0ff)' : 'var(--text)'};cursor:pointer">
+                  💡 #${i+1}: ${esc(t)}
                 </button>
               `;
             }).join("");
-            if (titlePills) titlePills.innerHTML = renderTitleBtns("title-pill-btn", c.title);
-            if (seoTitlePills) seoTitlePills.innerHTML = renderTitleBtns("seo-title-pill-btn", c.seo_title || c.title);
           }
 
           const j = jobOf(jid);
@@ -9016,12 +9262,12 @@ document.addEventListener("click", async e => {
               j.clips[idx] = Object.assign(j.clips[idx], c);
             }
           }
-          toast("✨ Hook & SEO updated to match video scene! Click 'Save and re-make clip' to apply.", "ok");
+          toast("✨ YouTube Shorts package refreshed from final cut!", "ok");
         }
       } catch (err) {
-        toast("AI Video Scan failed: " + err.message, "bad");
+        toast("Package generation failed: " + err.message, "bad");
       } finally {
-        if (btn) { btn.disabled = false; btn.innerHTML = btn.dataset.orig || "✨ AI Scan Video & Fix SEO"; }
+        if (btn) { btn.disabled = false; btn.innerHTML = btn.dataset.orig || "✨ Regenerate Package"; }
       }
       return;
     }
@@ -9170,9 +9416,7 @@ HOOKS:
       let count = 0;
       if (parsedTitle) {
         const titleInput = $("#clipdlg [data-f='title']");
-        const seoTitleInput = $("#clipdlg [data-f='seo_title']");
         if (titleInput) { titleInput.value = parsedTitle; count++; }
-        if (seoTitleInput) { seoTitleInput.value = parsedTitle; }
       }
       if (parsedDesc) {
         const descInput = $("#clipdlg [data-f='description']");
@@ -9454,33 +9698,31 @@ HOOKS:
     }
     if (a === "writetext") {
       b.disabled = true; const was = b.innerHTML; b.innerHTML = `<span>📸</span> Watching video…`;
-      toast("AI is watching video frames to write viral post text…", "ok");
+      toast("AI is watching video frames to write viral Shorts package…", "ok");
       try {
-        const t = await send(`/api/jobs/${D.jid}/clips/${D.cid}/write`, {});
+        const t = await send(`/api/jobs/${D.jid}/clips/${D.cid}/package`, {});
         const f = k => $(`#clipdlg [data-f="${k}"]`);
-        f("title").value = t.title; f("description").value = t.description; f("hashtags").value = (t.hashtags || []).join(" ");
-        const seoIn = f("seo_title");
-        const seoT = t.seo_title || (t.title.includes("#Shorts") ? t.title : `${t.title} #Shorts`);
-        if (seoIn) seoIn.value = seoT;
+        if (f("title") && t.title) f("title").value = t.title;
+        if (f("description") && t.description) f("description").value = t.description;
+        if (f("hashtags") && t.hashtags) f("hashtags").value = (t.hashtags || []).map(h => h.startsWith("#") ? h : "#" + h).join(" ");
+        if (f("seo_tags") && t.seo_tags) f("seo_tags").value = Array.isArray(t.seo_tags) ? t.seo_tags.join(", ") : t.seo_tags;
+        if (f("pinned_comment") && t.pinned_comment) f("pinned_comment").value = t.pinned_comment;
+        if (f("community_text") && t.community_text) f("community_text").value = t.community_text;
+        if (f("hook") && t.hook) { f("hook").value = t.hook; const hs = $("#dlg_shorts_hook_sync"); if (hs) hs.value = t.hook; }
         if (t.titles && t.titles.length) {
           const j = jobOf(D.jid);
           const c = j?.clips.find(x => x.id === D.cid);
           if (c) c.titles = t.titles;
-          const renderTitleBtns = (cls, activeVal) => t.titles.map((titleStr, i) => {
-            const cur = cls.includes("seo") ? (titleStr.includes("#Shorts") ? titleStr : `${titleStr} #Shorts`) : titleStr;
-            const isMatch = (activeVal === cur || activeVal === titleStr);
-            return `
-              <button type="button" class="btn sm ${cls}" data-act="pick_title" data-title="${esc(cur)}" title="Click to use this title" style="font-size:10px;padding:3px 9px;font-weight:600;background:var(--bg-2);border:1px solid ${isMatch ? 'var(--accent, #00f0ff)' : 'var(--line)'};border-radius:12px;color:${isMatch ? 'var(--accent, #00f0ff)' : 'var(--text)'};cursor:pointer">
-                💡 Title #${i+1}: ${esc(cur)}
-              </button>
-            `;
-          }).join("");
           const titlePills = $("#dlg_title_pills");
-          const seoTitlePills = $("#dlg_seo_title_pills");
-          if (titlePills) titlePills.innerHTML = renderTitleBtns("title-pill-btn", t.title);
-          if (seoTitlePills) seoTitlePills.innerHTML = renderTitleBtns("seo-title-pill-btn", seoT);
+          if (titlePills) {
+            titlePills.innerHTML = t.titles.map((titleStr, i) => `
+              <button type="button" class="btn sm title-pill-btn" data-act="pick_title" data-title="${esc(titleStr)}" title="Click to use this title" style="font-size:10px;padding:3px 9px;font-weight:600;background:var(--bg);border:1px solid ${t.title === titleStr ? 'var(--accent, #00f0ff)' : 'var(--line)'};border-radius:12px;color:${t.title === titleStr ? 'var(--accent, #00f0ff)' : 'var(--text)'};cursor:pointer">
+                💡 #${i+1}: ${esc(titleStr)}
+              </button>
+            `).join("");
+          }
         }
-        return toast("✨ Fresh grounded post text written from video frames!", "ok");
+        return toast("✨ Fresh grounded Shorts package written!", "ok");
       } finally { b.disabled = false; b.innerHTML = was; }
     }
     if (a === "postnow" || a === "postqueue") {

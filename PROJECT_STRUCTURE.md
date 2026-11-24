@@ -18,6 +18,7 @@ It includes:
 
 ## 2. Technology Stack & Framework Versions
 - **Host Runtime**: Python 3.11.17 (Isolated via `uv` in `PeakCut\.venv`)
+- **AI SDK & Free-Tier Router**: `google-genai>=3.2.0` (`3.6.1`, `studio/gemini_client.py`) prioritizing `gemini-4-hydrogen` + verified free fallback `gemini-3.5-flash-lite` with `Free Mode Only`, SHA-256 disk caching (`data/cache/ai`), Fast/Balanced/Deep modes, and manual AI Studio billing-tier verification UI.
 - **Backend / Web API**: FastAPI 0.162.5 + Uvicorn 0.54.0 (Port 8765)
 - **Database**: SQLite (local single-user) / PostgreSQL (server mode)
 - **Speech Recognition & Captions**: `sherpa-onnx` 2.0.1 (Offline local on-device speech-to-text) + `soundfile` + automated Roman Urdu transliteration via `studio/roman.py` (transcribe.py automatically romanizes Hindi/Urdu speech into clean Roman Urdu).
@@ -51,6 +52,7 @@ F:\Games\GTA 6 CLIPPING\
 │   │   ├── facecam.py                      # Webcam overlay detection (AI vision & pixel gradient edge tracking)
 │   │   ├── fetch_model.py                  # Multi-language speech model fetcher & retry engine
 │   │   ├── games.py                        # GTA VI & gaming stream detection engine
+│   │   ├── gemini_client.py                # Official google-genai SDK wrapper, free-tier model catalog, manual tier check & SHA-256 disk cache
 │   │   ├── hashtags.py                     # Non-AI fast hashtags engine (derives 3-5 tags without burning tokens)
 │   │   ├── jobs.py                         # Video processing queue, facecam resolution, multimodal SEO & Windows retry save
 │   │   ├── live.py                         # Live stream buffer, 720p lock, loudness spikes & trigger clips
@@ -74,6 +76,7 @@ F:\Games\GTA 6 CLIPPING\
 │   │   ├── test_phase1_upgrades.py         # Phase 1 tests: atomic .bak recovery, GPU AMF/CPU fallback, ASR cache reuse, route dedup & yt_tags
 │   │   ├── test_phase2_upgrades.py         # Phase 2 tests: caption word editor API, multi-frame live AI, Roman Urdu pack, full-cam check & UI filter bar
 │   │   ├── test_phase3_upgrades.py         # Phase 3 tests: YouTube/Kick chat parsers, honest community UX, dead-air trim, delta sync, modular router & hero asset
+│   │   ├── test_nextgen_upgrade.py         # NextGen tests: Google GenAI SDK, free-tier policy, 2-pass multimodal clipping, canonical dedupe & unified Shorts UI
 │   │   ├── test_ohnepixel_engine.py        # OhnePixel intelligent detection & false-positive suite (12 scenarios)
 │   │   ├── test_hashtags.py                # Hashtags generation tests
 │   │   ├── test_jobsave.py                 # Windows file locking resilience tests

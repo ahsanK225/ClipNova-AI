@@ -264,6 +264,10 @@ def _load_file(f: Path, uid: str):
     if not isinstance(job.get("source"), dict):
         job["source"] = {"type": "live" if job.get("kind") == "live" else "url",
                          "url": job.get("url") or "", "name": job.get("title") or job.get("id") or "Video"}
+    if not job.get("canonical_source_id"):
+        job["canonical_source_id"] = media.canonical_source_id(
+            job["source"].get("url") or "", job["source"].get("name") or job.get("title") or ""
+        )
     job.setdefault("options", {}).setdefault("captions", True)
     if job.get("source_path"):
         job["source_path"] = _remap(job["source_path"], f.parent)
@@ -363,7 +367,9 @@ def create(source: dict, options: dict, enqueue=True, creator=None, kind="video"
     opts = {**base, **clean_options(options)}
     if opts["min_len"] >= opts["max_len"]:
         opts["min_len"] = max(5, opts["max_len"] - 5)
+    canon_id = media.canonical_source_id(source.get("url") or "", source.get("name") or "")
     job = {"id": jid, "user": ctx.uid(), "kind": kind, "creator": creator, "dir": str(d), "created": time.time(), "source": source,
+           "canonical_source_id": canon_id,
            "options": opts, "status": "queued", "stage": "Waiting", "progress": 0.0,
            "title": source.get("name", ""), "uploader": "", "duration": 0, "clips": [], "error": None, "ai": {}}
     d.mkdir(parents=True)
@@ -417,13 +423,19 @@ def request_render(jid, cid, changes: dict):
     new = dict(clip)
     if "captions" in changes:
         new.update(clean_options({"captions": changes["captions"]}))
+    trimmed = False
     for k in ("start", "end"):
         if k in changes:
             val = round(float(changes[k]), 2)
             if new.get(k) != val:
+                if abs(float(new.get(k) or 0.0) - val) >= 0.5:
+                    trimmed = True
                 new[k] = val
                 new.pop("fixed_words", None)
                 new.pop("fixed_for", None)
+    if trimmed:
+        new["seo_stale"] = True
+        new["seo_stale_reason"] = "Clip timing changed; refresh the Shorts package to match the new cut."
     if "src_offset" in clip:  # live clip: can only move inside the saved piece of stream
         new["start"] = max(new["start"], clip["src_offset"])
         new["end"] = min(new["end"], clip["src_end"])
@@ -620,32 +632,105 @@ def get_clip_frames_payload(job: dict, clip: dict, n_frames: int = 6) -> list[by
     return None
 
 
+def get_clip_media_payload(job: dict, clip: dict, include_video_proxy: bool = True) -> list[tuple[str, bytes]]:
+    """Build exact final-cut multimodal media parts (compact 360p MP4 with audio when available,
+    plus fallback sampled JPEG frames) for grounded Gemini review."""
+    d = Path(job.get("dir", ""))
+    cid = clip.get("id", "")
+    parts: list[tuple[str, bytes]] = []
+    if include_video_proxy:
+        # 1. Prefer the exact exported/rendered cut MP4 so final audio/video matches user trims
+        rendered_candidates = [
+            d / "clips" / f"{cid}.mp4",
+            d / f"{cid}.mp4",
+        ]
+        if clip.get("file"):
+            rendered_candidates.insert(0, d / "clips" / Path(clip["file"]).name)
+        proxy_bytes = None
+        for rc in rendered_candidates:
+            if rc.is_file() and rc.stat().st_size > 10000:
+                meta = media.probe(rc)
+                dur = float(meta.get("duration") or max(1.0, float(clip.get("end", 30.0)) - float(clip.get("start", 0.0))))
+                proxy_bytes = media.extract_proxy_clip(rc, 0.0, dur)
+                break
+        # 2. Fall back to slicing proxy from clip.src / job.source_path
+        if not proxy_bytes:
+            src = Path(clip["src"]) if clip.get("src") else (Path(job.get("source_path")) if job.get("source_path") else None)
+            if src and src.is_file():
+                off = float(clip.get("src_offset", 0.0))
+                loc_s = max(0.0, float(clip.get("start", 0.0)) - off)
+                loc_e = max(loc_s + 1.0, float(clip.get("end", loc_s + 30.0)) - off)
+                proxy_bytes = media.extract_proxy_clip(src, loc_s, loc_e)
+        if proxy_bytes:
+            parts.append(("video/mp4", proxy_bytes))
+
+    frames = get_clip_frames_payload(job, clip, n_frames=6)
+    if isinstance(frames, list):
+        for fb in frames[:6]:
+            if fb:
+                parts.append(("image/jpeg", fb))
+    elif isinstance(frames, bytes) and frames:
+        parts.append(("image/jpeg", frames))
+    return parts
+
+
 def clean_hashtags(v) -> list:
     """Hashtags typed by a person ("#funny gaming") or sent by the page as a list: plain words, at most 8."""
     if isinstance(v, str):
         v = v.split()
     if not isinstance(v, list):
         raise ValueError("Hashtags must be words separated by spaces.")
-    tags = [re.sub(r"\W", "", str(h))[:30] for h in v[:50] if isinstance(h, (str, int))]
-    return [t for t in tags if t][:8]
+    out, seen = [], set()
+    for h in v[:50]:
+        if not isinstance(h, (str, int)):
+            continue
+        t = re.sub(r"\W", "", str(h))[:30]
+        if t and t.lower() not in seen:
+            seen.add(t.lower())
+            out.append(t)
+    return out[:8]
+
+
+def _published_short_url(clip: dict) -> str:
+    for p in (clip.get("posts") or {}).values():
+        if isinstance(p, dict):
+            if p.get("url") and "youtu" in str(p.get("url")):
+                return str(p["url"])
+            if p.get("remote_id"):
+                return f"https://youtube.com/shorts/{p['remote_id']}"
+    return ""
 
 
 def save_post_text(job, clip, changes: dict):
-    """Change a clip's title, description, SEO, hook and tags without making the clip again. Posting reads them
-    from the clip when it uploads, so the next post (or one still waiting in the queue) uses the new text."""
+    """Change a clip's title, description, SEO, hook and tags without making the clip again.
+    Tracks manually edited fields so partial AI regenerations preserve them."""
     text = {}
-    for k in ("title", "description", "seo_title", "pinned_comment", "hook", "hook_style", "style", "outro_text", "bgm_track", "video_filter"):
+    edited = set(clip.get("edited_fields") or [])
+    for k in ("title", "description", "seo_title", "pinned_comment", "hook", "hook_style", "style", "outro_text", "bgm_track", "video_filter", "community_text"):
         if k in changes:
-            max_len = {"title": 100, "description": 2000, "seo_title": 100, "pinned_comment": 500, "hook": 120, "hook_style": 40, "style": 30, "outro_text": 100, "bgm_track": 50, "video_filter": 50}.get(k, 100)
-            text[k] = str(changes[k] or "")[:max_len]
+            max_len = {"title": 100, "description": 2000, "seo_title": 100, "pinned_comment": 500, "hook": 120, "hook_style": 40, "style": 30, "outro_text": 100, "bgm_track": 50, "video_filter": 50, "community_text": 1500}.get(k, 100)
+            val = str(changes[k] or "")[:max_len]
+            text[k] = val
+            if val != str(clip.get(k) or ""):
+                edited.add(k)
+    if "title" in text and "seo_title" not in text:
+        tval = text["title"]
+        text["seo_title"] = tval if "#shorts" in tval.lower() else f"{tval} #Shorts"[:100].strip()
+    elif "seo_title" in text and "title" not in text:
+        text["title"] = text["seo_title"]
     if "hashtags" in changes:
-        text["hashtags"] = clean_hashtags(changes["hashtags"])
+        ht = clean_hashtags(changes["hashtags"])
+        text["hashtags"] = ht
+        if ht != (clip.get("hashtags") or []):
+            edited.add("hashtags")
     if "seo_tags" in changes:
         st = changes["seo_tags"]
         if isinstance(st, str):
             text["seo_tags"] = [t.strip() for t in st.split(",") if t.strip()][:30]
         elif isinstance(st, list):
             text["seo_tags"] = [str(t).strip() for t in st if str(t).strip()][:30]
+        if text["seo_tags"] != (clip.get("seo_tags") or []):
+            edited.add("seo_tags")
     for b in ("captions", "outro_cta"):
         if b in changes:
             text[b] = bool(changes[b])
@@ -663,6 +748,21 @@ def save_post_text(job, clip, changes: dict):
         desc = hashtags._TAG_IN_TEXT.sub("", text.get("description", clip.get("description") or "")).strip()
         line = " ".join("#" + t for t in text.get("hashtags", clip.get("hashtags") or []))
         text["description"] = ((desc + "\n\n" + line).strip() if desc else line)[:2000]
+    if "community_text" not in text and any(k in text for k in ("title", "description", "pinned_comment", "hashtags")):
+        short_url = _published_short_url(clip)
+        if not clip.get("community_text") or "community_text" not in edited:
+            text["community_text"] = brain.build_community_post(
+                text.get("title", clip.get("title") or ""),
+                text.get("description", clip.get("description") or ""),
+                text.get("pinned_comment", clip.get("pinned_comment") or ""),
+                text.get("hashtags", clip.get("hashtags") or []),
+                short_url=short_url,
+            )
+    if edited:
+        text["edited_fields"] = sorted(edited)
+    if changes.get("clear_stale"):
+        text["seo_stale"] = False
+        text.pop("seo_stale_reason", None)
     with _lock:
         clip.update(text)
     save(job)
@@ -825,34 +925,53 @@ def render_one(job, clip, words):
             if ns >= clip["start"] and ne <= clip["end"] and ne - ns >= 5.0:
                 clip["start"], clip["end"] = ns, ne
 
-        # Automated Multimodal Visual Scene Analysis:
-        # If the hook is generic, clichéd, or requested, examine an actual visual frame from the clip
-        # so that the hook, title, and SEO 100% accurately match the real visual scene and spoken dialogue.
+        # Grounded Final-Cut Shorts Package (uses actual cut video+audio/frames + exact cut transcript)
         cur_hook = (clip.get("hook") or "").strip().upper()
-        needs_visual_seo = (not cur_hook or cur_hook in ("WAIT FOR IT", "AUTO-GENERATED") or
-                            "NO CHILL" in cur_hook or "WAY TOO REAL" in cur_hook or
-                            clip.get("needs_ai_seo") or clip.get("version", 0) == 0)
+        cur_span = [round(clip["start"], 2), round(clip["end"], 2)]
+        seo_current = clip.get("seo_for") == cur_span and not clip.get("seo_stale")
+        needs_visual_seo = (not seo_current) and (
+            not cur_hook or cur_hook in ("WAIT FOR IT", "AUTO-GENERATED") or
+            "NO CHILL" in cur_hook or "WAY TOO REAL" in cur_hook or
+            clip.get("needs_ai_seo") or clip.get("version", 0) == 0
+        )
         if needs_visual_seo and src.is_file() and ai.ready():
             try:
-                loc_s = max(0.0, float(clip["start"]) - off)
-                loc_e = max(loc_s + 1.0, float(clip["end"]) - off)
-                fbytes = extract_clip_frames_bytes(src, loc_s, loc_e, n_frames=3) or _extract_frame_bytes(
-                    src, loc_s + min(2.5, max(0.5, (loc_e - loc_s) * 0.25))
-                )
-                if fbytes:
-                    clip_text = " ".join(w.get("w", "") for w in (words or []) if clip["start"] <= w.get("s", 0) <= clip["end"])
-                    meta = brain.describe_multimodal(fbytes, text=clip_text, title=job.get("title", ""),
-                                                     uploader=job.get("uploader", ""), game=job.get("game"))
-                    if meta and meta.get("hook"):
-                        clip["hook"] = meta["hook"]
-                        clip["title"] = meta["title"]
-                        clip["description"] = meta["description"]
-                        clip["seo_title"] = meta["seo_title"]
-                        clip["seo_tags"] = meta["seo_tags"]
-                        clip["pinned_comment"] = meta["pinned_comment"]
+                mparts = get_clip_media_payload(job, clip, include_video_proxy=True)
+                if mparts:
+                    clip_text = " ".join(w.get("w", "") for w in (words or []) if clip["start"] - 0.5 <= _f(w.get("s")) <= clip["end"] + 0.5)
+                    edited_map = {k: clip[k] for k in (clip.get("edited_fields") or []) if k in clip}
+                    lang_set = o.get("lang") or cr.get("lang") or "en"
+                    pkg = brain.generate_final_cut_package(
+                        mparts,
+                        transcript_text=clip_text,
+                        duration=max(1.0, float(clip["end"]) - float(clip["start"])),
+                        title=job.get("title", ""),
+                        uploader=job.get("uploader", ""),
+                        game=job.get("game"),
+                        lang=lang_set,
+                        short_url=_published_short_url(clip),
+                        preserve_fields=edited_map,
+                    )
+                    if pkg:
+                        for k in ("hook", "hooks", "title", "seo_title", "titles", "description", "hashtags", "seo_tags", "pinned_comment", "community_text", "analysis_mode", "analysis_model"):
+                            if k in pkg and pkg[k] is not None:
+                                clip[k] = pkg[k]
+                        if pkg.get("reason") and not clip.get("reason"):
+                            clip["reason"] = pkg["reason"]
+                        clip["seo_for"] = cur_span
+                        clip["seo_stale"] = False
+                        clip.pop("seo_stale_reason", None)
                         clip.pop("needs_ai_seo", None)
             except Exception:
                 pass
+        elif not clip.get("community_text"):
+            clip["community_text"] = brain.build_community_post(
+                clip.get("seo_title") or clip.get("title") or "",
+                clip.get("description") or "",
+                clip.get("pinned_comment") or "",
+                clip.get("hashtags") or [],
+                short_url=_published_short_url(clip),
+            )
 
         use_caps = clip.get("captions")
         if use_caps is None:
@@ -868,8 +987,19 @@ def render_one(job, clip, words):
         local = dict(clip, start=clip["start"] - off, end=clip["end"] - off, hook=roman.to_roman(clip.get("hook") or ""))
         near = _caption_words(job, clip, words, off, src=src, local_start=local["start"], local_end=local["end"]) if use_caps else []
         out = render.render_clip(src, d / "clips", clip["id"], local, near, job["width"], job["height"])
+        # Quality Control Gate on final exported MP4
+        qg_warnings = []
+        out_mp4 = (d / "clips" / Path(out.get("file", "")).name) if out.get("file") else None
+        if not out_mp4 or not out_mp4.is_file() or out_mp4.stat().st_size < 10_000:
+            qg_warnings.append("Output MP4 missing or unexpectedly small.")
+        if float(out.get("dur") or 0.0) < max(2.5, (clip["end"] - clip["start"]) * 0.75):
+            qg_warnings.append("Rendered duration shorter than expected cut span.")
+        payoff_t = clip.get("payoff_at")
+        if payoff_t is not None and not (clip["start"] <= float(payoff_t) <= clip["end"] + 0.5):
+            qg_warnings.append("Payoff timestamp lies outside final cut boundaries.")
+        clip["quality_gate"] = {"ok": len(qg_warnings) == 0, "warnings": qg_warnings}
         clip.update(out, status="done", version=clip.get("version", 0) + 1, error=None, rendered_hook=local.get("hook", ""), rendered_hook_style=clip.get("hook_style", ""))
-        post = {k: clip[k] for k in ("title", "description", "hashtags", "hook", "start", "end", "score", "seo_title", "seo_tags", "pinned_comment", "hook_style", "outro_cta", "outro_text", "audio_delay", "facecam_pos", "facecam_delay") if k in clip}
+        post = {k: clip[k] for k in ("title", "description", "hashtags", "hook", "start", "end", "payoff_at", "score", "seo_title", "seo_tags", "pinned_comment", "community_text", "hook_style", "outro_cta", "outro_text", "audio_delay", "facecam_pos", "facecam_delay", "analysis_mode", "seo_stale") if k in clip}
         safe.atomic_write_text(d / "clips" / f"{clip['id']}.json", json.dumps(post, indent=1), backup=True)
         if clip["version"] == 1:
             clip.setdefault("made_at", time.time())
@@ -1257,22 +1387,46 @@ def _run_job(job):
     # so it is done here rather than for each clip, and only when asked for.
     statics = quality.static_ranges(job.get("source_path") or "") if config.SKIP_STATIC else []
 
-    # Collect previously clipped time spans from prior jobs for the same source URL or uploaded file name
-    # so re-clipping or re-submitting the same video extracts subsequent fresh highlights instead of duplicating!
-    prior_spans = []
-    src_url = (src.get("url") or "").strip().rstrip("/")
-    src_name = (src.get("name") or job.get("title") or "").strip().lower()
-    for prev_j in _jobs.values():
-        if prev_j.get("id") == job.get("id"):
-            continue
-        prev_url = (prev_j.get("source", {}).get("url") or "").strip().rstrip("/")
-        prev_name = (prev_j.get("source", {}).get("name") or prev_j.get("title") or "").strip().lower()
-        same_source = (src_url and prev_url == src_url) or (src_name and prev_name == src_name)
-        if same_source:
-            for pc in prev_j.get("clips", []):
-                ps, pe = pc.get("start"), pc.get("end")
-                if ps is not None and pe is not None and pe > ps:
-                    prior_spans.append((ps, pe))
+    # Collect previously exported clip spans & text fingerprints across canonical source IDs
+    # (equivalent YouTube links like watch?v= and youtu.be/ resolve to the same canonical ID).
+    # Failed exports (status == "error") stay retryable and do NOT block re-clipping.
+    canon_id = job.get("canonical_source_id") or media.canonical_source_id(
+        src.get("url") or "", src.get("name") or job.get("title") or ""
+    )
+    job["canonical_source_id"] = canon_id
+    prior_spans, prior_word_sets = [], []
+    if ai.skip_duplicates():
+        for prev_j in _jobs.values():
+            if prev_j.get("id") == job.get("id"):
+                continue
+            prev_canon = prev_j.get("canonical_source_id") or media.canonical_source_id(
+                (prev_j.get("source") or {}).get("url") or "", (prev_j.get("source") or {}).get("name") or prev_j.get("title") or ""
+            )
+            same_source = bool(canon_id and prev_canon and canon_id == prev_canon)
+            if same_source:
+                prev_words = safe.load_json_with_backup(Path(prev_j["dir"]) / "words.json", default=[]) if prev_j.get("dir") else []
+                for pc in prev_j.get("clips", []):
+                    if pc.get("status") == "error":
+                        continue
+                    ps, pe = pc.get("start"), pc.get("end")
+                    if ps is not None and pe is not None and pe > ps:
+                        prior_spans.append((float(ps), float(pe)))
+                        p_tokens = {re.sub(r"\W+", "", str(w.get("w", "")).lower())
+                                    for w in (prev_words or [])
+                                    if ps - 1.0 <= _f(w.get("s")) <= pe + 1.0}
+                        p_tokens.discard("")
+                        if len(p_tokens) >= 4:
+                            prior_word_sets.append(p_tokens)
+
+    # Sample keyframes if whole source video is already local (for quiet visual moments in Pass 1/2)
+    vid_local_path = Path(job["source_path"]) if job.get("source_path") and Path(job["source_path"]).is_file() else None
+    if not vid_local_path and video is not None and not pieces:
+        try:
+            vp = whole_video()
+            if vp and Path(vp).is_file():
+                vid_local_path = Path(vp)
+        except Exception:
+            vid_local_path = None
 
     for bi, (a, b) in enumerate(blocks):
         if bi < done_blocks:
@@ -1293,18 +1447,36 @@ def _run_job(job):
         safe.atomic_write_text(d / "words.json", json.dumps(words), backup=True)
         _set(job, stage="Finding the best moments" + where, word_count=len(words))
         left = int(o["max_clips"]) - len(job["clips"])
-        if left <= 0 or len(bw) < 8:
+        if left <= 0 or (len(bw) < 8 and not vid_local_path):
             job["done_blocks"] = bi + 1
             save(job)
             continue
         quota = max(1, math.ceil(left / (len(blocks) - bi)))
         s0 = int((a - lo) / 16000)
-        found, ai = brain.find_clips(bw, db[s0: s0 + int((b - a) / 16000) + 1], (b - a) / 16000, job["title"],
-                                     job["uploader"], quota, int(o["min_len"]), int(o["max_len"]), notes.append, game=game)
-        tokens += ai.get("tokens", 0)
-        model = ai.get("model") or model
-        if ai.get("note"):
-            notes.append(ai["note"])
+        block_dur = (b - a) / 16000
+        block_keyframes = []
+        if vid_local_path:
+            raw_kf = media.extract_overview_keyframes(vid_local_path, shift, shift + block_dur, count=8)
+            block_keyframes = [(round(t - shift, 2), kb) for t, kb in raw_kf]
+
+        def _review_window_media(wa: float, wb: float) -> list[tuple[str, bytes]]:
+            if not vid_local_path or not vid_local_path.is_file():
+                return []
+            proxy = media.extract_proxy_clip(vid_local_path, shift + wa, shift + wb)
+            if proxy:
+                return [("video/mp4", proxy)]
+            f_bytes = extract_clip_frames_bytes(vid_local_path, shift + wa, shift + wb, n_frames=6)
+            return [("image/jpeg", fb) for fb in f_bytes]
+
+        found, ai_info = brain.find_clips(
+            bw, db[s0: s0 + int(block_dur) + 1], block_dur, job["title"],
+            job["uploader"], quota, int(o["min_len"]), int(o["max_len"]), notes.append, game=game,
+            keyframes=block_keyframes, review_media=_review_window_media if vid_local_path else None,
+        )
+        tokens += ai_info.get("tokens", 0)
+        model = ai_info.get("model") or model
+        if ai_info.get("note"):
+            notes.append(ai_info["note"])
         if found:
             keep = []
             for c in found:
@@ -1315,17 +1487,35 @@ def _run_job(job):
                         notes.append(f"A clip from {round(a_s)}s was left out: it sat in an ad break or a static screen.")
                         continue
                 if prior_spans:
-                    # Check if this clip overlaps with an already-clipped span from an earlier job
-                    overlapped = any(max(0.0, min(b_s, pe) - max(a_s, ps)) >= min(5.0, 0.3 * (b_s - a_s)) for ps, pe in prior_spans)
+                    # Check both temporal overlap AND transcript Jaccard similarity for shifted duplicates
+                    overlapped = any(max(0.0, min(b_s, pe) - max(a_s, ps)) >= min(4.0, 0.25 * (b_s - a_s)) for ps, pe in prior_spans)
+                    if not overlapped and prior_word_sets:
+                        c_tokens = {re.sub(r"\W+", "", str(w.get("w", "")).lower())
+                                    for w in words if a_s - 1.0 <= _f(w.get("s")) <= b_s + 1.0}
+                        c_tokens.discard("")
+                        if len(c_tokens) >= 4:
+                            overlapped = any(
+                                len(c_tokens & pw) / max(1, len(c_tokens | pw)) >= 0.50
+                                for pw in prior_word_sets
+                            )
                     if overlapped:
-                        notes.append(f"Skipping {round(a_s)}s-{round(b_s)}s: already clipped in a previous job.")
+                        notes.append(f"Skipping {round(a_s)}s-{round(b_s)}s: already exported for this source.")
                         continue
                 keep.append(c)
             found = keep
         for c in found:
-            c.update(id=f"clip{len(job['clips']) + 1:02d}", start=round(c["start"] + shift, 2),
-                     end=round(c["end"] + shift, 2), style=o["style"], layout=o["layout"],
+            c_start, c_end = round(c["start"] + shift, 2), round(c["end"] + shift, 2)
+            p_at = round(float(c["payoff_at"]) + shift, 2) if c.get("payoff_at") is not None else round(c_start + (c_end - c_start) * 0.65, 2)
+            p_at = max(c_start, min(c_end, p_at))
+            c.update(id=f"clip{len(job['clips']) + 1:02d}", start=c_start,
+                     end=c_end, payoff_at=p_at, style=o["style"], layout=o["layout"],
                      captions=o.get("captions", True), status="queued", version=0)
+            c.setdefault("community_text", brain.build_community_post(
+                c.get("seo_title") or c.get("title") or "",
+                c.get("description") or "",
+                c.get("pinned_comment") or "",
+                c.get("hashtags") or [],
+            ))
             if o.get("hook_text"):        # the person's own big text, on every clip, in place of the AI's
                 c["hook"] = o["hook_text"]
             if o.get("description_text"):  # ...and their own description, exactly as written
@@ -1344,13 +1534,24 @@ def _run_job(job):
         job["ai"] = {"model": model, "tokens": tokens, "note": "", "log": notes[-5:]}
         job["done_blocks"] = bi + 1       # a restart from here on carries on with the next part
         save(job)
-    if not job["clips"] and job.get("duration", 0) <= 90:
+    already_short_exported = bool(prior_spans) and any(
+        max(0.0, min(float(job.get("duration") or 0), pe) - max(0.0, ps)) >= 3.0 for ps, pe in prior_spans
+    )
+    if not job["clips"] and job.get("duration", 0) <= 90 and not already_short_exported:
         # Short video or highlight submitted: automatically format and render the whole clip
         v_dur = float(job["duration"])
         desc_text = " ".join(w["w"] for w in words) if words else (job.get("title") or "Gaming Short")
         c_info = brain.describe(desc_text, job.get("title", ""), job.get("uploader", ""), game=game)
-        c_info.update(id="clip01", start=0.0, end=round(v_dur, 2), style=o["style"], layout=o["layout"],
-                      captions=o.get("captions", True), status="queued", version=0)
+        c_info.update(id="clip01", start=0.0, end=round(v_dur, 2), payoff_at=round(v_dur * 0.65, 2),
+                      style=o["style"], layout=o["layout"],
+                      captions=o.get("captions", True), status="queued", version=0,
+                      analysis_mode="transcript_only" if ai.ready() else "offline_fallback")
+        c_info.setdefault("community_text", brain.build_community_post(
+            c_info.get("seo_title") or c_info.get("title") or "",
+            c_info.get("description") or "",
+            c_info.get("pinned_comment") or "",
+            c_info.get("hashtags") or [],
+        ))
         if o.get("layout") in ("gameplay", "split", "split_half"):
             if not face:
                 face = _facecam(job)

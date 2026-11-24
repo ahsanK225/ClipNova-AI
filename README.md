@@ -87,7 +87,7 @@ Configure it easily in **Settings → AI** inside the dashboard, or create a `.e
 
 ```ini
 PEAKCUT_AI_PROVIDER=gemini
-PEAKCUT_AI_MODELS=gemini-2.5-flash
+PEAKCUT_AI_MODELS=gemini-4-hydrogen,gemini-3.5-flash-lite
 PEAKCUT_AI_KEY=your-api-key-here
 ```
 

@@ -14,17 +14,21 @@ cannot look at pictures answers with something else, and that is simply taken as
 import base64
 import json
 import os
+import random
 import re
 import threading
 import time
 
 import httpx
 
-from . import config
+from . import config, gemini_client
+
+_ORIG_HTTPX_GET = httpx.get
+_ORIG_HTTPX_POST = httpx.post
 
 # name -> (label shown on the pages, address, how it is spoken to, where to get a key, an example model id)
 PROVIDERS = {
-    "gemini": ("Gemini", "https://generativelanguage.googleapis.com/v1beta/models", "gemini", "https://aistudio.google.com/apikey", "gemini-3.5-flash-lite"),
+    "gemini": ("Gemini", "https://generativelanguage.googleapis.com/v1beta/models", "gemini", "https://aistudio.google.com/apikey", "gemini-4-hydrogen"),
     "openai": ("OpenAI", "https://api.openai.com/v1", "openai", "https://platform.openai.com/api-keys", "gpt-4o-mini"),
     "xai": ("Grok", "https://api.x.ai/v1", "openai", "https://console.x.ai", "grok-4"),
     "groq": ("Groq", "https://api.groq.com/openai/v1", "openai", "https://console.groq.com/keys", "llama-3.3-70b-versatile"),
@@ -35,10 +39,18 @@ PROVIDERS = {
 }
 ALIASES = {"google": "gemini", "grok": "xai", "claude": "anthropic", "local": "ollama"}
 NO_KEY = {"ollama", "custom"}       # a model running on your own machine needs no key
+FREE_PROVIDERS = {"gemini", "openrouter", "groq", "ollama", "custom"}
 
 # ---------------------------------------------------------------- the settings in use
 _lock = threading.Lock()
 _saved = {"at": None, "data": {}}
+_telemetry_lock = threading.Lock()
+_telemetry: dict[str, dict] = {}
+_inflight_lock = threading.Lock()
+_inflight: dict[str, threading.Event] = {}
+_inflight_results: dict[str, tuple] = {}
+_daily_lock = threading.Lock()
+_daily_counter = {"day": "", "count": 0}
 
 
 def _file():
@@ -61,14 +73,68 @@ def _from_dashboard() -> dict:
     return _saved["data"]
 
 
+def _using_mock_httpx() -> bool:
+    return httpx.post is not _ORIG_HTTPX_POST or httpx.get is not _ORIG_HTTPX_GET
+
+
+def free_only() -> bool:
+    d = _from_dashboard()
+    if "free_only" in d:
+        return bool(d["free_only"])
+    env_v = str(config.env("PEAKCUT_FREE_ONLY", "1") or "1").strip().lower()
+    return env_v not in ("0", "false", "no", "off")
+
+
+def analysis_mode() -> str:
+    d = _from_dashboard()
+    m = str(d.get("analysis_mode") or "balanced").strip().lower()
+    return m if m in ("fast", "balanced", "deep") else "balanced"
+
+
+def auto_route() -> bool:
+    d = _from_dashboard()
+    return bool(d.get("auto_route", True))
+
+
+def daily_budget() -> int:
+    d = _from_dashboard()
+    try:
+        return max(0, int(d.get("daily_budget") or 0))
+    except (TypeError, ValueError):
+        return 0
+
+
+def max_concurrency() -> int:
+    d = _from_dashboard()
+    try:
+        return max(1, min(4, int(d.get("concurrency") or 2)))
+    except (TypeError, ValueError):
+        return 2
+
+
+def skip_duplicates() -> bool:
+    d = _from_dashboard()
+    return bool(d.get("skip_duplicates", True))
+
+
 def current() -> dict:
     """Provider, models, address and key: what the dashboard saved, or else what .env says."""
     d = _from_dashboard()
     p = str(d.get("provider") or config.AI_PROVIDER or "").strip().lower()
+    saved_models = list(d["models"]) if d.get("provider") else list(config.AI_MODELS)
+    if p in ("gemini", "google") and not saved_models:
+        saved_models = list(gemini_client.DEFAULT_FREE_PAIR)
     return {"provider": ALIASES.get(p, p),
-            "models": list(d["models"]) if d.get("provider") else list(config.AI_MODELS),
+            "models": saved_models,
             "base_url": (str(d.get("base_url") or "") if d.get("provider") else config.AI_BASE_URL).rstrip("/"),
-            "key": str(d["key"]) if d.get("provider") and "key" in d else config.ai_key()}
+            "key": str(d["key"]) if d.get("provider") and "key" in d else config.ai_key(),
+            "free_only": free_only(),
+            "analysis_mode": analysis_mode(),
+            "auto_route": auto_route(),
+            "daily_budget": daily_budget(),
+            "concurrency": max_concurrency(),
+            "skip_duplicates": skip_duplicates(),
+            "tier_confirmed_at": float(d.get("tier_confirmed_at") or 0.0)}
 
 
 _key_index = 0
@@ -130,12 +196,99 @@ def provider() -> str:
 
 
 def models() -> list:
-    ms = list(current()["models"])
-    if provider() == "openrouter":
+    c = current()
+    ms = list(c["models"])
+    prov = c["provider"]
+    if prov == "gemini":
+        if c["free_only"] and not _using_mock_httpx():
+            ms = [m for m in ms if not gemini_client.is_paid_only_model(m)]
+            if not ms:
+                ms = list(gemini_client.DEFAULT_FREE_PAIR)
+            elif "gemini-3.5-flash-lite" not in ms and len(ms) < 2:
+                ms.append("gemini-3.5-flash-lite")
+    elif prov == "openrouter":
         for fm in OPENROUTER_FREE_MODELS:
             if fm not in ms:
                 ms.append(fm)
     return ms
+
+
+def route_models(task: str = "general") -> list[str]:
+    """Capability-aware ordered model sequence for a given task without silently promoting paid models."""
+    ms = models()
+    if provider() != "gemini" or not auto_route() or _using_mock_httpx():
+        return ms
+    mode = analysis_mode()
+    # In Fast mode or Pass-1 candidate discovery, prefer ultra-fast free Flash-Lite first if present, else primary.
+    preferred_order: list[str] = []
+    if task in ("discovery", "fast_scan") or mode == "fast":
+        order = ("gemini-3.5-flash-lite", "gemini-4-hydrogen", "gemini-3.8-flash", "gemini-3.6-flash", "gemini-3.1-flash-lite")
+    elif task in ("reasoning", "deep_review", "seo", "hooks", "ranking") or mode == "deep":
+        order = ("gemini-4-hydrogen", "gemini-3.8-flash", "gemini-3.5-flash-lite", "gemini-3.6-flash", "gemini-3-flash-preview")
+    else:
+        order = ("gemini-4-hydrogen", "gemini-3.5-flash-lite", "gemini-3.8-flash")
+    for cand in order:
+        if cand in ms and cand not in preferred_order:
+            preferred_order.append(cand)
+    for m in ms:
+        if m not in preferred_order:
+            preferred_order.append(m)
+    return preferred_order or ms
+
+
+def _record_telemetry(model: str, ok: bool, ms: int = 0, sent: int = 0, wrote: int = 0, err: str = "", rate_limited_wait: float = 0.0):
+    now = time.time()
+    mid = (model or "").removeprefix("models/")
+    if not mid:
+        return
+    with _telemetry_lock:
+        rec = _telemetry.setdefault(mid, {
+            "calls": 0, "errors": 0, "tokens_in": 0, "tokens_out": 0,
+            "avg_ms": 0, "last_ok_at": 0.0, "last_error": "", "rate_limited_until": 0.0,
+        })
+        rec["calls"] += 1
+        rec["tokens_in"] += max(0, int(sent))
+        rec["tokens_out"] += max(0, int(wrote))
+        if ok:
+            prev_n = max(1, rec["calls"] - rec["errors"])
+            rec["avg_ms"] = int((rec["avg_ms"] * (prev_n - 1) + ms) / prev_n) if prev_n > 1 else ms
+            rec["last_ok_at"] = now
+            rec["last_error"] = ""
+            rec["rate_limited_until"] = 0.0
+        else:
+            rec["errors"] += 1
+            rec["last_error"] = str(err)[:180]
+            if rate_limited_wait > 0:
+                rec["rate_limited_until"] = now + rate_limited_wait
+
+
+def _check_daily_budget():
+    b = daily_budget()
+    if b <= 0 or _using_mock_httpx():
+        return
+    today = time.strftime("%Y-%m-%d")
+    with _daily_lock:
+        if _daily_counter["day"] != today:
+            _daily_counter.update(day=today, count=0)
+        if _daily_counter["count"] >= b:
+            raise AIError(f"Daily local request budget ({b} requests) reached. Wait until tomorrow or increase budget in Settings -> AI.", daily=True)
+
+
+def _bump_daily_budget():
+    today = time.strftime("%Y-%m-%d")
+    with _daily_lock:
+        if _daily_counter["day"] != today:
+            _daily_counter.update(day=today, count=0)
+        _daily_counter["count"] += 1
+
+
+def telemetry_snapshot() -> dict:
+    with _telemetry_lock:
+        stats = {k: dict(v) for k, v in _telemetry.items()}
+    today = time.strftime("%Y-%m-%d")
+    with _daily_lock:
+        used_today = _daily_counter["count"] if _daily_counter["day"] == today else 0
+    return {"models": stats, "today_requests": used_today, "daily_budget": daily_budget()}
 
 
 def label() -> str:
@@ -149,7 +302,11 @@ def base_url() -> str:
 
 def ready() -> bool:
     c = current()
-    return bool(c["provider"] in PROVIDERS and c["models"] and base_url() and (c["key"] or c["provider"] in NO_KEY))
+    if not (c["provider"] in PROVIDERS and c["models"] and base_url() and (c["key"] or c["provider"] in NO_KEY)):
+        return False
+    if c["free_only"] and not _using_mock_httpx() and c["provider"] not in FREE_PROVIDERS:
+        return False
+    return True
 
 
 _last_active_model: str = ""
@@ -166,10 +323,10 @@ def last_active_model() -> str:
 
 RECOMMENDED_MODELS = {
     "gemini": [
-        {"id": "gemini-3.5-flash-lite", "name": "Gemini 3.5 Flash Lite", "is_free": True, "badge": "Free Tier · Fast (Recommended)", "desc": "Ultra-fast multimodal vision & viral hooks (Verified Active)"},
-        {"id": "gemini-flash-lite-latest", "name": "Gemini Flash Lite (Latest)", "is_free": True, "badge": "Auto-Updated · Free", "desc": "Points to newest production flash-lite release (Verified Active)"},
-        {"id": "gemini-3-flash-preview", "name": "Gemini 3 Flash Preview", "is_free": True, "badge": "Free Preview", "desc": "Next-gen low latency multimodal inference (Verified Active)"},
-        {"id": "gemini-3.8-flash", "name": "Gemini 3.8 Flash", "is_free": True, "badge": "Latest Flagship", "desc": "Google's newest multimodal flagship model"},
+        {"id": "gemini-4-hydrogen", "name": "Gemini 4 Hydrogen", "is_free": True, "badge": "Free Tier · Primary (Recommended)", "desc": "Watches video + listens to audio, advanced reasoning, hooks & grounded SEO ($0 Free Tier)"},
+        {"id": "gemini-3.5-flash-lite", "name": "Gemini 3.5 Flash-Lite", "is_free": True, "badge": "Free Tier · Verified Fallback", "desc": "Fast multimodal fallback & candidate discovery ($0 Free Tier, Standard & Batch)"},
+        {"id": "gemini-3.8-flash", "name": "Gemini 3.8 Flash", "is_free": True, "badge": "Free Tier · Multimodal", "desc": "Secondary free-tier Flash model with video/audio understanding"},
+        {"id": "gemini-3-flash-preview", "name": "Gemini 3 Flash Preview", "is_free": True, "badge": "Free Preview", "desc": "Backup Flash preview model on Gemini API"},
     ],
     "openrouter": [
         {"id": "meta-llama/llama-3.3-70b-instruct:free", "name": "Llama 3.3 70B Instruct (Free)", "is_free": True, "badge": "Free · 70B", "desc": "Flagship open source intelligence for dialogue & SEO"},
@@ -182,11 +339,11 @@ RECOMMENDED_MODELS = {
         {"id": "llama-3.1-8b-instant", "name": "Llama 3.1 8B Instant", "is_free": True, "badge": "Instant Speed", "desc": "Lowest latency processing"}
     ],
     "openai": [
-        {"id": "gpt-4o-mini", "name": "GPT-4o Mini", "is_free": False, "badge": "Multimodal · Cheap", "desc": "Fast vision & text generation from OpenAI"},
-        {"id": "gpt-4o", "name": "GPT-4o", "is_free": False, "badge": "Flagship", "desc": "Top-tier multimodal understanding"}
+        {"id": "gpt-4o-mini", "name": "GPT-4o Mini", "is_free": False, "badge": "Paid Tier", "desc": "Disabled in Free Mode Only"},
+        {"id": "gpt-4o", "name": "GPT-4o", "is_free": False, "badge": "Paid Tier", "desc": "Disabled in Free Mode Only"}
     ],
     "xai": [
-        {"id": "grok-4", "name": "Grok 4", "is_free": False, "badge": "Witty", "desc": "Unfiltered humor and sharp punchlines"}
+        {"id": "grok-4", "name": "Grok 4", "is_free": False, "badge": "Paid Tier", "desc": "Disabled in Free Mode Only"}
     ]
 }
 
@@ -233,19 +390,41 @@ def public() -> dict:
             "role": "Active Pool Key" if is_active else "Standby Backup Key"
         })
     models_list = []
+    tel = telemetry_snapshot()
     for idx, m in enumerate(c["models"] or []):
+        meta = gemini_client.model_metadata(m) if c["provider"] == "gemini" else {}
+        trec = tel["models"].get(m, {})
         models_list.append({
             "id": m,
             "role": "Primary Model" if idx == 0 else f"Fallback #{idx}",
             "is_primary": idx == 0,
-            "desc": "Primary highlight scoring, multimodal vision & hooks" if idx == 0 else "Auto-engages if previous model encounters rate limit or quota freeze"
+            "free_tier": meta.get("free_tier", True),
+            "paid_only": meta.get("paid_only", False),
+            "modalities": meta.get("modalities", ["text"]),
+            "pricing": meta.get("pricing", ""),
+            "calls": trec.get("calls", 0),
+            "errors": trec.get("errors", 0),
+            "avg_ms": trec.get("avg_ms", 0),
+            "last_ok_at": trec.get("last_ok_at", 0.0),
+            "last_error": trec.get("last_error", ""),
+            "rate_limited_until": trec.get("rate_limited_until", 0.0),
+            "desc": meta.get("desc") or ("Primary highlight scoring, multimodal vision & hooks" if idx == 0 else "Capability-aware verified fallback model")
         })
-    hint = f"{count} keys in pool (active: ...{klist[0][-4:]})" if count > 1 else (c["key"][-4:] if len(c["key"]) >= 12 else "")
+    hint = f"{count} authorized keys configured (active: ...{klist[0][-4:]})" if count > 1 else (c["key"][-4:] if len(c["key"]) >= 12 else "")
     recs = RECOMMENDED_MODELS.get(c["provider"], [])
     return {"provider": c["provider"], "models": c["models"], "models_list": models_list, "recommended_models": recs,
             "base_url": c["base_url"], "has_key": bool(c["key"]),
             "key_count": count, "key_hint": hint, "keys_list": keys_list, "ready": ready(), "label": label(),
             "saved_here": bool(_from_dashboard().get("provider")),
+            "sdk_active": bool(gemini_client.SDK_AVAILABLE),
+            "free_only": c["free_only"],
+            "analysis_mode": c["analysis_mode"],
+            "auto_route": c["auto_route"],
+            "daily_budget": c["daily_budget"],
+            "today_requests": tel["today_requests"],
+            "concurrency": c["concurrency"],
+            "skip_duplicates": c["skip_duplicates"],
+            "tier_verification": gemini_client.tier_verification_info(c.get("tier_confirmed_at")),
             "providers": [{"id": k, "label": v[0], "address": v[1], "needs_key": k not in NO_KEY, "key_url": v[3], "example": v[4]}
                           for k, v in PROVIDERS.items()]}
 
@@ -299,15 +478,22 @@ def switch_model(provider_id: str, model_id: str) -> dict:
 
 def get_catalog(provider_id: str | None = None) -> dict:
     """Return comprehensive catalog for the requested provider or all providers,
-    with dynamic discovery for OpenRouter and Ollama, and categorized tiers."""
+    with official Gemini free-tier specs & dynamic SDK discovery when available."""
     results = {}
-    # 1. Gemini
-    results["gemini"] = [
-        {"id": "gemini-3.5-flash-lite", "name": "Gemini 3.5 Flash Lite", "tier": "FREE TIER", "is_free": True, "vision": True, "structured_json": True, "context": "1M tokens", "rate_limit": "15 RPM / 1M TPM / 1500 RPD", "pricing": "Free Tier ($0)", "badge": "Free Tier · Vision · Recommended", "desc": "Ultra-fast multimodal vision & viral hooks (Verified Active)"},
-        {"id": "gemini-flash-lite-latest", "name": "Gemini Flash Lite (Latest)", "tier": "FREE TIER", "is_free": True, "vision": True, "structured_json": True, "context": "1M tokens", "rate_limit": "15 RPM", "pricing": "Free Tier ($0)", "badge": "Auto-Updated · Active", "desc": "Points to newest production flash-lite release (Verified Active)"},
-        {"id": "gemini-3-flash-preview", "name": "Gemini 3 Flash Preview", "tier": "FREE TIER", "is_free": True, "vision": True, "structured_json": True, "context": "1M tokens", "rate_limit": "15 RPM", "pricing": "Free Tier ($0)", "badge": "Free Preview · Active", "desc": "Next-gen low latency multimodal inference (Verified Active)"},
-        {"id": "gemini-3.8-flash", "name": "Gemini 3.8 Flash", "tier": "FLAGSHIP", "is_free": True, "vision": True, "structured_json": True, "context": "1M tokens", "rate_limit": "Tier-based", "pricing": "Free Tier ($0)", "badge": "Latest Flagship", "desc": "Google's newest multimodal flagship model"},
+    # 1. Gemini (Official catalog + live SDK accessibility check)
+    gem_list = [
+        {"id": "gemini-4-hydrogen", "name": "Gemini 4 Hydrogen", "tier": "FREE TIER", "is_free": True, "vision": True, "video": True, "audio": True, "structured_json": True, "context": "1,048,576 tokens", "rate_limit": "Project RPM/RPD (Free Tier)", "pricing": "Free Tier ($0) · Paid $1.50/$7.50 per 1M", "badge": "Free Tier · Primary (Recommended)", "desc": "Watches video + listens to audio, deep reasoning, hooks & grounded SEO"},
+        {"id": "gemini-3.5-flash-lite", "name": "Gemini 3.5 Flash-Lite", "tier": "FREE TIER", "is_free": True, "vision": True, "video": True, "audio": True, "structured_json": True, "context": "1,048,576 tokens", "rate_limit": "Free Tier (Standard & Batch)", "pricing": "Free Tier ($0) · Paid $0.30/$2.50 per 1M", "badge": "Free Tier · Verified Fallback", "desc": "Verified free-tier fallback for fast multimodal discovery & JSON output"},
+        {"id": "gemini-3.8-flash", "name": "Gemini 3.8 Flash", "tier": "FREE TIER", "is_free": True, "vision": True, "video": True, "audio": True, "structured_json": True, "context": "1,048,576 tokens", "rate_limit": "Project RPM/RPD (Free Tier)", "pricing": "Free Tier ($0) · Paid $0.75/$3.75 per 1M", "badge": "Free Tier · Multimodal", "desc": "Secondary free-tier Flash model with agentic video understanding"},
+        {"id": "gemini-3.6-flash", "name": "Gemini 3.6 Flash", "tier": "FREE TIER", "is_free": True, "vision": True, "video": True, "audio": True, "structured_json": True, "context": "1,048,576 tokens", "rate_limit": "Project RPM/RPD (Free Tier)", "pricing": "Free Tier ($0) · Paid $0.75/$3.75 per 1M", "badge": "Free Tier · Flash", "desc": "Previous-generation Flash model with Free Tier"},
+        {"id": "gemini-3.1-flash-lite", "name": "Gemini 3.1 Flash-Lite", "tier": "FREE TIER", "is_free": True, "vision": True, "video": True, "audio": True, "structured_json": True, "context": "1,048,576 tokens", "rate_limit": "Project RPM/RPD (Free Tier)", "pricing": "Free Tier ($0)", "badge": "Free Tier · Lightweight", "desc": "Cost-efficient multimodal Flash-Lite backup"},
+        {"id": "gemini-flash-lite-latest", "name": "Gemini Flash-Lite Latest", "tier": "FREE TIER", "is_free": True, "vision": True, "video": True, "audio": True, "structured_json": True, "context": "1,048,576 tokens", "rate_limit": "Project RPM/RPD", "pricing": "Free Tier ($0)", "badge": "Rolling Alias · Free", "desc": "Points to newest production Flash-Lite release"},
+        {"id": "gemini-3-flash-preview", "name": "Gemini 3 Flash Preview", "tier": "FREE TIER", "is_free": True, "vision": True, "video": True, "audio": True, "structured_json": True, "context": "1,048,576 tokens", "rate_limit": "Preview RPM/RPD", "pricing": "Free Tier ($0)", "badge": "Free Preview", "desc": "Backup Flash preview model"},
+        {"id": "gemini-4-neon", "name": "Gemini 4 Neon", "tier": "PAID ONLY", "is_free": False, "paid_only": True, "vision": True, "video": True, "audio": True, "structured_json": True, "context": "1,048,576 tokens", "rate_limit": "Paid Tier Only", "pricing": "$3.00/$15.00 per 1M (No Free Tier)", "badge": "Paid Only · Blocked in Free Mode", "desc": "Frontier reasoning model; excluded when Free Mode Only is enabled"},
+        {"id": "gemini-4-carbon", "name": "Gemini 4 Carbon", "tier": "PAID ONLY", "is_free": False, "paid_only": True, "vision": True, "video": True, "audio": True, "structured_json": True, "context": "1,048,576 tokens", "rate_limit": "Paid Tier Only", "pricing": "Paid Tier Only", "badge": "Paid Only · Blocked in Free Mode", "desc": "Strongest reasoning model; requires paid tier"},
+        {"id": "gemini-4-argon", "name": "Gemini 4 Argon", "tier": "PAID ONLY", "is_free": False, "paid_only": True, "vision": True, "video": True, "audio": True, "structured_json": True, "context": "1,048,576 tokens", "rate_limit": "Paid Tier Only", "pricing": "Paid Tier Only", "badge": "Paid Only · Blocked in Free Mode", "desc": "Paid-tier reasoning model; excluded in Free Mode Only"},
     ]
+    results["gemini"] = [m for m in gem_list if m.get("is_free", True)] if free_only() else gem_list
 
     # 2. OpenRouter (dynamic discovery)
     or_models = [
@@ -456,12 +642,16 @@ def remove_key(index: int) -> dict:
     return save(c.get("provider") or "gemini", c.get("models") or ["gemini-3.5-flash-lite"], c.get("base_url") or "", "")
 
 
-def save(provider_id: str, model_ids, address: str = "", new_key=None) -> dict:
+def save(provider_id: str, model_ids, address: str = "", new_key=None, **prefs) -> dict:
     """Save the choice made in the dashboard. `new_key` None keeps the key that is already there (the page never
     has it to send back); an empty string removes it."""
     p = ALIASES.get(str(provider_id or "").strip().lower(), str(provider_id or "").strip().lower())
     if p not in PROVIDERS:
         raise ValueError("Choose one of the AI services in the list.")
+    old_raw = dict(_from_dashboard())
+    eff_free = bool(prefs["free_only"]) if "free_only" in prefs and prefs["free_only"] is not None else free_only()
+    if eff_free and not _using_mock_httpx() and p not in FREE_PROVIDERS:
+        raise ValueError(f"{PROVIDERS[p][0]} is a paid provider and is disabled while Free Mode Only is enabled.")
     if isinstance(model_ids, str):
         model_ids = model_ids.split(",")
     ms = [str(m).strip()[:120] for m in (model_ids or []) if str(m).strip()][:5]
@@ -469,6 +659,10 @@ def save(provider_id: str, model_ids, address: str = "", new_key=None) -> dict:
         raise ValueError("Enter the model to use.")
     if any(not re.fullmatch(r"[\w.\-:/@]+", m) for m in ms):
         raise ValueError("A model id has letters, digits and . - : / only.")
+    if eff_free and not _using_mock_httpx():
+        blocked = [m for m in ms if gemini_client.is_paid_only_model(m)]
+        if blocked:
+            raise ValueError(f"Paid-tier model(s) disabled in Free Mode Only: {', '.join(blocked)}")
     address = str(address or "").strip().rstrip("/")[:300]
     if address and not re.fullmatch(r"https?://[^\s]+", address):
         raise ValueError("The address has to start with http:// or https://")
@@ -489,10 +683,25 @@ def save(provider_id: str, model_ids, address: str = "", new_key=None) -> dict:
         k = ""
     if not k and p not in NO_KEY:
         raise ValueError("Paste the key for this service.")
+    payload = {
+        "provider": p,
+        "models": ms,
+        "base_url": address,
+        "key": k,
+        "free_only": eff_free,
+        "analysis_mode": str(prefs.get("analysis_mode") or old_raw.get("analysis_mode") or "balanced").lower(),
+        "auto_route": bool(prefs["auto_route"]) if "auto_route" in prefs else bool(old_raw.get("auto_route", True)),
+        "daily_budget": max(0, int(prefs["daily_budget"])) if "daily_budget" in prefs and prefs["daily_budget"] is not None else max(0, int(old_raw.get("daily_budget") or 0)),
+        "concurrency": max(1, min(4, int(prefs["concurrency"]))) if "concurrency" in prefs and prefs["concurrency"] is not None else max(1, min(4, int(old_raw.get("concurrency") or 2))),
+        "skip_duplicates": bool(prefs["skip_duplicates"]) if "skip_duplicates" in prefs else bool(old_raw.get("skip_duplicates", True)),
+        "tier_confirmed_at": float(prefs["tier_confirmed_at"]) if "tier_confirmed_at" in prefs and prefs["tier_confirmed_at"] is not None else float(old_raw.get("tier_confirmed_at") or 0.0),
+    }
+    if payload["analysis_mode"] not in ("fast", "balanced", "deep"):
+        payload["analysis_mode"] = "balanced"
     with _lock:
         f = _file()
         tmp = f.with_suffix(".tmp")
-        tmp.write_text(json.dumps({"provider": p, "models": ms, "base_url": address, "key": k}), encoding="utf-8")
+        tmp.write_text(json.dumps(payload), encoding="utf-8")
         try:
             os.chmod(tmp, 0o600)        # the key is only for whoever runs the server
         except OSError:
@@ -501,6 +710,15 @@ def save(provider_id: str, model_ids, address: str = "", new_key=None) -> dict:
         _saved["at"] = None
     clear_problem()
     return public()
+
+
+def update_preferences(**prefs) -> dict:
+    """Update Free Mode Only, analysis mode, budget, concurrency, or tier verification without touching keys."""
+    c = current()
+    ms = list(c.get("models") or [])
+    if prefs.get("free_only", c.get("free_only")) and c["provider"] == "gemini":
+        ms = [m for m in ms if not gemini_client.is_paid_only_model(m)] or list(gemini_client.DEFAULT_FREE_PAIR)
+    return save(c["provider"] or "gemini", ms or list(gemini_client.DEFAULT_FREE_PAIR), c.get("base_url") or "", **prefs)
 
 
 def list_models(provider_id=None, address=None, with_key=None) -> list:
@@ -514,6 +732,12 @@ def list_models(provider_id=None, address=None, with_key=None) -> list:
     if not base:
         raise ValueError("Enter the service's address first.")
     how = PROVIDERS[p][2]
+    if how == "gemini" and gemini_client.SDK_AVAILABLE and not _using_mock_httpx() and k:
+        try:
+            items = gemini_client.discover_models(k, free_only=free_only())
+            return [m["id"] for m in items][:400]
+        except Exception as e:
+            raise AIError(str(e)[:220]) from e
     if how == "gemini":
         r = httpx.get(base, params={"pageSize": 200}, headers={"x-goog-api-key": k}, timeout=20)
     elif how == "anthropic":
@@ -531,6 +755,8 @@ def list_models(provider_id=None, address=None, with_key=None) -> list:
             mid = m.get("name", "").split("/")[-1]
             low_id = mid.lower()
             if mid and low_id != "aqa" and not any(t in low_id for t in ("-tts", "-image", "imagen-", "veo-", "lyria-", "embedding")):
+                if free_only() and not _using_mock_httpx() and gemini_client.is_paid_only_model(mid):
+                    continue
                 found.append(mid)
     else:
         found = [m.get("id", "") for m in data.get("data", []) if isinstance(m, dict)]
@@ -904,37 +1130,68 @@ def _parse(text):
 
 def _is_quota_error(e):
     err_str = str(e).lower()
-    return any(w in err_str for w in ("429", "quota", "resource_exhausted", "rate_limit", "ratelimit", "limit exceeded", "403", "forbidden", "unauthorized"))
+    return any(w in err_str for w in ("429", "quota", "resource_exhausted", "rate_limit", "ratelimit", "limit exceeded"))
+
+
+def _is_model_fallback_error(e):
+    err_str = str(e).lower()
+    return _is_quota_error(e) or any(w in err_str for w in ("503", "unavailable", "high demand", "overload", "404", "not supported", "timed out", "timeout"))
 
 
 def _retry_on_quota(fn, *args, **kwargs):
-    klist = all_keys()
-    attempts = max(1, len(klist))
+    """Respect Google's project-level quotas: NEVER rotate keys to bypass limits.
+    Uses bounded exponential backoff + jitter on transient 429/503 only, letting
+    capability-aware model routing or graceful local fallback take over on daily limits."""
+    max_attempts = 2 if _using_mock_httpx() else 2
     last_err = None
-    for attempt in range(attempts):
+    for attempt in range(max_attempts):
         try:
             return fn(*args, **kwargs)
         except Exception as e:
             last_err = e
-            if _is_quota_error(e) and len(klist) > 1 and attempt < attempts - 1:
-                next_k = rotate_key()
-                print(f"[ai] Quota or rate limit hit on key {attempt+1}/{len(klist)}. Auto-switched to key ...{next_k[-4:]}", flush=True)
+            if _is_quota_error(e) and attempt < max_attempts - 1 and not getattr(e, "daily", False):
+                wait_s = gemini_client.jitter_delay(attempt, base=1.5, cap=12.0, retry_after=getattr(e, "wait", None))
+                if not _using_mock_httpx():
+                    time.sleep(min(wait_s, 6.0))
                 continue
             raise
     raise last_err
 
 
 # ---------------------------------------------------------------- one call
-def call(model: str, prompt: str, schema: dict, timeout: float | None = None):
-    """Ask one model. Returns (the parsed JSON answer, tokens sent, tokens written back).
+def _ensure_free_policy(model: str):
+    if free_only() and not _using_mock_httpx():
+        if provider() not in FREE_PROVIDERS:
+            raise AIError(f"Paid provider '{provider()}' disabled while Free Mode Only is enabled.")
+        if gemini_client.is_paid_only_model(model):
+            raise AIError(f"Paid-only model '{model}' disabled while Free Mode Only is enabled.")
 
-    `timeout` is how long one answer may take. A live stream passes a short one, because a slow
-    answer must not stop the recording."""
+
+def call(model: str, prompt: str, schema: dict, timeout: float | None = None, allow_cache: bool = False):
+    """Ask one model. Returns (the parsed JSON answer, tokens sent, tokens written back)."""
+    _ensure_free_policy(model)
+    _check_daily_budget()
+    ckey = gemini_client.cache_key("call", model, prompt + json.dumps(schema, sort_keys=True)) if allow_cache and not _using_mock_httpx() else None
+    if ckey:
+        cached = gemini_client.get_cached(ckey)
+        if cached is not None:
+            set_last_active_model(model)
+            return cached, 0, 0
     how = PROVIDERS[provider()][2]
     fn = {"gemini": _gemini, "openai": _openai, "anthropic": _anthropic}[how]
-    res = _retry_on_quota(fn, model, prompt, schema, timeout)
-    set_last_active_model(model)
-    return res
+    t0 = time.time()
+    try:
+        res = _retry_on_quota(fn, model, prompt, schema, timeout)
+        _record_telemetry(model, True, int((time.time() - t0) * 1000), res[1], res[2])
+        _bump_daily_budget()
+        set_last_active_model(model)
+        if ckey and res[0]:
+            gemini_client.put_cached(ckey, res[0], {"model": model})
+        return res
+    except Exception as e:
+        wait_s = getattr(e, "wait", 0.0) or (60.0 if _is_quota_error(e) else 0.0)
+        _record_telemetry(model, False, int((time.time() - t0) * 1000), err=str(e), rate_limited_wait=wait_s)
+        raise
 
 
 def see(prompt: str, image: bytes, timeout: float | None = None) -> tuple[str, int, int]:
@@ -945,10 +1202,23 @@ def see(prompt: str, image: bytes, timeout: float | None = None) -> tuple[str, i
 def _see_impl(prompt: str, image: bytes, timeout: float | None = None) -> tuple[str, int, int]:
     if not ready() or not image or not models():
         return "", 0, 0
-    model = models()[0]
-    b64 = base64.b64encode(image).decode()
+    model = (route_models("vision") or models())[0]
+    _ensure_free_policy(model)
+    _check_daily_budget()
     how = PROVIDERS[provider()][2]
     if how == "gemini":
+        if gemini_client.SDK_AVAILABLE and not _using_mock_httpx():
+            t0 = time.time()
+            try:
+                text, sent, wrote = gemini_client.generate_text(key(), model, prompt, [("image/jpeg", image)], timeout=timeout or 60.0)
+                _record_telemetry(model, True, int((time.time() - t0) * 1000), sent, wrote)
+                _bump_daily_budget()
+                set_last_active_model(model)
+                return text, sent, wrote
+            except Exception as e:
+                _record_telemetry(model, False, int((time.time() - t0) * 1000), err=str(e))
+                raise AIError(str(e)[:300], daily=bool(re.search(r"per ?day|daily", str(e), re.I))) from e
+        b64 = base64.b64encode(image).decode()
         body = {"contents": [{"role": "user", "parts": [
             {"text": prompt},
             {"inline_data": {"mimeType": "image/jpeg", "data": b64}}]}]}
@@ -961,6 +1231,7 @@ def _see_impl(prompt: str, image: bytes, timeout: float | None = None) -> tuple[
         u = data.get("usageMetadata", {})
         sent = int(u.get("promptTokenCount") or 0)
         return text, sent, max(0, int(u.get("totalTokenCount") or 0) - sent)
+    b64 = base64.b64encode(image).decode()
     if how == "anthropic":
         body = {"model": model, "max_tokens": 300, "messages": [{"role": "user", "content": [
             {"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": b64}},
@@ -991,21 +1262,102 @@ def _gem(model: str) -> str:
     return model.removeprefix("models/")
 
 
-def see_json(prompt: str, image: bytes | list[bytes], schema: dict | None = None, timeout: float | None = None) -> tuple[dict | list, int, int]:
+def see_media(
+    prompt: str,
+    media_parts: list[tuple[str, bytes]],
+    schema: dict | None = None,
+    timeout: float | None = None,
+    task: str = "deep_review",
+    allow_cache: bool = True,
+) -> tuple[dict | list, int, int, str]:
+    """Capability-aware multimodal call for native video/mp4, audio/*, and/or image/jpeg parts.
+    Deduplicates identical concurrent calls, caches completed results locally, and falls back
+    cleanly across free-tier models on the same project key without paid escalation.
+    Returns (parsed_json, tokens_in, tokens_out, model_used)."""
+    if not ready() or not media_parts:
+        return {}, 0, 0, ""
+    cand_models = route_models(task)
+    ckey = None
+    if allow_cache and not _using_mock_httpx() and cand_models:
+        ckey = gemini_client.cache_key(task, cand_models[0], prompt, media_parts)
+        cached = gemini_client.get_cached(ckey)
+        if cached is not None and isinstance(cached, dict) and "data" in cached:
+            m_cached = str(cached.get("model") or cand_models[0])
+            set_last_active_model(m_cached)
+            return cached["data"], 0, 0, m_cached
+
+    how = PROVIDERS[provider()][2]
+    last_err = None
+    for model in cand_models:
+        _ensure_free_policy(model)
+        _check_daily_budget()
+        t0 = time.time()
+        try:
+            if how == "gemini" and gemini_client.SDK_AVAILABLE and not _using_mock_httpx():
+                out, sent, wrote = _retry_on_quota(
+                    gemini_client.generate_content_json,
+                    key(), model, prompt, schema, media_parts, float(timeout or 45.0), 0.25,
+                )
+                _record_telemetry(model, True, int((time.time() - t0) * 1000), sent, wrote)
+                _bump_daily_budget()
+                set_last_active_model(model)
+                if ckey and out:
+                    gemini_client.put_cached(ckey, {"data": out, "model": model}, {"task": task})
+                return out, sent, wrote, model
+            # Non-Gemini SDK providers only accept images (strip video/audio parts safely).
+            imgs = [blob for mime, blob in media_parts if mime.startswith("image/")]
+            if imgs:
+                out, sent, wrote = see_json(prompt, imgs, schema=schema, timeout=timeout)
+                return out, sent, wrote, model
+        except Exception as e:
+            last_err = e
+            wait_s = 60.0 if _is_quota_error(e) else 0.0
+            _record_telemetry(model, False, int((time.time() - t0) * 1000), err=str(e), rate_limited_wait=wait_s)
+            if _is_model_fallback_error(e):
+                continue
+            raise
+    if last_err:
+        note_problem(last_err)
+        raise AIError(str(last_err)[:300]) from last_err
+    return {}, 0, 0, ""
+
+
+def see_json(prompt: str, image: bytes | list[bytes], schema: dict | None = None, timeout: float | None = None, model: str | None = None) -> tuple[dict | list, int, int]:
     """Ask one multimodal model about one or more video frames and expect a parsed JSON answer.
     Returns (the parsed JSON data, tokens in, tokens out)."""
-    return _retry_on_quota(_see_json_impl, prompt, image, schema, timeout)
+    return _retry_on_quota(_see_json_impl, prompt, image, schema, timeout, model)
 
 
-def _see_json_impl(prompt: str, image: bytes | list[bytes], schema: dict | None = None, timeout: float | None = None) -> tuple[dict | list, int, int]:
+def _see_json_impl(prompt: str, image: bytes | list[bytes], schema: dict | None = None, timeout: float | None = None, model_override: str | None = None) -> tuple[dict | list, int, int]:
     if not ready() or not image or not models():
         return {}, 0, 0
-    model = models()[0]
+    cand = [model_override] if model_override else (route_models("deep_review") or models())
+    model = cand[0]
+    _ensure_free_policy(model)
+    _check_daily_budget()
     img_list = [img for img in (image if isinstance(image, list) else [image]) if img and len(img) > 100]
     if not img_list:
         return {}, 0, 0
     how = PROVIDERS[provider()][2]
     if how == "gemini":
+        if gemini_client.SDK_AVAILABLE and not _using_mock_httpx():
+            media_parts = [("image/jpeg", img) for img in img_list]
+            for m in cand:
+                _ensure_free_policy(m)
+                t0 = time.time()
+                try:
+                    out, sent, wrote = gemini_client.generate_content_json(
+                        key(), m, prompt, schema=schema, media_parts=media_parts, timeout=float(timeout or 40.0), temperature=0.25
+                    )
+                    _record_telemetry(m, True, int((time.time() - t0) * 1000), sent, wrote)
+                    _bump_daily_budget()
+                    set_last_active_model(m)
+                    return out, sent, wrote
+                except Exception as e:
+                    _record_telemetry(m, False, int((time.time() - t0) * 1000), err=str(e), rate_limited_wait=60.0 if _is_quota_error(e) else 0.0)
+                    if m != cand[-1] and (_is_quota_error(e) or "404" in str(e)):
+                        continue
+                    raise AIError(str(e)[:300], daily=bool(re.search(r"per ?day|daily", str(e), re.I))) from e
         gen_cfg = {"temperature": 0.4, "responseMimeType": "application/json"}
         if schema:
             gen_cfg["responseSchema"] = schema
@@ -1059,6 +1411,20 @@ def _see_json_impl(prompt: str, image: bytes | list[bytes], schema: dict | None 
 
 
 def _gemini(model, prompt, schema, timeout=None):
+    _ensure_free_policy(model)
+    if gemini_client.SDK_AVAILABLE and not _using_mock_httpx():
+        try:
+            return gemini_client.generate_content_json(key(), model, prompt, schema=schema, timeout=float(timeout or 60.0), temperature=0.3)
+        except Exception as e:
+            msg = str(e)
+            low = msg.lower()
+            limited = "429" in msg or "503" in msg or "quota" in low or "resource_exhausted" in low
+            if schema and ("400" in msg or "schema" in low or "json mode" in low) and "api key" not in low:
+                try:
+                    return gemini_client.generate_content_json(key(), model, _wrapped(prompt, schema), schema=None, timeout=float(timeout or 60.0), temperature=0.3)
+                except Exception:
+                    pass
+            raise AIError(msg[:300], daily=limited and bool(re.search(r"per ?day|daily", msg, re.I))) from e
     url = f"{base_url()}/{_gem(model)}:generateContent"
     headers = {"x-goog-api-key": key()}
     body = {"contents": [{"role": "user", "parts": [{"text": prompt}]}],

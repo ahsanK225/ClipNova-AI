@@ -1,6 +1,32 @@
 ﻿# Changelog
 All notable project changes are documented here.
 
+## [2026-11-25] — Next-Gen Upgrade: Official `google-genai` SDK, Free-Tier Policy, Two-Pass Multimodal Clipping & Consolidated YouTube Shorts UI
+
+### Added
+- **Official Google Gen AI SDK Client (`PeakCut/studio/gemini_client.py`, `PeakCut/requirements.txt`)**:
+  - Added `google-genai>=3.2.0` (`3.6.1` installed) wrapper using `v1beta` with `OFFICIAL_GEMINI_MODELS`, `PAID_MODEL_PREFIXES`, `DEFAULT_FREE_PAIR = ["gemini-4-hydrogen", "gemini-3.5-flash-lite"]`, live `discover_models()` filtering deprecated/non-text models, `tier_verification_info()` (explicitly `unverified_manual_check_required` until owner checks Google AI Studio), native inline/Files-API `generate_content_json()`, SHA-256 disk result caching (`data/cache/ai/*.json`), and bounded `jitter_delay()`.
+- **Two-Pass Multimodal Clipping Engine (`PeakCut/studio/brain.py`, `studio/media.py`, `studio/live.py`)**:
+  - Pass 1 scans speech, loudness spikes, backward `"clip that"` trigger cues (`_find_trigger_backtrack_windows`), and quiet sampled keyframes (`_find_quiet_visual_candidates` via `media.extract_overview_keyframes`) so silent facecam reactions qualify.
+  - Pass 2 (`_review_candidate_pass2`) reviews candidate `video/mp4` + audio proxies (`media.extract_proxy_clip`) to verify setup -> `payoff_at` -> aftermath, returning weighted scores (`compute_weighted_score`), 1-sentence `reason`, and explicit `analysis_mode` (`multimodal_video_audio`, `frames_and_transcript`, `transcript_only`).
+- **Canonical YouTube URL Deduplication & Job Resume (`PeakCut/studio/media.py`, `studio/jobs.py`, `studio/server.py`)**:
+  - Added `media.youtube_video_id()` and `media.canonical_source_id()` normalizing `watch?v=`, `youtu.be/`, `/shorts/`, and `/live/` into `yt:<id>`, skipping exported clips on re-submit while keeping `status == "error"` clips retryable via `POST /api/jobs/{jid}/resume`.
+- **Single Consolidated `"YouTube Shorts"` Panel & Dark/Light Mode (`PeakCut/web/index.html`)**:
+  - Replaced duplicate Title / `Copy SEO` / competing SEO boxes in `#clipdlg` with `#dlg_youtube_shorts_panel`: synchronized Opening Hook, single Title + `#dlg_title_pills`, separate `Copy Description`, `Copy Description + Hashtags` (deduped), `Copy Hashtags`, `Copy Tags`, `Copy Pinned Comment`, `Copy Community Post` (`[SHORT_URL]` / live Short URL), `seo_stale` trim warning banner, evidence/payoff pills, and ZERO automatic AI calls on open/expand/copy.
+  - Added `<meta name="color-scheme" content="light dark">` + FOUC-prevention script + `#themeToggleBtn` (`🌙 Dark` / `☀️ Light` / `💻 System`) and Settings AI policy panel (`Free Mode Only`, `Analysis Mode`, `Auto-Route`, `Skip Duplicates`, `Clear Cache`, Google AI Studio manual tier verification banner).
+- **Automated Suite (`PeakCut/tests/test_nextgen_upgrade.py`, `PeakCut/tests/run.py`)**:
+  - Added 20 automated checks registered as suite #36 in `tests/run.py` + updated `test_seo_title_suggestions.py`.
+
+### Fixed
+- **Multimodal `503 UNAVAILABLE` Fallback & Empty Cache Guard (`studio/ai.py`)**: Fixed `see_media()` to fall back across verified free models on transient `503 UNAVAILABLE` high-demand errors and prevented caching empty `[]`/`{}` responses. Removed silent 429 key-rotation bypass on project quotas.
+- **`extract_proxy_clip` Missing Import & Pass 1 Dict Unwrapping (`studio/media.py`, `studio/brain.py`)**: Added missing `import os` in `studio/media.py` and unwrapped dict/wrapper responses in `brain.find_clips()` Pass 1.
+- **Backward Compatibility & Theme Contrast (`studio/server.py`, `web/index.html`)**: Guarded direct FastAPI `Body` calls in `clip_write`/`generate_clip_ai_seo`, handled missing optional `seo_title` in `_generate_and_save_package`, fixed `--muted` foreground text contrast (`--dim`) in model cards/topbar, fixed `#clip_filter_bar` Light Mode surface, and ensured inline Short URLs render inside `[data-f="community_text"]`.
+
+### Tests and Verification
+- **Real-Footage End-to-End Benchmark (`20261125-004920-9f2cacd6ac`, `150–310s` slice)**: Two-pass pipeline (`9,105` tokens) eliminated baseline `BeastmodeFishing` hallucination, detected `241.13–283.01s` (`payoff_at=282.5s`, `score=88`, `multimodal_video_audio`), rendered `1080x1920` (`ffprobe` `SyncDiff=21.35ms` `< 40ms`), verified rendered opening/mid/payoff frames, and produced grounded Final-Cut YouTube Shorts package (`[SHORT_URL]`).
+- **Node.js JS Syntax Check**: `web/index.html` inline script passed `node --check` (`exit 0`).
+- **Master & UI Suites**: `tests/run.py` (35/35 suites + NextGen 20 checks) and 6 UI/SEO unittest suites (27/27) verified after final edits.
+
 ## [2026-11-25] — Phase 3 (Growth, Multi-Platform Chat, Delta Sync & Modularity)
 
 ### Added

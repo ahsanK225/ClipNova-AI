@@ -1037,6 +1037,23 @@ def rerender(jid: str, cid: str, body: dict = Body(...)):
     return jobs.public(job)
 
 
+@app.post("/api/jobs/{jid}/resume")
+def resume_job(jid: str, body: dict = Body(default={})):
+    """Resume a paused/errored job from saved progress or retry any failed clip renders without re-scanning everything."""
+    job = _job_or_404(jid)
+    retried_clips = []
+    for c in job.get("clips") or []:
+        if c.get("status") == "error" or (body.get("retry_all_failed") and c.get("status") != "done"):
+            c.update(status="queued", error=None)
+            jobs.save(job)
+            jobs._q.put(("clip", jid, c["id"]))
+            retried_clips.append(c["id"])
+    if not retried_clips and job.get("status") in ("error", "done"):
+        job.update(status="queued", stage="Resuming from saved progress", error=None, resume=True)
+        jobs.enqueue(job)
+    return {"ok": True, "retried_clips": retried_clips, "job": jobs.public(job)}
+
+
 @app.post("/api/jobs/{jid}/clips/{cid}/review")
 def review_clip(jid: str, cid: str, body: dict = Body(...)):
     """Set review feedback rating for a clip (great, good, bad, missed, duplicate, false_reaction)."""
@@ -1164,47 +1181,102 @@ def save_clip_words(jid: str, cid: str, body: dict = Body(...)):
     return {"ok": True, "count": len(saved), "words": saved}
 
 
+def _generate_and_save_package(job: dict, clip: dict, model: str | None = None, tone: str | None = None,
+                               regenerate_fields: list[str] | None = None) -> dict:
+    """Single centralized Shorts package generator grounded on exact final cut video/audio + cut transcript."""
+    d = Path(job["dir"])
+    clip_text = jobs.spoken_in(job, clip)
+    streamer_name = job.get("creator") or job.get("uploader") or ""
+    if not streamer_name or str(streamer_name).lower() in ("streamer", "none", ""):
+        t = job.get("title", "")
+        for known in ("ishowspeed", "speed", "ohnepixel", "kai cenat", "jynxzi", "sketch", "xqc", "adin ross", "gameranx"):
+            if known in t.lower():
+                streamer_name = "IShowSpeed" if known in ("ishowspeed", "speed") else known.title()
+                break
+    mparts = jobs.get_clip_media_payload(job, clip, include_video_proxy=True)
+    cr = creators.get(job["creator"]) if job.get("creator") else None
+    lang_set = (job.get("options") or {}).get("lang") or (cr or {}).get("lang") or "en"
+    edited_map = {k: clip[k] for k in (clip.get("edited_fields") or []) if k in clip}
+    pkg = brain.generate_final_cut_package(
+        mparts,
+        transcript_text=clip_text,
+        duration=max(1.0, float(clip.get("end", 0.0)) - float(clip.get("start", 0.0))),
+        title=job.get("title") or clip.get("title") or "",
+        uploader=streamer_name,
+        game=job.get("game") or None,
+        lang=lang_set,
+        short_url=jobs._published_short_url(clip),
+        preserve_fields=edited_map,
+        regenerate_fields=regenerate_fields,
+        tone=tone,
+    )
+    cur_span = [round(float(clip.get("start", 0.0)), 2), round(float(clip.get("end", 0.0)), 2)]
+    raw_ht = pkg.get("hashtags", clip.get("hashtags") or [])
+    deduped_ht = jobs.clean_hashtags(raw_ht)
+    title_val = pkg.get("title") or clip.get("title") or ""
+    seo_title_val = pkg.get("seo_title") or title_val
+    comm_val = pkg.get("community_text") or pkg.get("community_post") or clip.get("community_text") or ""
+    updates = {
+        "hook": pkg.get("hook", clip.get("hook") or ""),
+        "hooks": pkg.get("hooks", clip.get("hooks") or []),
+        "title": title_val,
+        "seo_title": seo_title_val,
+        "titles": pkg.get("titles", clip.get("titles") or []),
+        "description": pkg.get("description", clip.get("description") or ""),
+        "hashtags": deduped_ht,
+        "seo_tags": pkg.get("seo_tags", clip.get("seo_tags") or []),
+        "pinned_comment": pkg.get("pinned_comment", clip.get("pinned_comment") or ""),
+        "community_text": comm_val,
+        "analysis_mode": pkg.get("analysis_mode") or clip.get("analysis_mode") or ("multimodal_video_audio" if mparts else "transcript_only"),
+        "analysis_model": pkg.get("analysis_model") or clip.get("analysis_model") or "",
+        "seo_for": cur_span,
+        "seo_stale": False,
+    }
+    if not regenerate_fields:
+        for ek, ev in edited_map.items():
+            if ek in updates and ev not in (None, "", []):
+                updates[ek] = ev
+    clip.update(updates)
+    clip.pop("seo_stale_reason", None)
+    clip.pop("needs_ai_seo", None)
+    if pkg.get("reason"):
+        clip["reason"] = pkg["reason"]
+    jobs.save(job)
+    clip_json = d / "clips" / f"{clip['id']}.json"
+    if clip_json.is_file():
+        try:
+            prev = safe.load_json_with_backup(clip_json, default={}) or {}
+            safe.atomic_write_text(clip_json, json.dumps({
+                **prev,
+                "hook": clip["hook"], "hooks": clip["hooks"],
+                "title": clip["title"], "seo_title": clip["seo_title"], "titles": clip["titles"],
+                "description": clip["description"], "hashtags": clip["hashtags"],
+                "seo_tags": clip["seo_tags"], "pinned_comment": clip["pinned_comment"],
+                "community_text": clip["community_text"], "analysis_mode": clip["analysis_mode"],
+                "seo_stale": False,
+            }, indent=1), backup=True)
+        except Exception:
+            pass
+    return {"ok": True, "clip": clip, **{k: clip.get(k) for k in ("hook", "hooks", "title", "titles", "description", "hashtags", "seo_title", "seo_tags", "pinned_comment", "community_text", "analysis_mode", "analysis_model", "seo_stale")}}
+
+
 @app.post("/api/jobs/{jid}/clips/{cid}/write")
-def clip_write(jid: str, cid: str):
-    """Ask the AI for a new visually-grounded title, description and hashtags for one clip."""
+def clip_write(jid: str, cid: str, body: dict = Body(default={})):
+    """Preview-mode post text writer (preserves unsaved-until-saved contract; UI uses /package)."""
     job, clip = _clip_or_404(jid, cid)
     _throttle("clipwrite:" + ctx.uid(), 20, 600, "That's a lot of rewrites in a short time. Wait a few minutes.")
     usage.set_context(job.get("creator"), job.get("title") or "")
     try:
-        text = jobs.spoken_in(job, clip)
+        said = jobs.spoken_in(job, clip)
         title = job.get("title") or clip.get("title") or ""
-        uploader = job.get("uploader") or job.get("creator") or ""
         game = job.get("game") or None
-        frames = jobs.get_clip_frames_payload(job, clip, n_frames=6)
-        meta = None
-        if frames and ai.ready():
-            try:
-                meta = brain.describe_multimodal(frames, text=text, title=title, uploader=uploader, game=game)
-            except Exception as e:
-                print(f"[clip_write] Multimodal describe notice: {e}", flush=True)
-        if meta and meta.get("title"):
-            res = {
-                "title": meta["title"],
-                "titles": meta.get("titles", []),
-                "description": meta["description"],
-                "hashtags": meta.get("hashtags", []),
-                "seo_title": meta.get("seo_title", meta["title"]),
-                "seo_tags": meta.get("seo_tags", []),
-                "pinned_comment": meta.get("pinned_comment", ""),
-                "hook": meta.get("hook"),
-                "hooks": meta.get("hooks", [])
-            }
-        else:
-            res = brain.post_text(text, title, uploader, game=game)
-        if isinstance(res, dict):
-            if res.get("titles"):
-                clip["titles"] = res["titles"]
-            if res.get("hooks"):
-                clip["hooks"] = res["hooks"]
-            if res.get("hook"):
-                clip["hook"] = res["hook"]
-            jobs.save(job)
-        return res
+        res = brain.post_text(said, title=title, game=game)
+        t_val = res.get("title") or title or "Clip"
+        seo_t = t_val if "#shorts" in t_val.lower() else f"{t_val} #Shorts"
+        titles = [t_val]
+        if seo_t not in titles:
+            titles.append(seo_t)
+        return {**res, "seo_title": seo_t, "titles": titles}
     except ValueError as e:
         raise HTTPException(400, str(e))
     except RuntimeError as e:
@@ -1571,93 +1643,23 @@ def studio_export_clip(jid: str, cid: str, body: dict = Body(default={})):
     }
 
 
+@app.post("/api/jobs/{jid}/clips/{cid}/package")
 @app.post("/api/jobs/{jid}/clips/{cid}/ai_seo")
 def generate_clip_ai_seo(jid: str, cid: str, body: dict = Body(default={})):
+    """Single consolidated final-cut YouTube Shorts SEO & Hook package endpoint."""
     job, clip = _clip_or_404(jid, cid)
-    model = body.get("model")
-    tone = body.get("tone")
-    d = Path(job["dir"])
-    frame_payload = jobs.get_clip_frames_payload(job, clip, n_frames=6)
-
-    words_file = d / "words.json"
-    words = []
-    if words_file.is_file():
-        try:
-            words = json.loads(words_file.read_text(encoding="utf-8"))
-        except Exception:
-            pass
-    if not words:
-        words = job.get("words", [])
-    clip_text = " ".join(w.get("w", "") for w in words if clip["start"] <= w.get("s", 0) <= clip["end"])
-
-    streamer_name = job.get("creator") or job.get("uploader") or ""
-    if not streamer_name or str(streamer_name).lower() in ("streamer", "none", ""):
-        t = job.get("title", "")
-        for known in ("ishowspeed", "speed", "ohnepixel", "kai cenat", "jynxzi", "sketch", "xqc", "adin ross", "gameranx"):
-            if known in t.lower():
-                streamer_name = "IShowSpeed" if known in ("ishowspeed", "speed") else known.title()
-                break
-
-    meta = None
+    _throttle("clipseo:" + ctx.uid(), 25, 600, "Wait a moment before regenerating another Shorts package.")
+    usage.set_context(job.get("creator"), job.get("title") or "")
+    b = body if isinstance(body, dict) else {}
     try:
-        meta = brain.describe_multimodal(frame_payload, text=clip_text, title=job.get("title", ""),
-                                         uploader=streamer_name, game=job.get("game"), model=model, tone=tone)
+        return _generate_and_save_package(
+            job, clip,
+            model=b.get("model"),
+            tone=b.get("tone"),
+            regenerate_fields=b.get("regenerate_fields"),
+        )
     except Exception as e:
-        print(f"[ai_seo] Multimodal scan failed ({e}), falling back to text brain.describe", flush=True)
-    if not meta or not meta.get("hook"):
-        try:
-            meta = brain.describe(clip_text or job.get("title", ""), title=job.get("title", ""),
-                                  uploader=streamer_name, game=job.get("game"))
-        except Exception:
-            pass
-    if not meta or not meta.get("hook"):
-        raise HTTPException(500, "Could not generate AI SEO for this clip. Check your AI API key in Settings.")
-    titles = meta.get("titles") or []
-    if not titles or len(titles) < 3:
-        try:
-            titles = brain.generate_viral_titles(clip_text or job.get("title", ""),
-                                                 title=job.get("title", ""),
-                                                 uploader=streamer_name,
-                                                 game=job.get("game"),
-                                                 count=4)
-        except Exception:
-            titles = [meta["title"]]
-    meta["titles"] = titles
-    clip.update({
-        "hook": meta["hook"],
-        "hooks": meta.get("hooks", []),
-        "title": meta["title"],
-        "titles": meta.get("titles", []),
-        "description": meta["description"],
-        "hashtags": meta.get("hashtags", []),
-        "seo_title": meta.get("seo_title", meta["title"]),
-        "seo_tags": meta.get("seo_tags", []),
-        "pinned_comment": meta.get("pinned_comment", ""),
-    })
-    jobs.save(job)
-    clip_json = d / "clips" / f"{cid}.json"
-    if clip_json.is_file():
-        try:
-            pj = json.loads(clip_json.read_text(encoding="utf-8"))
-            pj.update({
-                "hook": meta["hook"],
-                "hooks": meta.get("hooks", []),
-                "title": meta["title"],
-                "titles": meta.get("titles", []),
-                "description": meta["description"],
-                "hashtags": meta.get("hashtags", []),
-                "seo_title": meta.get("seo_title", meta["title"]),
-                "seo_tags": meta.get("seo_tags", []),
-                "pinned_comment": meta.get("pinned_comment", ""),
-            })
-            clip_json.write_text(json.dumps(pj, indent=1), encoding="utf-8")
-        except Exception:
-            pass
-    return {"ok": True, "clip": clip, "hook": clip["hook"], "hooks": clip.get("hooks", []),
-            "title": clip["title"], "titles": clip.get("titles", []),
-            "description": clip["description"],
-            "hashtags": clip.get("hashtags", []),
-            "seo_title": clip["seo_title"], "seo_tags": clip["seo_tags"], "pinned_comment": clip["pinned_comment"]}
+        raise HTTPException(500, f"Could not generate AI SEO for this clip: {e}")
 
 
 @app.delete("/api/jobs/{jid}")
@@ -2456,6 +2458,51 @@ def ai_test(request: Request):
         raise HTTPException(400, str(e))
     except Exception as e:  # noqa: BLE001
         raise HTTPException(502, ai.explain(e) or "The AI did not answer: " + _ai_error(e))
+
+
+@app.post("/api/ai/preferences")
+def ai_preferences(request: Request, body: dict = Body(default={})):
+    _admin(request)
+    allowed = {}
+    for k in ("free_only", "auto_route", "skip_duplicates"):
+        if k in body:
+            allowed[k] = bool(body[k])
+    if "analysis_mode" in body:
+        allowed["analysis_mode"] = str(body["analysis_mode"]).strip().lower()
+    for k in ("daily_budget", "concurrency"):
+        if k in body and body[k] is not None:
+            allowed[k] = int(body[k])
+    if body.get("confirm_free_tier"):
+        allowed["tier_confirmed_at"] = time.time()
+    elif body.get("confirm_free_tier") is False:
+        allowed["tier_confirmed_at"] = 0.0
+    try:
+        out = ai.update_preferences(**allowed)
+        usage.forget_all()
+        ctx.bump()
+        return out
+    except (ValueError, TypeError) as e:
+        raise HTTPException(400, str(e))
+
+
+@app.get("/api/ai/tier-status")
+def ai_tier_status(request: Request):
+    _admin(request)
+    from . import gemini_client
+    c = ai.current()
+    return {
+        "free_only": c["free_only"],
+        "tier_verification": gemini_client.tier_verification_info(c.get("tier_confirmed_at")),
+        "models": c["models"],
+    }
+
+
+@app.post("/api/ai/cache/clear")
+def ai_clear_cache(request: Request):
+    _admin(request)
+    from . import gemini_client
+    removed = gemini_client.clear_cache()
+    return {"ok": True, "removed": removed}
 
 
 # ---------------------------------------------------------------- speech models, one per spoken language

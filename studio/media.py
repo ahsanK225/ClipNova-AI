@@ -1,6 +1,7 @@
 """Getting video in: link download, probing, audio extraction, loudness."""
 import contextlib
 import json
+import os
 import re
 import subprocess
 import time
@@ -82,6 +83,51 @@ def is_youtube(url: str) -> bool:
     from urllib.parse import urlparse
     host = (urlparse((url or "").strip()).hostname or "").lower()
     return host in ("youtube.com", "youtu.be") or host.endswith((".youtube.com", ".youtu.be"))
+
+
+_YT_ID_RE = re.compile(r"^[A-Za-z0-9_-]{11}$")
+
+
+def youtube_video_id(url: str) -> str:
+    """Extract canonical 11-character YouTube video ID from watch, youtu.be, shorts, live, or embed URLs."""
+    from urllib.parse import parse_qs, urlparse
+    raw = (url or "").strip()
+    if not raw or not is_youtube(raw):
+        return ""
+    u = urlparse(raw)
+    host = (u.hostname or "").lower()
+    path = (u.path or "").strip("/")
+    if host.endswith("youtu.be"):
+        seg = path.split("/", 1)[0]
+        return seg if _YT_ID_RE.match(seg) else ""
+    qs = parse_qs(u.query or "")
+    v = (qs.get("v") or [""])[0].strip()
+    if _YT_ID_RE.match(v):
+        return v
+    parts = [p for p in path.split("/") if p]
+    if len(parts) >= 2 and parts[0] in ("shorts", "live", "embed", "v"):
+        cand = parts[1].strip()
+        if _YT_ID_RE.match(cand):
+            return cand
+    return ""
+
+
+def canonical_source_id(url: str = "", name: str = "", file_hash: str = "") -> str:
+    """Stable identifier for duplicate source detection across equivalent links or uploaded files."""
+    vid = youtube_video_id(url)
+    if vid:
+        return f"yt:{vid}"
+    raw_u = (url or "").strip()
+    if raw_u:
+        from urllib.parse import urlparse
+        u = urlparse(raw_u)
+        host = (u.hostname or "").lower().removeprefix("www.").removeprefix("m.")
+        path = (u.path or "").rstrip("/").lower()
+        return f"url:{host}{path}"
+    if file_hash:
+        return f"hash:{file_hash.strip().lower()}"
+    cleaned = re.sub(r"\s+", " ", (name or "").strip().lower())
+    return f"file:{cleaned}" if cleaned else ""
 
 
 def youtube_paused() -> bool:
@@ -417,4 +463,59 @@ def loudness_per_second(audio: np.ndarray) -> np.ndarray:
         b = min(n, a + LOUDNESS_PIECE)
         x = audio[a * 16000: b * 16000].reshape(b - a, 16000).astype(np.float32) / 32768.0
         out[a:b] = 20 * np.log10(np.sqrt((x ** 2).mean(axis=1) + 1e-10))
+    return out
+
+
+def extract_proxy_clip(src: Path, start: float, end: float, max_height: int = 360, fps: int = 2, max_bytes: int = 12 * 1024 * 1024) -> bytes | None:
+    """Build a compact MP4 proxy (video + audio) for a window so multimodal models can watch AND hear it."""
+    import tempfile
+    src_p = Path(src)
+    if not src_p.is_file():
+        return None
+    dur = max(1.0, min(180.0, float(end) - float(start)))
+    s = max(0.0, float(start))
+    tmp = Path(tempfile.gettempdir()) / f"pk_proxy_{os.getpid()}_{int(time.time()*1000)}.mp4"
+    try:
+        cmd = [
+            "ffmpeg", "-y", "-v", "error", "-ss", f"{s:.2f}", "-t", f"{dur:.2f}", "-i", str(src_p),
+            "-vf", f"scale=-2:min({int(max_height)}\\,ih),fps={max(1, int(fps))}",
+            "-c:v", "libx264", "-preset", "ultrafast", "-crf", "32", "-pix_fmt", "yuv420p",
+            "-c:a", "aac", "-ac", "1", "-ar", "16000", "-b:a", "48k",
+            "-movflags", "+faststart", str(tmp),
+        ]
+        subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, creationflags=NO_WINDOW, timeout=25)
+        if not tmp.is_file():
+            return None
+        sz = tmp.stat().st_size
+        if 1024 < sz <= max_bytes:
+            return tmp.read_bytes()
+    except Exception:
+        return None
+    finally:
+        try:
+            tmp.unlink(missing_ok=True)
+        except OSError:
+            pass
+    return None
+
+
+def extract_overview_keyframes(src: Path, start: float, end: float, count: int = 10) -> list[tuple[float, bytes]]:
+    """Sample evenly spaced timestamped JPEG frames across [start, end], including quiet sections."""
+    src_p = Path(src)
+    if not src_p.is_file() or end <= start or count < 1:
+        return []
+    span = float(end) - float(start)
+    out: list[tuple[float, bytes]] = []
+    for i in range(count):
+        t = float(start) + span * ((i + 0.5) / count)
+        try:
+            cmd = [
+                "ffmpeg", "-y", "-v", "error", "-ss", f"{max(0.0, t):.2f}", "-i", str(src_p),
+                "-frames:v", "1", "-vf", "scale=640:-2", "-q:v", "5", "-f", "image2", "-c:v", "mjpeg", "pipe:1",
+            ]
+            res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, creationflags=NO_WINDOW, timeout=6)
+            if res.returncode == 0 and len(res.stdout) > 800:
+                out.append((round(t, 2), res.stdout))
+        except Exception:
+            continue
     return out
