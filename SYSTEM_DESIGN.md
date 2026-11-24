@@ -75,25 +75,15 @@ flowchart TD
      - Backend `/media/{jid}/thumb.jpg` route automatically returns the first available clip thumbnail if the stream cover was not downloaded directly.
      - Zero-clip placeholder is upgraded from a link icon to a modern cyber-dark stream badge (`🔴 LIVE STREAM` or `🎬 VIDEO`).
 
-### 3.3 YouTube Hourly Views Velocity Tracker (Option A) & Hybrid Algorithm Priming Engine
-- **Business & Algorithmic Problem**:
-  - Publishing clips at arbitrary times fails to capture peak audience activity, resulting in missed algorithmic momentum in the YouTube Shorts feed.
-  - YouTube Analytics API does not expose hourly dimensions directly; however, creators need upload scheduling synchronized to when their audience actually watches videos.
-- **Solution & Technical Design**:
-  1. **Autonomous Hourly Views Delta Tracker (`studio/analytics.py`)**:
-     - Periodically queries YouTube Data API v3 (`videos.list(part="statistics,snippet")`) using creator's connected channel OAuth credentials.
-     - Calculates differential view gains $\Delta V_t = \sum \max(0, \text{views}_t(v) - \text{views}_{t-1}(v))$ between consecutive hourly snapshots.
-     - Attributes views velocity to 24 hourly buckets across Pakistan Standard Time (PKT, UTC+5).
-  2. **Peak Discovery with Non-Maximum Suppression**:
-     - Identifies top 3 velocity peaks while enforcing a minimum spacing constraint ($\ge 4.5-5.0$ hours) on the circular 24-hour clock.
-     - Enforces the strict 3 videos per day ceiling to protect channel authority and avoid viewer fatigue.
-  3. **Hybrid Algorithm Priming**:
-     - YouTube's Shorts recommendation algorithm requires 60–120 minutes (default 90m / 1.5h) to index speech transcripts, assess visual features, evaluate audio fingerprint, and seed early impressions in test buckets.
-     - Upload slots are primed at $\text{Slot} = \text{Peak} - \text{Offset}$, ensuring the Short achieves maximal recommendation momentum precisely as audience traffic peaks.
-  4. **Dynamic Calendar Integration & UI**:
-     - `studio/calendar.py` dynamically queries the creator's analytics profile to calculate primed slot timestamps.
-     - Each slot displays rich metadata: `is_analytics_driven`, `peak_target_pkt`, and `priming_note` (`⚡ Primed 90m before audience peak`).
-     - `web/index.html` renders a 24-hour velocity histogram modeled after YouTube Studio 48-hour views analytics, complete with glowing peak indicators, 1-click mode switchers (`⚡ Auto (Analytics)` vs `🇺🇸 USA Standard`), and live sync triggers.
+### 3.3 Dialogue-Grounded Custom Viral Hooks & Multi-Threaded Batch Re-Render
+- **Problem**:
+  - Generic template fallback scripts produced repetitive, ungrounded hooks (e.g., `SPEED MADE THE NPC CRY 😭` burned into OhnePixel clips).
+  - Rapid metadata saves (`💾 Save SEO & Title (Instant - No Re-render)`) modified database/JSON records in `< 5ms` but deliberately bypassed FFmpeg encoding, leaving old burned-in ASS text on MP4 video frames and cover thumbnails.
+- **Solution & Architecture**:
+  1. **Acoustic & Spoken Dialogue Extraction**: `scratch/extract_clip_dialogue.py` processes Whisper `words.json` files for all clips, extracting exact dialogue sequences, speech timestamps, and gameplay moments.
+  2. **Narrative Grounding**: Unique, story-grounded hooks are generated per clip with Canary Yellow punch emphasis asterisks (`*WORD*`), high-CTR titles with `#Shorts`, rich descriptions, targeted search tags, and engagement-generating pinned comments.
+  3. **Multi-Threaded Parallel Re-Render**: `scratch/apply_custom_expert_seo.py` updates metadata across `job.json` and sidecar files `clips/{cid}.json`, then spawns parallel FFmpeg workers to re-burn ASS subtitle banners and regenerate fresh `.jpg` cover thumbnails.
+  4. **YouTube Custom Thumbnail Sync**: Because YouTube forbids replacing existing uploaded video streams without re-uploading, users can upload the freshly regenerated `clip005.jpg` as a Custom Thumbnail directly in YouTube Studio without re-uploading the video.
 
 ---
 
@@ -134,11 +124,6 @@ flowchart TD
      - Top Facecam (1080x640): Fills edge-to-edge horizontally at y=0. Streamer is fully visible with natural proportions and zero voids.
      - Bottom Gameplay (1080x1280): Massive game area with subtitle-safe zoom-out framing (`crop=min(in_w\,1040):in_h:(in_w-min(in_w\,1040))/2:0`). In-game dialogue subtitles fit screen boundaries without edge clipping, while keeping streamer borders/overlays cleanly cropped out.
      - Broadcast divider: 6px dark bar + 2px glowing cyan line (`color=0x00F0FF@0.9`). Hook banner positioned at y=690.
-   - **Single-Hook Display & Duplicate Overlay Suppression Contract**:
-     - When a clip has finished rendering (`c.status === "done"`), the hook banner is permanently burned into the MP4 video by FFmpeg.
-     - The HTML DOM preview overlay (`#dlg_hook_live_overlay`) detects if the clip is already rendered and current input matches `c.rendered_hook` and `c.rendered_hook_style`.
-     - When matched, the overlay is hidden (`display: none; dataset.previewActive = "false"`), preventing duplicate hook banners from appearing simultaneously on the player.
-     - When the user modifies the hook or selects a different pill, the overlay activates as a live preview at the exact layout-calculated height (`calcDlgHookTopPos`).
 
 ## 8. Speech Trigger Recognition Engine ("Always clip the last 30 seconds when someone says")
 The live speech trigger engine (`studio/live.py:Session._triggers`) continuously monitors real-time streaming transcripts and queues a 30-second highlight immediately when a trigger phrase is detected, bypassing AI score thresholds:
@@ -160,10 +145,6 @@ Integrated directly in `studio/brain.py` and `studio/posting.py`:
   - Allows creators to re-scan any clip's visual frame with AI via `POST /api/jobs/{jid}/clips/{cid}/ai_seo`.
   - Instantly populates and refreshes Hook, Title, Description, YouTube search tags, and Pinned comment in the editor dialog.
   - Re-burning the hook is executed seamlessly via "Save and re-make clip".
-- **On-Demand AI Viral Hooks Button & Auto-Apply Pipeline (`server.py`, `brain.py`, `web/index.html`)**:
-  - Clicking `✨ AI Viral Hooks` (`#btn_ai_hooks`) invokes `window.generateAiViralHooks(this)` with `event.preventDefault(); event.stopPropagation();`, preventing accordion toggle while guaranteeing immediate execution.
-  - Submits 6 extracted video frames to Gemini Vision (`ai.see_json`) across 6 viral angles (Reaction/Disbelief, Shock/Unexpected, Curiosity gap, Relatable fail/troll, Dramatic climax, Urgent question/challenge).
-  - Automatically assigns the top hook to `clip["hook"] = hooks[0]`, refreshes `#dlg_hook_pills` with 6 interactive pills, applies glowing cyan `.active-hook` highlight, updates the input box, and live-animates the hook preview over the video stage.
 - **Multi-Title AI Suggestions & Interactive Clickable Pills (`brain.py`, `server.py`, `web/index.html`)**:
   - AI generates 4 distinct, high-CTR YouTube Shorts titles ending with `#Shorts` and fitting emojis via `generate_viral_titles()`.
   - In `#clipdlg`, both `Title (with Viral Hashtags)` and `Shorts Title (High-CTR with #Shorts)` feature `#dlg_title_pills` and `#dlg_seo_title_pills` containers displaying clickable title suggestion pills (`💡 Title #1`, `💡 Title #2`, `💡 Title #3`, `💡 Title #4`).
@@ -230,20 +211,11 @@ Integrated directly in `studio/brain.py` and `studio/posting.py`:
 
 ---
 
-## 10. Universal Multilingual Trigger Recognition Engine & Pure AI Mode
-1. **Trigger Phrase Persistence & Deletion Support**:
+## 10. Universal Multilingual Trigger Recognition Engine
+1. **Trigger Phrase Persistence**:
    - Master list (`MASTER_TRIGGER_WORDS`) contains exhaustive variants across English, Roman Urdu, and Hindi.
    - Extended validation limit to 5000 characters to prevent tag truncation.
-   - Inherited by new creators as initial defaults, but fully user-editable: users can delete keywords, define concise custom phrases (< 30 characters), or clear the entire field.
-   - Explicit empty string `""` is preserved across in-memory cache and disk storage without forced resurrection.
-2. **Pure AI Clipping Mode (Zero Trigger Keywords)**:
-   - When `trigger_words` is empty, `live.py` completely bypasses both built-in `CLIP_WORDS` and custom keyword checks.
-   - Auto-clipping operates in pure AI mode driven by audio loudness bursts, chat velocity spikes, scheduled intervals, and Gemini multimodal visual/transcript verification.
-   - Setup UI features 1-click `Clear for <Creator> (Pure AI)` and `Restore Defaults for <Creator>` buttons.
-3. **Strict Creator-Scoped Isolation**:
-   - Trigger keywords are strictly isolated per creator: stored independently in `users/<uid>/creators/<cid>/creator.json`.
-   - Modifying or clearing trigger words for one creator (e.g. enabling Pure AI mode for `ohnepixel`) strictly touches only that creator's record. Other creators (`ishowspeed`, `xqc`, `ducky-reloaded`, `mrbeast`) remain completely unaffected with their full default or custom trigger words intact.
-   - Frontend setup UI renders creator-specific labels (`Always clip the last 30 seconds when someone says on <Creator>'s stream:`), a dedicated `👤 Isolated to <Creator>` badge, explanatory context, and creator-named action buttons (`🗑️ Clear for <Creator> (Pure AI)` and `🔄 Restore Defaults for <Creator>`).
+   - Inherited by all new creators and persisted across sessions.
 
 ---
 
@@ -257,11 +229,6 @@ Integrated directly in `studio/brain.py` and `studio/posting.py`:
 2. **Streamer Overlay & Subscriber Count Bar Auto-Purge (`render.py`)**:
    - Webcam bounding box is cleanly purged of bottom overlays: bottom 12% (`fh_clean = max(10, int(fh * 0.88))`) is trimmed away in `split` and `split_half` layouts.
    - Slices away ugly half-cut live subscriber counts, ticker bars, and broadcaster desk borders while top-anchoring the streamer's face, hair, and shoulders with full visual clarity.
-3. **Remote YouTube Video Deletion & Post View Counts Pipeline (`accounts.py`, `posting.py`, `server.py`)**:
-   - `accounts.youtube_delete(acc, video_id)` invokes `DELETE https://www.googleapis.com/youtube/v3/videos?id={video_id}` via YouTube Data API v3.
-   - When canceling an uploaded or cloud-scheduled video, `posting.cancel()` and `posting.delete_post()` delete the video directly from the user's YouTube channel and cancel associated paired community posts without throwing `Only posts that are still waiting can be cancelled`.
-   - Calendar queue cards display real-time view counts (`👁️ <N> views`), `✓ On YouTube` badges, and an interactive `🗑️ Delete from YouTube` button with a confirmation modal.
-   - Creator Setup (`#cform`) is kept clean of calendar cards, while the dedicated Publishing Calendar tab manages all scheduling, view sync, and remote deletion workflows.
 
 ---
 
@@ -473,16 +440,7 @@ Integrated directly in `studio/brain.py` and `studio/posting.py`:
    - `render._render_in` loops the background track infinitely using `-stream_loop -1 -i <bgm_path>`.
    - Mixes background audio into the master output using:
      `[bgm:a]volume={bgm_volume}[bgma];[main_audio][bgma]amix=inputs=2:duration=first:dropout_transition=2,loudnorm=I=-14:TP=-1.5:LRA=11[a]`
-   - `duration=first` guarantees the output audio ends exactly when the video clip ends, while `loudnorm` standardizes broadcast loudness.
-4. **Interactive Sound Trim & Start Position Pipeline (`studio/render.py`, `studio/jobs.py`, `web/index.html`)**:
-   - **Range Scrubber (`#dlg_bgm_offset_slider`)**: When any background track or user upload is selected, creators can scrub an interactive offset slider (0.0s up to track length) to pick the exact starting segment (e.g. at 0:15 beat drop).
-   - **Live In-Browser Audition**: Moving the scrubber immediately updates the audio element playhead. During video preview playback, audio locks to `((v.currentTime + offset) % duration)`.
-   - **Quick Jump Buttons**: One-click jump buttons (`0:00 (Start)`, `+10s`, `⚡ 0:15 (Drop)`, `+30s`, `🎧 Listen from here`) allow creators to lock viral moments in seconds.
-   - **FFmpeg Seek Integration**: When remaking the clip, `-ss <bgm_offset>` is passed directly before `-i <bgm_path>` alongside `asetpts=PTS-STARTPTS`, ensuring the rendered MP4 begins at the exact audio cue.
-
----
-
-## 26. Stream Card Live Chat Elevation, Compact Stats Bar & Polling Scroll Auto-Stick/Preservation
+   - `duration=first` guarantees the output audio ends exactly when the video clip ends, while `loudnorm` standardizes broadcast loudness.## 26. Stream Card Live Chat Elevation, Compact Stats Bar & Polling Scroll Auto-Stick/Preservation
 1. **Stream Card Live Chat Elevation (`web/index.html`)**:
    - Live Twitch/YouTube chat is rendered directly inside the top stream card's right-hand panel (`.stream .sinfo`), directly beside the live stream video player.
    - Embeds a sleek 180–240px tall scroll container (`#stream_live_chat_list`) featuring colored username badges, message text, live channel badge (`#channel`), and 1-click `Popout ↗` window link.
@@ -518,229 +476,3 @@ Integrated directly in `studio/brain.py` and `studio/posting.py`:
 4. **Clean Single-Line Header**:
    - Header is formatted as a single crisp line: <span>🧠</span> Latest AI Decisions accompanied by a subtle ● LIVE MONITOR cyan pill.
    - Avoids text wrapping onto two lines by keeping the authoritative model name in the stats bar above (Active AI Model: gemini-3.5-flash-lite).
-
----
-
-## 28. Automatic USA-Focused Publishing Calendar & Paired Community Post (+30m) Engine
-1. **Core Scheduling Rules & Hierarchy**:
-   - **Priority 1: Maximum 3 Videos per PKT Calendar Day**: A strict daily ceiling of 3 video publications per PKT calendar day cycle. If 3 videos are already scheduled or slots have passed, subsequent clips automatically roll forward to tomorrow and future days without manual date selection.
-   - **Priority 2: Minimum 5–6 Hour Spacing**: Never schedules two videos close together; maintains at least 5-6 hours between consecutive publications (default slots are 6h and 12h apart).
-   - **Priority 3: USA-Optimized Publishing Windows (PKT / UTC+5)**:
-     - **Slot 1: 6:00 PM PKT** (08:00 AM US Eastern / 05:00 AM US Pacific)
-     - **Slot 2: 12:00 AM PKT** (02:00 PM US Eastern / 11:00 AM US Pacific)
-     - **Slot 3: 06:00 AM PKT** (08:00 PM US Eastern / 05:00 PM US Pacific)
-     - Preferred slot order: `6:00 PM -> 12:00 AM -> 6:00 AM`.
-   - **Priority 4: Automatic Multi-Day Rolling Queue**: When $N$ videos are ready (e.g. 8 videos scenario), slots are filled sequentially across days:
-     - Day 1: Video 1 (6:00 PM), Video 2 (12:00 AM), Video 3 (6:00 AM)
-     - Day 2: Video 4 (6:00 PM), Video 5 (12:00 AM), Video 6 (6:00 AM)
-     - Day 3: Video 7 (6:00 PM), Video 8 (12:00 AM)
-   - **Priority 5: Automatic Community Post (+30m)**: For every published video on YouTube, automatically schedules a paired Community Post for **exactly 30 minutes after the video goes live**. Community posts do NOT count toward the 3-video daily publishing limit.
-2. **Timezone & Daylight Saving Time (DST) Awareness**:
-   - Built using Python's standard `zoneinfo` (`Asia/Karachi`, `America/New_York`, `America/Los_Angeles`).
-   - Dynamically evaluates daylight saving transitions between EST (UTC-5) / EDT (UTC-4) and PST (UTC-8) / PDT (UTC-7) without hardcoded offsets.
-3. **High-CTR Community Post Payload**:
-   - Generates cohesive multi-part content matching video SEO:
-     - `🔥 [Title]`
-     - Clean description
-     - `▶️ Watch the full Short here: https://youtube.com/shorts/...`
-     - `💬 Community Discussion: [Pinned Comment]`
-     - Viral hashtags
-   - Real video URL is backfilled onto the paired Community Post immediately upon YouTube video upload completion.
-4. **Single-Channel Exclusivity & Community Safety**:
-   - When a video is uploaded to one channel, pending video posts on other channels are cancelled, but paired community posts (`kind: "community"`) are safely preserved.
-5. **Stream Card Dead Space Elimination**:
-   - Redundant Popout Chat button removed from `.cta` and chat header.
-   - `.cta` buttons compacted into a 2-column grid (`height: 34px`).
-   - `.sinfo-chat-box` height reduced to `min-height: 115px; max-height: 165px;` and `.stream` aligned to `align-items: start;`, ensuring `.player` (16:9) and `.sinfo` match height with zero void space below.
-
----
-
-## 29. Cyber-Glass Calendar Theme, Day Timeline & Micro-Animations
-1. **Visual Depth & Elevation**:
-   - Layered multi-stop radial gradient background: `radial-gradient(120% 120% at 0% 0%, rgba(30, 41, 59, 0.45) 0%, rgba(15, 23, 42, 0.9) 55%, rgba(10, 15, 30, 0.98) 100%)`.
-   - Seamless glassmorphism with `backdrop-filter: blur(20px)` and soft glowing rim highlight (`box-shadow: 0 20px 48px -12px rgba(0, 0, 0, 0.65), inset 0 1px 0 rgba(255, 255, 255, 0.1)`).
-   - Eliminates rough dashed borders in favor of sleek solid cards with smooth hover lift (`transform: translateY(-3px); box-shadow: 0 16px 36px -8px rgba(0,240,255,0.22)`).
-2. **Micro-Animations & Interaction Models**:
-   - `@keyframes calPulse`: Continuous concentric radar waves around the green engine status dot (`● Auto Engine Active`).
-   - `@keyframes calFlowArrow`: Gentle shimmer and horizontal motion on the automated publishing pipeline arrows.
-   - `@keyframes calFadeInUp`: Smooth 300ms cubic-bezier entry animation when switching views or loading creator calendar.
-3. **Structured Day Timeline Grouping**:
-   - Slots are organized into intuitive Day blocks (Today, Tomorrow, Day 3) with daily usage counters (`0/3 slots claimed`).
-   - Each slot clearly displays PKT publishing time, USA audience window (Morning Drive, Afternoon Peak, Prime Evening in EST/PST), and connected Community Post node (+30m).
-4. **Multi-View Switcher**:
-   - Supports 3 view modes: `📅 Day Timeline` (grouped calendar), `⚡ USA Slots` (sequential windows list), and `🎬 Queued Videos` (active video cards), switchable with zero page reload.
-5. **Segmented Daily Quota Gauge**:
-   - Segmented 3-dot visual meter in the header tracking today's 3-video ceiling with real-time status.
-
----
-
-## 30. Strict Live Pure AI Mode Bypass & Reaction Phrase Scoping
-1. **Strict Pure AI Bypass on Empty Trigger Words (`studio/live.py`)**:
-   - In `Session._triggers(new_words)`, if `trigger_words` in settings is empty (`""`), the method returns immediately.
-   - Bypasses all phrase recognition (`CLIP_WORDS`, `ohnepixel.classify_transcript`, Level 1 reaction phrases, and custom phrases).
-   - In pure AI mode, clips are created strictly via `Session._ai_check()` based on multimodal Gemini scoring, audio loudness spikes, and chat velocity bursts, with badge `🤖 AI AUTO Score`.
-2. **Creator Scoping for OhnePixel Reaction Phrases (`studio/live.py`)**:
-   - `ohnepixel.classify_transcript()` Level 1 reaction phrase triggers are strictly scoped to OhnePixel channels (`is_ohnepixel`).
-   - Streams from other creators (e.g. xQc, GTA 6 streamers) never execute OhnePixel's hardcoded CS2 reaction phrase triggers, obeying only the creator's configured settings.
-3. **Removal of Casual Conversational Fillers (`studio/ohnepixel.py`)**:
-   - Removed casual conversational words (`"huh"`, `"come on bro"`, `"why bro"`, `"wait wait wait"`, `"hold on"`, `"no no no"`) from `STRONG_REACTION_PHRASES`.
-   - These common phrases no longer trigger auto-clips directly without multimodal AI evidence.
-
----
-
-## 31. Interactive Calendar Video Picker Modal, Collapsible Accordions & Refresh Persistence
-1. **Interactive Calendar Slot Video Picker Modal (`#cal_picker_dlg`)**:
-   - Clicking `+ Queue Next Video` on any open slot opens `#cal_picker_dlg`.
-   - Displays slot metadata: PKT time, US EST/PST windows, and paired Community Post (+30m).
-   - Dynamically loads ready/rendered clips from `GET /api/creators/{cid}/ready-clips`.
-   - 1-click `⚡ Schedule to this Slot` triggers `POST /api/calendar/schedule-clip`, enqueuing the clip directly at that timestamp and auto-generating the paired Community Post.
-2. **Collapsible Clip Editor Modal Accordions (`#clipdlg`)**:
-   - Replaced bulky fixed cards with collapsible `<details class="card">` elements for `Viral Hook Banner`, `Viral Climax Teaser`, `Background Music & Meme Sounds`, and `Layout & Framing Studio`.
-   - Added animated rotating chevron indicator (`▾`) that flips 180 degrees smoothly on open/close.
-3. **Squeezed Meters Layout & Expansive AI Decisions View**:
-   - `.meters` CSS grid configured with `minmax(130px, 170px) minmax(130px, 170px) minmax(360px, 1fr)`.
-   - Compacts sparkline meters to give `Latest AI Decisions` wide desktop space, eliminating text cutoff and truncation of reasons.
-4. **URL Route & Subtab Persistence Across Page Refresh**:
-   - Updated `fromPath` regex to match `/calendar` tab routes.
-
----
-
-## 32. CapCut Desktop Integration Architecture & Built-in Video Studio
-1. **Background & Creator Objective**:
-   - Creators often want fine-grained non-linear editing (NLE) capabilities — keyframing, multi-layer VFX, optical flow slow motion, animated stickers, color LUTs, and audio ducking — before publishing to YouTube Shorts.
-2. **Built-in In-Browser Video Studio (`web/index.html`, `studio/render.py`)**:
-   - Provides an instant, zero-setup 9:16 editor directly inside the browser.
-   - Features real-time WYSIWYG timeline scrubbing, split/trimming, 4 cinematic color grading filters (Cyberpunk, Teal & Orange, Vibrant, Film Noir), 4 viral VFX simulations (Flash White, Screen Shake, Glitch RGB, Zoom Punch), meme audio soundboard insertion, and real-time subtitle styling.
-   - Clips load directly with 1 click via `window.openWebStudio(jid, cid)` with zero manual import required.
-3. **Native CapCut Desktop Draft Bridge (`studio/capcut/export.py`)**:
-   - **Engine (`studio/capcut/export.py`)**:
-     - Automatically creates complete, valid CapCut desktop project structures directly inside `%LOCALAPPDATA%\CapCut\User Data\Projects\com.lveditor.draft\<project_id>\`.
-     - Automatically generates `draft_content.json` (for modern CapCut 9.x+) and `draft_info.json` mapping:
-       - Video track (primary gameplay layer).
-       - Picture-in-Picture / webcam track with pre-calculated crop and position.
-       - Subtitle track with animated word timings and styles.
-       - Background audio track with volume and offset.
-     - Automatically registers drafts in `%LOCALAPPDATA%\CapCut\User Data\Projects\com.lveditor.draft\root_meta_info.json` so projects appear at the very top of CapCut's desktop home screen.
-     - Automatically locates and launches `CapCut.exe` so the editor is immediately accessible.
-     - **UI Workflow**:
-       - In `#clipdlg`, clicking `🚀 Auto-Create CapCut Project` exports the draft in ~200ms, auto-registers it, and launches CapCut Desktop directly.
-       - Creators edit with CapCut's full native GPU rendering, thousands of free VFX, AI cutout, and transitions, with zero browser lag or memory limits.
-
-   - Guarded `go()` against early overview fallback before creators are loaded.
-   - Synchronized `view` and `ctab` with `localStorage` and `history.pushState` / `replaceState`.
-
-
-## 15. In-Browser Web Video Studio & Multi-Track Timeline Architecture
-ClipNova AI features a non-linear in-browser video editor designed for high-velocity short-form content:
-1. **Interactive WYSIWYG Timeline**:
-   - Time Ruler with second markers and click-to-seek playhead needle.
-   - Five distinct timeline lanes: Subtitle captions (word blocks with start/end duration), Video slices (with playhead cut/split markers), Facecam PiP, Audio waveform (with draggable start offset trim), and VFX event cues.
-2. **Real-Time CSS & FFmpeg Parity**:
-   - CSS filters (`saturate`, `contrast`, `hue-rotate`, `grayscale`) match backend FFmpeg filter expressions (`eq=saturation=1.3:contrast=1.1`, `hue=h=15:s=1.35`) for zero-delay visual preview.
-   - Interactive VFX simulations (Flash White, Screen Shake, Glitch RGB, Zoom Punch) run CSS keyframe animations for instant testing.
-3. **Seamless Publishing Integration**:
-   - `Save & Queue to YouTube (USA Peak)` ties the studio timeline directly into the autonomous YouTube hourly velocity priming calendar, scheduling exported clips at peak audience velocity slots.
-
----
-
-## 16. Clean Clip Detail Modal, Live Hook Banner Overlay & Instant 1-Click SEO Persistence
-1. **Clean Clip Detail Modal Architecture (`#clipdlg`)**:
-   - Redundant cards `Viral Climax Teaser (Cold Open Hook)`, `Layout & Framing Studio`, and `Advanced Timing` have been completely removed from `#clipdlg`.
-   - Full timeline editing, framing calibration, and effects are now housed in the dedicated `🎬 Video Studio` workspace.
-   - Quick studio launcher buttons (`🎬 Edit in Built-in Studio (Clip Ready)` and `🚀 Auto-Create CapCut Project`) provide immediate 1-click access to editing workflows.
-   - Hidden input fields retain all clip framing, layout, delays, and timing parameters so that any subsequent video re-render safely preserves prior adjustments.
-2. **Real-Time Live Hook Banner Overlay (`#dlg_hook_live_overlay`)**:
-   - High-CTR hook title banner is rendered directly on top of the `#stage` video player with `@keyframes hookPopIn` entrance animation.
-   - Real-time CSS styling faithfully mimics ASS subtitle rendering across all 8 hook styles (`viral_yellow` with single punch word highlight, `viral_cyan`, `neon`, `purple_whip`, `yellow`, `pill`, `cyber_red`, `gold_luxury`).
-   - Interactive `🎣 Replay Hook` button seeks to 0:00 and replays the pop-in hook banner animation.
-   - Clicking hook pills in `#dlg_hook_pills`, changing styles, or typing hook text immediately updates the live overlay in real time.
-3. **Instant 1-Click SEO & Text Persistence**:
-   - High-visibility green action button `💾 Save SEO & Title (Instant - No Re-render)` calls `PUT /api/jobs/{jid}/clips/{cid}/text`.
-   - Backend `jobs.save_post_text()` immediately persists `title`, `description`, `seo_title`, `seo_tags`, `pinned_comment`, `hook`, `hook_style`, `captions`, `style`, `outro_cta`, `bgm_track`, `bgm_volume`, and `bgm_offset` into job memory and sidecar `{clip['id']}.json` in `< 5ms`.
-   - Eliminates unnecessary 15-20s FFmpeg video re-rendering when creators edit metadata or choose viral hook titles.
-
----
-
-## 17. Complete Built-in Studio & CapCut Desktop Dual-Engine Architecture
-1. **Core Philosophy & OpenCut Removal**:
-   - Following creator feedback on browser codec bottlenecks (HEVC decode licensing blocks in Chromium) and missing timeline transitions, OpenCut was completely excised from ClipNova AI.
-   - In its place, the workspace is anchored by a unified dual-engine architecture:
-     1. **Built-in Studio**: Instant browser editing for trimming, LUTs, and VFX.
-     2. **CapCut Desktop Bridge**: Pro-tier NLE with GPU acceleration, seamless project auto-registration, and automatic launch.
-2. **CapCut Desktop Auto-Registration & Launch Workflow**:
-   - The user clicks `🚀 Auto-Create CapCut Project`.
-   - Backend `studio/capcut/export.py` generates the complete project folder and registers it in CapCut's `root_meta_info.json`.
-   - `CapCut.exe` is automatically started and the project folder is opened in Windows Explorer.
-   - The creator immediately has their multi-track project open in CapCut Desktop with zero manual importing or licensing fees.
-
----
-
-## 18. Viral Hook Banner Stage Sync, Glowing Pill Architecture & Render Fontsdir Fix
-1. **Render Engine `FONTS_DIR` Path Resolution & Filtergraph Escaping (`studio/render.py`)**:
-   - Defined `FONTS_DIR = str((Path(__file__).resolve().parent / "fonts").resolve().as_posix()).replace(":", "\\:")` in `studio/render.py`.
-   - On Windows, drive letters in absolute paths (e.g., `F:/...`) contain colons that FFmpeg interprets as option delimiters. Escaping colons (`F\:/...`) allows `ass={name}.ass:fontsdir='{FONTS_DIR}'` to correctly supply TTF fonts (`Anton`, `Poppins`, `Archivo Black`) to `libass` without syntax errors.
-2. **Visual Hook Pill Selection & Active Glowing State (`web/index.html`)**:
-   - High-contrast active styling via `.hook-pill-btn.active-hook`:
-     `background: rgba(0,240,255,0.22) !important; border: 2px solid #00F0FF !important; box-shadow: 0 0 12px rgba(0,240,255,0.5) !important; color: #00F0FF !important; font-weight: 800 !important; transform: scale(1.03);`
-   - Case-insensitive trimmed matching in `pick_hook` dynamically toggles the active class across all pills upon click or AI generation.
-   - Background auto-persistence asynchronously calls `PUT /api/jobs/{jid}/clips/{cid}/text` without blocking UI interaction.
-3. **Stage Video Overlay Live Synchronization (`#dlg_hook_live_overlay`)**:
-   - Immediate visibility enforcement in `updateDlgLiveHookOverlay`: sets `overlay.style.opacity = "1"` and `overlay.style.display = "block"` upon hook selection.
-   - Automatically seeks player playhead `vid.currentTime = 0` if beyond 3.8s, firing `@keyframes hookPopIn` pop-in animation so creators immediately see their chosen hook on the clip video.
-4. **Dedicated In-Accordion "Apply Hook & Re-make Video (~10s)" Action**:
-   - Directly triggers `data-act="remake"` within the Viral Hook Banner accordion.
-   - Sends updated hook parameters to `/api/jobs/{jid}/clips/{cid}/render`, allowing creators to burn the banner into the MP4 with 1 click.
-
----
-
-## 19. 100% Free Universal Video Conversion Pipeline (HEVC / H.265 to H.264 MP4)
-1. **The Browser Codec Bottleneck**:
-   - Web browsers on Windows (Chrome, Edge) do not natively decode HEVC / H.265 video without paid proprietary hardware decoder extensions from the Microsoft Store.
-   - Standard H.264 (AVC) MP4 videos are 100% royalty-free and supported by every browser and device without any extensions or fees.
-2. **Autonomous Clip Verification (`POST /api/jobs/{jid}/clips/{cid}/convert-h264`)**:
-   - `ffprobe` probes the clip's video stream codec. If already `h264`, confirms immediately.
-   - If encoded in `hevc` or non-standard format, runs `ffmpeg -y -i "{target}" -c:v libx264 -preset veryfast -crf 17 -pix_fmt yuv420p -c:a aac -movflags +faststart "{out_file}"`.
-   - Windows Explorer automatically highlights the resulting H.264 MP4 file via `explorer.exe /select,"<filepath>"`.
-3. **Universal Converter Utility (`POST /api/tools/convert-file-h264`)**:
-   - Allows creators to convert any external stream file or downloaded recording on their local disk into a browser-safe H.264 file in 5-10 seconds.
-   - Eliminates any dependency on CapCut Pro or commercial paid converters, ensuring the entire workflow remains 100% free and open source.
-
----
-
-## 20. CapCut Desktop Auto-Registration & Process Auto-Launcher Architecture
-1. **Root Meta Registration (`root_meta_info.json`)**:
-   - CapCut Desktop manages its home screen projects using `%LOCALAPPDATA%\CapCut\User Data\Projects\com.lveditor.draft\root_meta_info.json`.
-   - `export_clip_to_capcut()` calls `register_in_root_meta()` which prepends the draft to `all_draft_store` at index 0 with a unique `draft_id`, thumbnail cover image, and metadata.
-   - Saves both `draft_content.json` (for modern CapCut 9.x+) and `draft_info.json`.
-2. **CapCut.exe Process Auto-Launcher (`find_and_launch_capcut`)**:
-   - Locates `CapCut.exe` on Windows (`%LOCALAPPDATA%\CapCut\Apps\CapCut.exe`) and launches it via `subprocess.Popen([str(exe)])`.
-   - When CapCut opens, the project is immediately visible as Project #1 at the top of the Projects list.
-
----
-
-## 21. Workspace-Wide Automated Viral Hooks & High-CTR SEO Architecture
-1. **Core Problem & Grounding**:
-   - Historical clips and streams clipped without multimodal context often suffered from streamer hallucinations (e.g. OhnePixel clips referencing "Speed"), missing punch highlights, or absent `#Shorts` tags.
-2. **Automated Normalization Engine**:
-   - Scans all jobs across the database (`data/users/u_local/**/job.json` and sidecar `clips/{cid}.json`).
-   - Dynamically resolves streamer identity (`OhnePixel`, `xQc`, `MrBeast`, `Ducky`) based on creator and stream metadata.
-   - Replaces any hallucinated references with accurate creator context.
-3. **Canary Yellow Punch Word Highlight Syntax**:
-   - Analyzes clip headline words against a comprehensive hierarchy of high-velocity keywords (`ENGINE`, `CAR`, `POLICE`, `CHOPPER`, `BUSTED`, `DISASTER`, `ROASTED`, `LOOTING`, `CRASH`, `DRIVING`, `FAIL`, `MONEY`, `20K`, `WEAPON`, `VIOLENCE`, `SURVIVED`, etc.).
-   - Surrounds the single most impactful punch word in asterisks (`*WORD*`), which the stage player overlay (`#dlg_hook_live_overlay`) and render engine format in high-contrast Canary Yellow.
-4. **6 Diverse AI Viral Hooks Matrix**:
-   - Each clip is provisioned with 6 distinct angles:
-     1. Disbelief / Reaction
-     2. Unexpected Outcome
-     3. Curiosity Gap
-     4. Relatable Gaming Fail
-     5. Climax
-     6. Urgent Question / Challenge
-   - Active Pill #1 is highlighted in glowing cyan (`.active-hook`).
-5. **High-CTR YouTube Shorts Discoverability**:
-   - Standardizes titles under 75 characters concluding with `#Shorts`.
-   - Generates 15-20 targeted search tags and discussion-sparking pinned comments to optimize YouTube algorithm velocity.
-
-
-
-

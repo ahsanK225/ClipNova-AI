@@ -6,14 +6,12 @@ This workspace hosts **ClipNova AI (`ahsanK225/ClipNova-AI`)**, an open-source, 
 It includes:
 - **Direct YouTube Live Ingestion**: Paste any live stream link directly or monitor creator channels.
 - **Automated Shor & Mazaq Intelligence**: Detects sudden loudness (screaming, shouting, laughter) and comedic jokes/fails across English and Roman Urdu.
-- **Dual-Engine Video Editing Suite & CapCut Desktop Bridge**: Comprehensive video editing architecture combining a Built-in In-Browser Video Studio with the official CapCut Desktop Bridge. Built-in Studio provides instant 9:16 trimming, cinematic color grading presets (Cyberpunk, Teal & Orange, Vibrant, Film Noir), viral VFX, meme audio, and live subtitle styling without leaving the browser. The CapCut Desktop Bridge (`studio/capcut/export.py`) exports multi-track project drafts (`draft_info.json`, `draft_meta_info.json`) directly into `%LOCALAPPDATA%\CapCut\User Data\Projects\com.lveditor.draft\`, automatically registers them in CapCut's `root_meta_info.json` so they appear at the very top of CapCut Desktop's home screen, and automatically launches `CapCut.exe`. Also includes a built-in universal H.264 video converter pipeline (`/api/jobs/{jid}/clips/{cid}/convert-h264` and `/api/tools/convert-file-h264`) that re-encodes any HEVC/H.265 or MKV/MOV stream to web-safe H.264 MP4. The Clip Detail Modal (`#clipdlg`) is dedicated to Title, Description, Viral Hook, YouTube Shorts SEO, and 1-Click Publishing, with on-demand video-grounded AI hook generation via `window.generateAiViralHooks(this)` (6 fresh viral hooks extracted from physical video frames, auto-applied to input and stage player), a real-time Live Hook Banner Video Overlay (`#dlg_hook_live_overlay` with duplicate suppression when already rendered into MP4 video, and layout-adaptive positioning via `calcDlgHookTopPos`), glowing cyan active hook pills (`.hook-pill-btn.active-hook`), direct `🔥 Apply Hook & Re-make Video (~10s)` action button, and instant `< 5ms` persistence via `💾 Save SEO & Title (Instant - No Re-render)`.
-- **Render Engine Font Escaping**: `studio/render.py` escapes Windows drive colons in `FONTS_DIR` (`F\:...`) and passes `fontsdir='{FONTS_DIR}'` across all FFmpeg filtergraphs, guaranteeing reliable ASS subtitle and font loading for Anton, Poppins, and Archivo Black.
 - **Native YouTube Shorts SEO Optimization Engine**: High-CTR titles with `#Shorts`, targeted YouTube Studio tags, pinned comments, and automatic YouTube Data API custom cover thumbnail upload (`POST /upload/youtube/v3/thumbnails/set`).
+- **Dialogue-Grounded Custom Viral Hooks & Batch Re-Render**: Deep Whisper transcript word extraction (`words.json`) and timestamped in-game event grounding paired with multi-threaded FFmpeg re-rendering, burning Canary Yellow punch emphasis banners (`*WORD*`) into video frames and generating synchronized cover thumbnails.
 - **Unified Collapsible Stream Folders & Real Video Preview Fallback**: 1-click folder accordion collapsing stream clip grids into single compact, cyber-dark cards with inline clip badges; smart video preview discovering real clip frames (`clip001.jpg`) instead of blank link icons; modern visual AI decision feed with real-time badges (`⚡ HIGH PRIORITY`, `✂️ CLIPPED`, `🔍 LISTENING`, `⏭️ EVALUATED`).
 - **Sticky Clip Editor Preview**: Pinned 9:16 phone video preview that stays locked in viewport while editing options and SEO on the right side.
 - **Single Yellow Punch Focus**: Canary Yellow (`\c&H00E5FF&`) highlight limited to exactly 1 punch action keyword per viral hook banner, with streamer names strictly demoted.
 - **Golden Retention Timeline Calibration**: 12s pre-roll hook window (trigger occurs in first 10-15s before viewers swipe) + 28s post-roll reaction (continuous reaction, laughter, chat banter, and gameplay without abrupt cutoffs), totaling ~40-42s natural clip length.
-- **Autonomous Clip Metadata & Viral SEO Engine**: Workspace-wide automated optimization guaranteeing 100% streamer-accurate context (zero hallucinations across OhnePixel, xQc, MrBeast, and Ducky), high-CTR `#Shorts` titles, 15-20 targeted YouTube Studio search tags, engaging discussion-prompting pinned comments, and 6 diverse viral hook variations per clip formatted with Canary Yellow punch asterisks (`*WORD*`) and viral emojis.
 - **Rock-Solid Hardware & Audio/Video Sync**: Millisecond PTS normalization, acoustic onset caption alignment (`CAPTION_LEAD = 0.00`), independent webcam/lip delay calibration, and corner placement.
 
 ---
@@ -43,11 +41,9 @@ F:\Games\GTA 6 CLIPPING\
 │   │   ├── accounts.py                     # Social OAuth connections, multi-client token refresh & YouTube API upload
 │   │   ├── admin.py                        # Admin & diagnostics routes
 │   │   ├── ai.py                           # Gemini multimodal vision (see_json), multi-key pool rotation, per-key live health testing & OpenRouter free models
-│   │   ├── analytics.py                    # Autonomous hourly views delta tracker (Option A), 24h rolling velocity profile & hybrid algorithm priming engine
 │   │   ├── asr.py                          # Speech recognition & word-level timing (sherpa-onnx)
 │   │   ├── audio.py                        # Audio engine: background music, viral meme sounds library, path security & safe uploads
 │   │   ├── brain.py                        # Universal grounding (anti-hallucination), multimodal scene analysis, dual AI judges & SEO
-│   │   ├── calendar.py                     # Dynamic publishing calendar engine (analytics-primed peaks or USA 6PM/12AM/6AM PKT; max 3/day; auto next-day roll; +30m Community Post pairing)
 │   │   ├── config.py                       # App configuration & environment parsing
 │   │   ├── creators.py                     # Creator workspace profiles, trigger words & settings
 │   │   ├── db.py                           # SQLite / SQLAlchemy persistence
@@ -56,14 +52,14 @@ F:\Games\GTA 6 CLIPPING\
 │   │   ├── games.py                        # GTA VI & gaming stream detection engine
 │   │   ├── hashtags.py                     # Non-AI fast hashtags engine (derives 3-5 tags without burning tokens)
 │   │   ├── jobs.py                         # Video processing queue, facecam resolution, multimodal SEO & Windows retry save
-│   │   ├── live.py                         # Live stream buffer, 720p lock, loudness spikes, Pure AI Mode bypass on empty triggers, and creator-scoped triggers
+│   │   ├── live.py                         # Live stream buffer, 720p lock, loudness spikes & trigger clips
 │   │   ├── load.py                         # System load, memory, and queue worker throttle
 │   │   ├── capcut\                         # Native CapCut Desktop Draft project generator (pyJianYingDraft & template)
 │   │   │   ├── export.py                   # Multi-track CapCut draft exporter (video, hook title, subtitle tracks)
 │   │   │   ├── pyJianYingDraft\            # Pure Python CapCut desktop draft AST builder & track manager
 │   │   │   └── template\                   # Base CapCut project template (draft_info.json, draft_meta_info.json)
 │   │   ├── media.py                        # Long-video stream inspector, format resolver & Netscape cookie manager
-│   │   ├── ohnepixel.py                    # OhnePixel intelligent detection database, tiered phrases without casual fillers, German/English slang, false-positive protection & Mode B fallback
+│   │   ├── ohnepixel.py                    # OhnePixel intelligent detection database, tiered phrases, German/English slang, false-positive protection & Mode B fallback
 │   │   ├── posting.py                      # YouTube Shorts cloud scheduling, IG, TikTok & channel exclusivity
 │   │   ├── render.py                       # FFmpeg 9:16 vertical render, split layouts, Bouncy/Hormozi/MrBeast subtitles, Hook styles (Purple Whip, etc.)
 │   │   ├── server.py                       # FastAPI application & HTTP routes (CapCut export endpoints, multi-key pool, presets)
@@ -78,8 +74,7 @@ F:\Games\GTA 6 CLIPPING\
 │   │   ├── test_speech.py                  # Multi-language speech model tests
 │   │   ├── test_upload_parts.py            # Large chunked upload validation
 │   │   ├── test_seo.py                     # YouTube Shorts SEO validation test suite
-│   │   ├── test_sync.py                    # Audio/video latency, PTS normalization, and layout tests
-│   │   └── test_usa_publishing_calendar.py # USA-focused automatic publishing calendar & community post test suite
+│   │   └── test_sync.py                    # Audio/video latency, PTS normalization, and layout tests
 │   ├── web\                                # Static frontend web dashboard
 │   │   ├── brand\                          # Brand assets & layout visual previews (540x960 crisp JPGs)
 │   │   │   ├── layout-split_half.jpg       # Classic Split 50/50 ⭐ (Top Cam 1080x960, Bottom Game 1080x960)
@@ -131,8 +126,6 @@ F:\Games\GTA 6 CLIPPING\
 - **`studio/render.py`**:
   - Normalizes frame PTS via `[0:v]setpts=PTS-STARTPTS,fps=30` at the very entrance of the video filter graph to eliminate initial frame drops and timestamp jitter.
   - Normalizes audio PTS via `asetpts=PTS-STARTPTS,aresample=async=1000:min_hard_comp=0.010:first_pts=0`.
-  - Background Music & Meme Sounds Mixing: Infinite loop (`-stream_loop -1`) or trimmed seek (`-ss <bgm_offset>`) combined with `asetpts=PTS-STARTPTS` and `amix=inputs=2:duration=first:dropout_transition=2`.
-  - CapCut Desktop Draft Export (`studio/capcut/export.py`): Generates full native CapCut desktop projects in `%LOCALAPPDATA%\CapCut\User Data\Projects\com.lveditor.draft\` with tracks for video, audio, captions, and PIP.
   - Calibrated subtitle lead: `CAPTION_LEAD = 0.00` for exact acoustic word onset.
   - Multi-layout support: `blur`, `zoom`, `crop`, `gameplay` (corner PIP with `top-right`, `top-left`, `bottom-left`, `bottom-right`), and `split` (1080x960 facecam top + 1080x960 gameplay bottom).
   - 3D Hook banner & 3D Outro Support Badge ('NEW CHANNEL • LIKE & SUBSCRIBE!') burned in the last 3.2 seconds.
@@ -164,43 +157,3 @@ F:\Games\GTA 6 CLIPPING\
   - `GET /api/ai`: Returns `keys_list` with masked strings and live status badges for UI display.
 - **`web/index.html`**:
   - Interactive **🔑 API Keys Pool Card**: Replaces plain textarea with a clear list showing Key #, masked key, live/standby status pill, individual `🗑️ Remove` buttons, and an input box with `[➕ Add Key]`.
-
----
-
-## 7. Automatic USA-Focused Publishing Calendar, Clip Picker & UI Accordion Architecture
-- **`studio/calendar.py`**:
-  - Core USA publishing schedule calculator: 6:00 PM, 12:00 AM, 6:00 AM PKT slots.
-  - Accounts for USA Daylight Saving Time (DST) dynamically via `zoneinfo.ZoneInfo("America/New_York")` and `ZoneInfo("America/Los_Angeles")`.
-  - Enforces strict 3-video daily ceiling and auto-advances subsequent ready clips to future days.
-- **`studio/server.py`**:
-  - `GET /api/creators/{cid}/calendar`: Returns active calendar data, daily quota usage, and upcoming slots with scheduled clips.
-  - `GET /api/creators/{cid}/ready-clips`: Lists all finished/rendered clips ready for scheduling with cover thumbnails, duration, and AI score.
-  - `POST /api/calendar/schedule-clip`: Schedules a specific clip directly to a targeted calendar slot timestamp, pairing a Community Post (+30m).
-- **`web/index.html`**:
-  - `#cal_picker_dlg`: Interactive modal popup for slot selection with ready clip cards and 1-click `⚡ Schedule to this Slot` action.
-  - Collapsible `<details class="card">` accordions for `Viral Hook Banner`, `Viral Climax Teaser`, `Background Music`, and `Layout Studio` in `#clipdlg`.
-  - Squeezed `.meters` grid (`minmax(130px, 170px) minmax(130px, 170px) minmax(360px, 1fr)`) allowing full readability of `Latest AI Decisions`.
-  - Route & Subtab persistence across F5 refresh using `fromPath` calendar regex and `localStorage`.
-
-
-### 18. Web Video Studio (In-Browser CapCut-Style Multi-Track Editor)
-- **Frontend Timeline & Editor**: `web/index.html` (`drawVideoStudioTab()`, `renderStudioWorkspace()`, `saveStudioExport()`)
-  - 9:16 vertical player viewport with real-time CSS color grading filters and transport controls.
-  - Subtitle word-level highlight overlay and double-click in-place typo editing.
-  - 5-tab tool drawer: Filters (Normal, Vibrant, Cinematic, Moody, Cyberpunk, B&W), VFX (Flash, Shake, Glitch, Zoom Punch), Audio & BGM mix, Subtitles, Layout.
-  - Interactive multi-track timeline with Time Ruler, draggable Red/Cyan Playhead Needle, Subtitles word blocks track, Video cut track, Facecam track, Audio waveform track, and VFX track.
-- **Backend Project & Export Endpoints**: `studio/server.py`
-  - `GET /api/jobs/{jid}/clips/{cid}/studio-project`: Returns full timeline project contract.
-  - `POST /api/jobs/{jid}/clips/{cid}/studio-export`: Triggers FFmpeg re-render and optional 1-click scheduling into YouTube Publishing Calendar at USA Peak Velocity slot.
-- **FFmpeg Color Grading Engine**: `studio/render.py` (`VIDEO_FILTERS`)
-  - Injects `eq` and `hue` filtergraphs directly into the video filter pipeline.
-
-### 19. CapCut Desktop Native Bridge & Built-in Video Studio
-- **CapCut Desktop Generator**: `studio/capcut/export.py`
-  - Generates `%LOCALAPPDATA%\CapCut\User Data\Projects\com.lveditor.draft\<draft_name>\draft_info.json`
-  - Auto-registers project drafts in `%LOCALAPPDATA%\CapCut\User Data\Projects\com.lveditor.draft\root_meta_info.json`.
-  - Maps Video Track, Subtitle Captions Track, and Hook Title Track for native CapCut desktop editing.
-  - Automatically launches `CapCut.exe` and reveals project directory in Explorer.
-- **UI Launchers**: `web/index.html` (`#clipdlg`, `drawVideoStudioTab()`)
-  - `🎬 Edit in Built-in Studio (Clip Ready)` for browser-based 9:16 timeline, visual filters, VFX, and audio editing.
-  - `🚀 Auto-Create CapCut Project` for official PC CapCut app editing with native transitions and AI effects.
