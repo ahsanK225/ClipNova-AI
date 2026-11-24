@@ -609,6 +609,8 @@ class Session:
                 timeout=config.LIVE_AI_TIMEOUT,
             )
 
+            verdict["mm_score"] = mm.get("score")
+            verdict["breakdown"] = mm.get("breakdown", "")
             # Strict quality check:
             if mm["priority"] == "SKIP" and not must:
                 self.rejected += 1

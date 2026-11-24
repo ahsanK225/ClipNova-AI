@@ -1747,13 +1747,13 @@ def judge_multimodal_moment(
         final_score = int(round(raw_score))
         if final_score >= 75:
             priority = "HIGH PRIORITY"
-            reason = f"High-confidence moment ({matches[0] if matches else event_type})"
+            reason = f"High-confidence ({vis_reason[:65]})" if vis_reason else f"High-confidence moment ({matches[0] if matches else event_type})"
         elif final_score >= 60:
             priority = "REVIEW QUEUE"
-            reason = f"Candidate for review ({matches[0] if matches else 'gameplay'})"
+            reason = f"{vis_reason[:70]}" if vis_reason else f"Candidate for review ({matches[0] if matches else 'gameplay'})"
         else:
             priority = "SKIP"
-            reason = "Below quality threshold"
+            reason = f"Below threshold (MM {final_score}/100: {vis_reason[:55] or 'calm audio & routine frame'})"
 
     return {
         "mode": "MODE A (AI INTELLIGENT SCORING)",

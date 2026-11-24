@@ -2898,7 +2898,14 @@ function liveHtml(j) {
                   ${isLatest ? `<span style="font-size:8.5px;padding:1px 4px;border-radius:3px;background:rgba(0,240,255,0.2);color:#00F0FF;border:1px solid rgba(0,240,255,0.4);font-weight:800;letter-spacing:0.03em;white-space:nowrap;flex:none">⚡ LATEST</span>` : ''}
                   <span style="font-weight:600;color:var(--text,#F1F5F9);font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0" title="${esc(headline)}: ${esc(explanation)}">${icon} <b style="color:var(--brand-ink,#FFF)">${esc(headline)}</b>${explanation ? ` — <span style="color:var(--text-sub,#94A3B8);font-size:10.5px">${esc(explanation)}</span>` : ''}</span>
                 </div>
-                ${v.transcript ? `<span style="font-size:9.5px;font-weight:700;color:${v.transcript >= 70 ? '#00FF88' : '#94A3B8'};font-family:ui-monospace,monospace;flex:none;margin-left:4px">Score ${v.transcript}</span>` : ''}
+                ${(() => {
+                  const hasMM = v.mm_score !== undefined && v.mm_score !== null;
+                  if (hasMM) {
+                    const col = v.mm_score >= 60 ? '#00FF88' : '#94A3B8';
+                    return `<span title="${esc(v.breakdown || '')}" style="font-size:9.5px;font-weight:700;color:${col};font-family:ui-monospace,monospace;flex:none;margin-left:4px">MM ${v.mm_score}${v.transcript ? ` (Txt ${v.transcript})` : ''}</span>`;
+                  }
+                  return v.transcript ? `<span style="font-size:9.5px;font-weight:700;color:${v.transcript >= 70 ? '#00FF88' : '#94A3B8'};font-family:ui-monospace,monospace;flex:none;margin-left:4px">Score ${v.transcript}</span>` : '';
+                })()}
               </div>
             `;
           }).join("") : "<div class='sub' style='padding:6px 0;font-size:11px'>Listening and analyzing stream moments…</div>"}
@@ -7280,12 +7287,13 @@ function clsDrawMask() {
 
   // 2. Cutouts for active or both boxes
   const cutouts = [];
+  const noCam = (CLS.mode === "crop" || CLS.mode === "frame");
   if (CLS.maskMode === "active") {
-    if (CLS.activeBox === "game") cutouts.push(CLS.gameplay);
-    else if (CLS.mode !== "crop") cutouts.push(CLS.facecam);
+    if (CLS.activeBox === "game" || noCam) cutouts.push(CLS.gameplay);
+    else cutouts.push(CLS.facecam);
   } else {
     cutouts.push(CLS.gameplay);
-    if (CLS.mode !== "crop") cutouts.push(CLS.facecam);
+    if (!noCam) cutouts.push(CLS.facecam);
   }
 
   for (const box of cutouts) {
@@ -7308,13 +7316,34 @@ function clsDrawMask() {
 
 function clsSetMode(mode) {
   CLS.mode = mode;
+  CLS.no_facecam = (mode === "crop" || mode === "frame");
+  if (CLS.no_facecam) clsSetActiveBox("game");
   $$(".cls-mode-btn").forEach(b => b.classList.toggle("active", b.dataset.mode === mode));
   const splitSettings = $("#cls_split_settings");
   if (splitSettings) splitSettings.style.display = mode === "split" ? "block" : "none";
   const pipSettings = $("#cls_pip_settings");
   if (pipSettings) pipSettings.style.display = mode === "pip" ? "block" : "none";
+  const frameSettings = $("#cls_frame_settings");
+  if (frameSettings) frameSettings.style.display = mode === "frame" ? "block" : "none";
+  const camBtn = $("#cls_btn_focus_cam");
+  if (camBtn) camBtn.style.display = CLS.no_facecam ? "none" : "inline-flex";
   clsUpdateBoxesDOM();
   clsDrawMask();
+  clsDrawPhonePreview();
+}
+
+function clsOnMobileHeightChange(val) {
+  CLS.mobile_height = Math.max(30, Math.min(100, Number(val) || 65));
+  const lbl = $("#cls_mobile_h_val");
+  if (lbl) lbl.textContent = `${CLS.mobile_height}% Height${CLS.mobile_height >= 98 ? " (Full Screen)" : ""}`;
+  const sl = $("#cls_mobile_h_slider");
+  if (sl) sl.value = CLS.mobile_height;
+  clsDrawPhonePreview();
+}
+
+function clsSetBgStyle(st) {
+  CLS.bg_style = st === "black" ? "black" : "blur";
+  $$(".cls-bg-btn").forEach(b => b.classList.toggle("active", b.dataset.bg === CLS.bg_style));
   clsDrawPhonePreview();
 }
 
@@ -7337,20 +7366,50 @@ function clsSetPreset(name) {
     CLS.facecam = [20, 660, 520, 400];
     CLS.gameplay = [0, 0, 1920, 720];
     CLS.divider = true;
+  } else if (name === "bottom-right") {
+    CLS.mode = "split";
+    CLS.split_ratio = 0.35;
+    CLS.facecam = [1380, 660, 520, 400];
+    CLS.gameplay = [0, 0, 1920, 720];
+    CLS.divider = true;
   } else if (name === "split_half") {
     CLS.mode = "split";
     CLS.split_ratio = 0.50;
     CLS.facecam = [20, 20, 520, 390];
     CLS.gameplay = [480, 0, 1440, 1080];
     CLS.divider = true;
+  } else if (name === "split_30_70") {
+    CLS.mode = "split";
+    CLS.split_ratio = 0.30;
+    CLS.facecam = [20, 20, 520, 390];
+    CLS.gameplay = [360, 0, 1440, 1080];
+    CLS.divider = true;
   } else if (name === "pip") {
     CLS.mode = "pip";
     CLS.pip_pos = "top-right";
     CLS.facecam = [20, 20, 520, 390];
     CLS.gameplay = [0, 0, 1920, 1080];
-  } else if (name === "crop") {
+  } else if (name === "crop" || name === "mobile_full_nocam") {
     CLS.mode = "crop";
-    CLS.gameplay = [420, 0, 1080, 1080];
+    CLS.gameplay = [656, 0, 608, 1080];
+  } else if (name === "nocam_tall_blur") {
+    CLS.mode = "frame";
+    CLS.mobile_height = 68;
+    CLS.bg_style = "blur";
+    CLS.gameplay = [360, 0, 1200, 1080];
+  } else if (name === "nocam_cinema_blur") {
+    CLS.mode = "frame";
+    CLS.mobile_height = 46;
+    CLS.bg_style = "blur";
+    CLS.gameplay = [0, 0, 1920, 1080];
+  } else if (name === "nocam_cinema_black") {
+    CLS.mode = "frame";
+    CLS.mobile_height = 42;
+    CLS.bg_style = "black";
+    CLS.gameplay = [0, 0, 1920, 1080];
+  } else if (name === "nocam_left_focus") {
+    CLS.mode = "crop";
+    CLS.gameplay = [0, 0, 960, 1080];
   }
   clsSetMode(CLS.mode);
   const slider = $("#cls_ratio_slider");
@@ -7359,6 +7418,8 @@ function clsSetPreset(name) {
   if (ratioLbl) ratioLbl.textContent = `${Math.round(CLS.split_ratio * 100)}% Cam / ${100 - Math.round(CLS.split_ratio * 100)}% Game`;
   const divCheck = $("#cls_divider_check");
   if (divCheck) divCheck.checked = CLS.divider;
+  clsOnMobileHeightChange(CLS.mobile_height || 65);
+  clsSetBgStyle(CLS.bg_style || "blur");
   clsUpdateBoxesDOM();
   clsDrawMask();
   clsDrawPhonePreview();
@@ -7433,6 +7494,10 @@ function clsApplyCustomPreset(pname) {
   CLS.divider = p.divider !== false;
   CLS.pip_pos = p.pip_pos || "top-right";
   CLS.pip_size = p.pip_size || 380;
+  CLS.mobile_height = p.mobile_height || 65;
+  CLS.bg_style = p.bg_style || "blur";
+  CLS.no_facecam = Boolean(p.no_facecam);
+  CLS.auto_hide_missing_cam = p.auto_hide_missing_cam !== false;
   if (p.hook_style) {
     CLS.hook_style = p.hook_style;
     const sel = $("#cls_hook_style_select");
@@ -7494,7 +7559,11 @@ async function clsSaveNewNamedPreset(overrideName) {
     hook_style: CLS.hook_style,
     hook_y: CLS.hook_y,
     hook_w: CLS.hook_w,
-    caption_style: CLS.caption_style
+    caption_style: CLS.caption_style,
+    mobile_height: CLS.mobile_height || 65,
+    bg_style: CLS.bg_style || "blur",
+    no_facecam: Boolean(CLS.mode === "crop" || CLS.mode === "frame" || CLS.no_facecam),
+    auto_hide_missing_cam: CLS.auto_hide_missing_cam !== false
   };
   try {
     const res = await send(`/api/creators/${cid}/presets`, { name, preset: payload }, "POST");
@@ -7536,7 +7605,11 @@ async function clsSaveJobAll() {
       hook_style: CLS.hook_style,
       hook_y: CLS.hook_y,
       hook_w: CLS.hook_w,
-      caption_style: CLS.caption_style
+      caption_style: CLS.caption_style,
+      mobile_height: CLS.mobile_height || 65,
+      bg_style: CLS.bg_style || "blur",
+      no_facecam: Boolean(CLS.mode === "crop" || CLS.mode === "frame" || CLS.no_facecam),
+      auto_hide_missing_cam: CLS.auto_hide_missing_cam !== false
     };
     const j = jobOf(CLS.ctx.jid);
     const count = j?.clips?.length || 0;
@@ -7601,7 +7674,7 @@ function clsUpdateBoxesDOM() {
     camBox.style.height = (h * ch / 1080) + "px";
     const tag = $("#cls_tag_cam");
     if (tag) tag.innerHTML = `📷 Facecam [${x}, ${y}, ${w}×${h}]`;
-    camBox.style.display = CLS.mode === "crop" ? "none" : "block";
+    camBox.style.display = (CLS.mode === "crop" || CLS.mode === "frame") ? "none" : "block";
     camBox.classList.toggle("cls-box-active", CLS.activeBox === "cam");
   }
 
@@ -7690,6 +7763,22 @@ function clsDrawPhonePreview() {
   } else if (CLS.mode === "crop") {
     const [gx, gy, gw, gh] = CLS.gameplay;
     drawCover(ctx, src, gx, gy, gw, gh, 0, 0, W, H);
+  } else if (CLS.mode === "frame") {
+    const [gx, gy, gw, gh] = CLS.gameplay;
+    const pct = Math.max(30, Math.min(100, Number(CLS.mobile_height) || 65));
+    const bgStyle = CLS.bg_style === "black" ? "black" : "blur";
+    const boxH = pct >= 98 ? H : Math.max(120, Math.round(H * pct / 100));
+    const boxY = Math.round((H - boxH) / 2);
+    if (bgStyle === "black" || pct >= 98) {
+      ctx.fillStyle = "#000000";
+      ctx.fillRect(0, 0, W, H);
+    } else {
+      ctx.save();
+      ctx.filter = "blur(14px) brightness(0.65)";
+      drawCover(ctx, src, gx, gy, gw, gh, -16, -16, W + 32, H + 32);
+      ctx.restore();
+    }
+    drawCover(ctx, src, gx, gy, gw, gh, 0, boxY, W, boxH);
   }
 
   // Real-time Hook Banner Badge on Phone Preview
@@ -7986,7 +8075,11 @@ async function clsSave(mode) {
       hook_style: CLS.hook_style,
       hook_y: CLS.hook_y,
       hook_w: CLS.hook_w,
-      caption_style: CLS.caption_style
+      caption_style: CLS.caption_style,
+      mobile_height: CLS.mobile_height || 65,
+      bg_style: CLS.bg_style || "blur",
+      no_facecam: Boolean(CLS.mode === "crop" || CLS.mode === "frame" || CLS.no_facecam),
+      auto_hide_missing_cam: CLS.auto_hide_missing_cam !== false
     };
 
     if (CLS.ctx?.type === "clip" && CLS.ctx?.jid && CLS.ctx?.cid) {
@@ -8073,6 +8166,10 @@ function openCustomLayoutStudio(context) {
   CLS.divider = cl.divider !== false;
   CLS.pip_pos = cl.pip_pos || "top-right";
   CLS.pip_size = cl.pip_size || 380;
+  CLS.mobile_height = cl.mobile_height || 65;
+  CLS.bg_style = cl.bg_style || "blur";
+  CLS.no_facecam = Boolean(cl.no_facecam || CLS.mode === "crop" || CLS.mode === "frame");
+  CLS.auto_hide_missing_cam = cl.auto_hide_missing_cam !== false;
   CLS.hook_style = cl.hook_style || (CLS.ctx?.type === "clip" ? (jobOf(CLS.ctx.jid)?.clips.find(x => x.id === CLS.ctx.cid)?.hook_style) : creator()?.hook_style) || "purple_whip";
   CLS.hook_y = cl.hook_y !== undefined ? cl.hook_y : (CLS.ctx?.type === "clip" ? (jobOf(CLS.ctx.jid)?.clips.find(x => x.id === CLS.ctx.cid)?.hook_y || (CLS.mode === "split" ? 1010 : 300)) : 1010);
   CLS.hook_w = cl.hook_w || 920;
@@ -8101,18 +8198,33 @@ function openCustomLayoutStudio(context) {
         <button class="btn icon ghost" data-act="close_custom_layout_dlg" aria-label="Close" style="color:#94A3B8;font-size:18px;cursor:pointer">${ic("x")}</button>
       </div>
 
-      <!-- Quick Built-in Presets Row -->
-      <div style="display:flex;gap:8px;padding:8px 24px;background:#16110E;border-bottom:1px solid #261D17;overflow-x:auto;align-items:center;flex-wrap:wrap">
-        <span style="font-size:11px;font-weight:700;color:#64748B;text-transform:uppercase;letter-spacing:0.5px">Built-in Presets:</span>
-        <button type="button" class="cls-tab-btn" data-act="cls_preset" data-preset="ohnepixel">💎 OhnePixel (Top-Left Cam)</button>
-        <button type="button" class="cls-tab-btn" data-act="cls_preset" data-preset="top-right">📹 Top-Right Cam</button>
-        <button type="button" class="cls-tab-btn" data-act="cls_preset" data-preset="bottom-left">🔥 Speed / Kai (Bottom-Left)</button>
-        <button type="button" class="cls-tab-btn" data-act="cls_preset" data-preset="split_half">⭐ Classic 50/50 Split</button>
-        <button type="button" class="cls-tab-btn" data-act="cls_preset" data-preset="pip">🔲 Corner PIP Cam</button>
-        <button type="button" class="cls-tab-btn" data-act="cls_preset" data-preset="crop">🎮 Fullscreen Gameplay</button>
-        <div style="margin-left:auto;display:flex;gap:6px">
-          <button type="button" class="btn sm" data-act="cls_refresh_frame" style="background:#261E19;border:1px solid #4A382D;color:#CBD5E1;font-size:11px;padding:4px 10px;border-radius:8px;cursor:pointer">📸 Refresh Live Frame</button>
-          <button type="button" class="btn sm" data-act="cls_upload_frame" style="background:#261E19;border:1px solid #4A382D;color:#CBD5E1;font-size:11px;padding:4px 10px;border-radius:8px;cursor:pointer">📁 Upload Image</button>
+      <!-- Quick Built-in Presets Row (Facecam + No-Facecam Mobile Full/Custom Height) -->
+      <div style="display:flex;flex-direction:column;gap:6px;padding:8px 24px;background:#16110E;border-bottom:1px solid #261D17">
+        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+          <span style="font-size:10.5px;font-weight:700;color:#64748B;text-transform:uppercase;letter-spacing:0.5px">With Facecam:</span>
+          <button type="button" class="cls-tab-btn" data-act="cls_preset" data-preset="ohnepixel">💎 OhnePixel (Top-Left)</button>
+          <button type="button" class="cls-tab-btn" data-act="cls_preset" data-preset="top-right">📹 Top-Right</button>
+          <button type="button" class="cls-tab-btn" data-act="cls_preset" data-preset="bottom-left">🔥 Bottom-Left</button>
+          <button type="button" class="cls-tab-btn" data-act="cls_preset" data-preset="bottom-right">🎛️ Bottom-Right</button>
+          <button type="button" class="cls-tab-btn" data-act="cls_preset" data-preset="split_half">⭐ 50/50 Split</button>
+          <button type="button" class="cls-tab-btn" data-act="cls_preset" data-preset="split_30_70">⚖️ 30/70 Big Game</button>
+          <button type="button" class="cls-tab-btn" data-act="cls_preset" data-preset="pip">🔲 Corner PiP</button>
+          <div style="margin-left:auto;display:flex;gap:6px">
+            <button type="button" class="btn sm" data-act="cls_refresh_frame" style="background:#261E19;border:1px solid #4A382D;color:#CBD5E1;font-size:11px;padding:4px 10px;border-radius:8px;cursor:pointer">📸 Refresh Live Frame</button>
+            <button type="button" class="btn sm" data-act="cls_upload_frame" style="background:#261E19;border:1px solid #4A382D;color:#CBD5E1;font-size:11px;padding:4px 10px;border-radius:8px;cursor:pointer">📁 Upload Image</button>
+          </div>
+        </div>
+        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+          <span style="font-size:10.5px;font-weight:700;color:#00F0FF;text-transform:uppercase;letter-spacing:0.5px">No Facecam / Mobile:</span>
+          <button type="button" class="cls-tab-btn" data-act="cls_preset" data-preset="mobile_full_nocam">📱 100% Full Screen (No Cam)</button>
+          <button type="button" class="cls-tab-btn" data-act="cls_preset" data-preset="nocam_tall_blur">✨ 68% Tall + Blur (No Cam)</button>
+          <button type="button" class="cls-tab-btn" data-act="cls_preset" data-preset="nocam_cinema_blur">🎬 46% Cinema + Blur (No Cam)</button>
+          <button type="button" class="cls-tab-btn" data-act="cls_preset" data-preset="nocam_cinema_black">⬛ 16:9 Fit Black Bars (No Cam)</button>
+          <button type="button" class="cls-tab-btn" data-act="cls_preset" data-preset="nocam_left_focus">🎯 Left Focus Full (No Cam)</button>
+          <label style="margin-left:auto;display:inline-flex;align-items:center;gap:6px;font-size:11px;color:#CBD5E1;cursor:pointer" title="Automatically switch Split/PiP to full gameplay if a video has no webcam">
+            <input type="checkbox" id="cls_auto_nocam" ${CLS.auto_hide_missing_cam !== false ? 'checked' : ''} onchange="CLS.auto_hide_missing_cam=this.checked">
+            <span>🤖 Auto Fullscreen when video has no Facecam</span>
+          </label>
         </div>
       </div>
 
@@ -8269,10 +8381,29 @@ function openCustomLayoutStudio(context) {
 
           <div>
             <div style="font-size:11px;font-weight:700;color:#94A3B8;text-transform:uppercase;margin-bottom:6px">Format Mode:</div>
-            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px">
-              <button type="button" class="cls-mode-btn cls-tab-btn ${CLS.mode === 'split' ? 'active' : ''}" data-act="cls_mode" data-mode="split" style="text-align:center;padding:6px 4px;font-size:11px">Split</button>
-              <button type="button" class="cls-mode-btn cls-tab-btn ${CLS.mode === 'pip' ? 'active' : ''}" data-act="cls_mode" data-mode="pip" style="text-align:center;padding:6px 4px;font-size:11px">PiP</button>
-              <button type="button" class="cls-mode-btn cls-tab-btn ${CLS.mode === 'crop' ? 'active' : ''}" data-act="cls_mode" data-mode="crop" style="text-align:center;padding:6px 4px;font-size:11px">Crop</button>
+            <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:5px">
+              <button type="button" class="cls-mode-btn cls-tab-btn ${CLS.mode === 'split' ? 'active' : ''}" data-act="cls_mode" data-mode="split" style="text-align:center;padding:6px 3px;font-size:10.5px">Split</button>
+              <button type="button" class="cls-mode-btn cls-tab-btn ${CLS.mode === 'pip' ? 'active' : ''}" data-act="cls_mode" data-mode="pip" style="text-align:center;padding:6px 3px;font-size:10.5px">PiP</button>
+              <button type="button" class="cls-mode-btn cls-tab-btn ${CLS.mode === 'crop' ? 'active' : ''}" data-act="cls_mode" data-mode="crop" style="text-align:center;padding:6px 3px;font-size:10.5px" title="100% Full Screen Mobile (No Facecam)">📱 Full</button>
+              <button type="button" class="cls-mode-btn cls-tab-btn ${CLS.mode === 'frame' ? 'active' : ''}" data-act="cls_mode" data-mode="frame" style="text-align:center;padding:6px 3px;font-size:10.5px" title="Custom Mobile Height (30%-100%, No Facecam)">🎬 Fit/Fill</button>
+            </div>
+          </div>
+
+          <div id="cls_frame_settings" style="display:${CLS.mode === 'frame' ? 'block' : 'none'};background:#1A1411;border:1px solid #33261F;border-radius:10px;padding:10px">
+            <div style="display:flex;justify-content:space-between;font-size:11px;color:#CBD5E1;margin-bottom:4px">
+              <span>Mobile Screen Height (No Cam):</span>
+              <b id="cls_mobile_h_val" style="color:#00F0FF">${CLS.mobile_height || 65}% Height${(CLS.mobile_height || 65) >= 98 ? ' (Full Screen)' : ''}</b>
+            </div>
+            <input type="range" id="cls_mobile_h_slider" min="30" max="100" step="2" value="${CLS.mobile_height || 65}" style="width:100%;accent-color:#00F0FF" oninput="clsOnMobileHeightChange(this.value)">
+            <div style="display:flex;gap:4px;margin-top:6px">
+              <button type="button" class="btn sm" onclick="clsOnMobileHeightChange(42)" style="flex:1;font-size:9.5px;padding:3px 4px;background:#241A14;color:#CBD5E1;border:1px solid #3A2C24">42% Wide</button>
+              <button type="button" class="btn sm" onclick="clsOnMobileHeightChange(65)" style="flex:1;font-size:9.5px;padding:3px 4px;background:#241A14;color:#CBD5E1;border:1px solid #3A2C24">65% Tall</button>
+              <button type="button" class="btn sm" onclick="clsOnMobileHeightChange(82)" style="flex:1;font-size:9.5px;padding:3px 4px;background:#241A14;color:#CBD5E1;border:1px solid #3A2C24">82% Big</button>
+              <button type="button" class="btn sm" onclick="clsOnMobileHeightChange(100)" style="flex:1;font-size:9.5px;padding:3px 4px;background:#241A14;color:#00F0FF;border:1px solid rgba(0,240,255,0.4)">100% Full</button>
+            </div>
+            <div style="display:flex;gap:6px;margin-top:8px">
+              <button type="button" class="cls-tab-btn cls-bg-btn ${CLS.bg_style !== 'black' ? 'active' : ''}" data-bg="blur" onclick="clsSetBgStyle('blur')" style="flex:1;font-size:10px;padding:4px 6px">✨ Blur Backdrop</button>
+              <button type="button" class="cls-tab-btn cls-bg-btn ${CLS.bg_style === 'black' ? 'active' : ''}" data-bg="black" onclick="clsSetBgStyle('black')" style="flex:1;font-size:10px;padding:4px 6px">⬛ Black Cinema</button>
             </div>
           </div>
 

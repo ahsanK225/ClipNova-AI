@@ -1,6 +1,23 @@
 ﻿# Changelog
 All notable project changes are documented here.
 
+## [2026-11-25] — No-Facecam Presets, Flexible Mobile Screen Height & Live AI Verdict Clarity
+### Added
+- **No-Facecam & Flexible Mobile Height (`frame` Mode)**: Added a 4th Format Mode (`🎬 Fit/Fill` / backend `mode="frame"`) inside **Visual Custom Layout & Facecam Studio** (`web/index.html`, `studio/render.py`) allowing users to set exact `30%–100%` Mobile Screen Height (`42% Wide`, `65% Tall`, `82% Big`, `100% Full`) with a live slider and selectable **Blur Backdrop** (`blur`) or **Black Cinema** (`black`) fill.
+- **Built-in Preset Groups & Auto No-Cam Fallback**: Organized 12 built-in presets into `WITH FACECAM:` (`OhnePixel (Top-Left)`, `Top-Right`, `Bottom-Left`, `Bottom-Right`, `50/50 Split`, `30/70 Big Game`, `Corner PiP`) and `NO FACECAM / MOBILE:` (`100% Full Screen`, `68% Tall + Blur`, `46% Cinema + Blur`, `16:9 Fit Black Bars`, `Left Focus Full`), plus an `auto_hide_missing_cam` (`#cls_auto_nocam`) option that automatically converts split/pip renders into clean full-screen framing when a video has no valid facecam region.
+- **Test Coverage**: Added automated verification test #21 in `PeakCut/tests/test_nextgen_upgrade.py` covering `render._filter("custom", ...)` for `frame` mode (`68%` blur overlay, `100%` edge-to-edge full crop, and `no_facecam=True` split fallback).
+### Changed & Fixed
+- **Live AI Verdict Clarity (`Latest AI Decisions`)**: Separated Pass 1 transcript scores from Pass 2 multimodal rejection/accept scores across `PeakCut/studio/brain.py` (`judge_multimodal_moment`), `PeakCut/studio/live.py` (`verdict["mm_score"]`, `verdict["breakdown"]`), and `PeakCut/web/index.html` (`MM <mm_score> (Txt <transcript>)`), resolving the confusing display where a Pass-2 `SKIP` appeared next to a Pass-1 `Score 82`.
+- **FFmpeg Custom Branch Cleanup**: Cleaned up a duplicate unindented `if layout == "custom"` block in `PeakCut/studio/render.py`.
+### Tests and Verification
+- Executed `PeakCut/tests/test_nextgen_upgrade.py`: 21 checks passed (`node --check` on main `<script>` exited 0).
+- Executed 7 UI/SEO/BGM unittest modules (33 tests): all passed in `5.351s`.
+- Executed full `PeakCut/tests/run.py` master suite: `All tests passed.`
+- Rendered & visually verified `test_nocam_blur68.mp4` / `test_nocam_blur68.jpg` (`1080x1920`, `68%` gameplay height + blur backdrop + captions).
+- Live browser verification on `http://localhost:8765/app/videos` (`final_step_83.png`) passed without stopping active recording `20261125-035230-5efec3e0f2`.
+### Documentation
+- Updated `CHANGELOG.md` and synchronized to `PeakCut/CHANGELOG.md`.
+
 ## [2026-11-25] — Custom Layout Studio Upgrades & Light/Dark Cosmetic Polish
 
 ### Added

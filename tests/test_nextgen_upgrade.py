@@ -278,6 +278,16 @@ try:
     check("Frontend main <script> passes node --check with zero syntax errors",
           node_res.returncode == 0, node_res.stderr[:200])
 
+    # 6. Render custom layout frame mode (No Facecam & custom mobile height 30-100%)
+    from studio import render as render_mod
+    fg_blur = render_mod._filter("custom", 1080, custom_layout={"mode": "frame", "mobile_height": 68, "bg_style": "blur", "gameplay": [360, 0, 1200, 1080], "no_facecam": True})
+    fg_full = render_mod._filter("custom", 1080, custom_layout={"mode": "frame", "mobile_height": 100, "gameplay": [656, 0, 608, 1080], "no_facecam": True})
+    fg_nocam_split = render_mod._filter("custom", 1080, custom_layout={"mode": "split", "no_facecam": True, "gameplay": [480, 0, 1440, 1080]})
+    check("Custom Studio 'frame' mode supports custom mobile height + blur & 100% full + no_facecam fallback",
+          "boxblur=" in fg_blur and "overlay=0:" in fg_blur
+          and "crop=1080:1920" in fg_full and "overlay=" not in fg_full
+          and "vstack" not in fg_nocam_split and "crop=1080:1920" in fg_nocam_split)
+
 finally:
     shutil.rmtree(os.environ["PEAKCUT_DATA"], ignore_errors=True)
 

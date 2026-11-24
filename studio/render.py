@@ -521,6 +521,9 @@ def _filter(layout, fg_h, facecam=None, facecam_pos="top-right", facecam_delay=0
 
     if layout == "custom" and isinstance(custom_layout, dict):
         cl_mode = str(custom_layout.get("mode") or "split").lower()
+        no_cam = bool(custom_layout.get("no_facecam"))
+        if no_cam and cl_mode in ("split", "pip"):
+            cl_mode = "crop"
         fc_box = custom_layout.get("facecam") or facecam or [0, 0, 480, 360]
         gm_box = custom_layout.get("gameplay") or [0, 0, 1920, 1080]
         try:
@@ -558,6 +561,27 @@ def _filter(layout, fg_h, facecam=None, facecam_pos="top-right", facecam_delay=0
             return (f"{vin_prefix},crop={gw}:{gh}:{gx}:{gy},"
                     f"scale={W}:{H}:flags=lanczos+accurate_rnd:force_original_aspect_ratio=increase,"
                     f"crop={W}:{H},cas=0.30,unsharp=5:5:0.5:5:5:0.0,setsar=1[v0];")
+
+        elif cl_mode == "frame":
+            pct = max(30, min(100, int(float(custom_layout.get("mobile_height") or 65))))
+            bg_style = str(custom_layout.get("bg_style") or "blur").lower()
+            if pct >= 98:
+                return (f"{vin_prefix},crop={gw}:{gh}:{gx}:{gy},"
+                        f"scale={W}:{H}:flags=lanczos+accurate_rnd:force_original_aspect_ratio=increase,"
+                        f"crop={W}:{H},cas=0.30,unsharp=5:5:0.5:5:5:0.0,setsar=1[v0];")
+            box_h = max(360, int(round(H * pct / 100.0)) // 2 * 2)
+            box_y = max(0, (H - box_h) // 2)
+            if bg_style == "black":
+                return (f"{vin_prefix},crop={gw}:{gh}:{gx}:{gy},"
+                        f"scale={W}:{box_h}:flags=lanczos+accurate_rnd:force_original_aspect_ratio=increase,"
+                        f"crop={W}:{box_h},cas=0.30,unsharp=5:5:0.5:5:5:0.0,"
+                        f"pad={W}:{H}:0:{box_y}:black,setsar=1[v0];")
+            return (f"{vin_prefix},crop={gw}:{gh}:{gx}:{gy},split=2[a][b];"
+                    f"[a]scale=270:480:force_original_aspect_ratio=increase,crop=270:480,boxblur=6:2,"
+                    f"scale={W}:{H},eq=brightness=-0.14:saturation=1.15[bg];"
+                    f"[b]scale={W}:{box_h}:flags=lanczos+accurate_rnd:force_original_aspect_ratio=increase,"
+                    f"crop={W}:{box_h},cas=0.30,unsharp=5:5:0.5:5:5:0.0[fg];"
+                    f"[bg][fg]overlay=0:{box_y},setsar=1[v0];")
 
         else:
             ratio = float(custom_layout.get("split_ratio") or 0.35)
@@ -809,6 +833,13 @@ def render_clip(src: Path, out_dir: Path, name: str, clip: dict, words: list, sr
     game_offset_x = int(clip.get("game_offset_x") or 0)
     zoom = float(clip.get("zoom") or 1.0)
     custom_layout = clip.get("custom_layout")
+    if layout == "custom" and isinstance(custom_layout, dict):
+        if custom_layout.get("auto_hide_missing_cam") and (
+            not (face and len(face) == 4)
+            or clip.get("facecam_fullscreen")
+            or facecam.is_fullscreen_cam(src, start, end, face, src_w, src_h)
+        ):
+            custom_layout = {**custom_layout, "mode": "frame" if custom_layout.get("mode") == "frame" else "crop", "no_facecam": True}
     if isinstance(custom_layout, dict) and custom_layout.get("hook_y"):
         try:
             hook_y = int(custom_layout["hook_y"])
@@ -853,7 +884,6 @@ def render_clip(src: Path, out_dir: Path, name: str, clip: dict, words: list, sr
     work = Path(tempfile.mkdtemp(prefix="pk"))
     try:
         meta = {"title": clip.get("title") or "", "description": clip.get("description") or "", "comment": clip.get("description") or ""}
-        custom_layout = clip.get("custom_layout")
         bgm_track = clip.get("bgm_track")
         bgm_volume = clip.get("bgm_volume", 0.18)
         bgm_offset = clip.get("bgm_offset", 0.0)
