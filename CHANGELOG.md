@@ -1,6 +1,24 @@
 ﻿# Changelog
 All notable project changes are documented here.
 
+## [2026-11-24] — Complete Dialogue-Grounded SEO Pipeline & Background Re-Render for All 236 OhnePixel Clips
+
+### Added
+- **Full Creator Archive Dialogue Extraction & SEO Pipeline (`scratch/apply_all_197_clips_seo.py`)**:
+  - Scanned and processed speech transcripts (`words.json`) across all 23 jobs of OhnePixel, expanding grounded viral SEO from the initial 39 active session clips to the entire library of **236 clips**.
+  - Generated unique Canary Yellow punch asterisks hooks (`*WORD*`), high-CTR titles (with `#Shorts`), full narrative story descriptions, high-volume search tags, and engagement-generating pinned comments.
+  - Instantly updated `job.json` and sidecar files `clips/{cid}.json` with `version: 1` across all 21 remaining jobs (197 clips) for instant zero-latency UI display.
+- **Background Multi-Job Batch Re-Render Daemon (`scratch/batch_rerender_all_background.py`)**:
+  - Launched an automated background worker (Task `task-20846`) queuing 190 source-backed clips for continuous FFmpeg encoding.
+  - Automatically burns updated ASS subtitle banners and regenerates fresh `.jpg` cover thumbnails on disk without interrupting user workflow.
+
+### Tests and Verification
+- Automated script verified: 21 jobs and 197 clips updated with return code 0.
+- Single-clip test render (`20261124-015831-d0798fecfc`, `clip001`) verified exit code 0 and generated valid MP4 and JPG with hook `TRYING TO GET *5 STARS* IN GTA 6! 🚨🚗`.
+- Background daemon actively processing batch queue with live logging in `scratch/batch_rerender.log`.
+
+
+
 ## [2026-11-24] — Dialogue-Grounded Custom Viral Hooks & High-CTR SEO Pipeline Across All 39 OhnePixel Clips
 
 ### Added
