@@ -1,6 +1,25 @@
 ﻿# Changelog
 All notable project changes are documented here.
 
+## [2026-11-24] — Physical FFmpeg Video & Thumbnail Re-Rendering of Streamer Clips to Permanently Burn New Hooks
+
+### Fixed & Re-rendered
+- **Physical Video Frames & Thumbnail Burn-in**:
+  - Addressed user feedback ("yahan pr sab videos pr mjy lagta he old wale hi lagy howe hain tom check kro" and "or youtube pr bhi deko wahi speed wala lika howa aya ye 2nd pic i guess kam nai kr raha he sahi sy"):
+    1. **Clarified Button Architecture**: `Save SEO & Title (Instant - No Re-render)` updates textual metadata (Title, Description, Tags) in < 5ms without re-encoding video frames. Previous video files (`.mp4`) and thumbnails (`.jpg`) that were rendered before still had the legacy hook burned into the actual video frames.
+    2. **Multi-Threaded Batch Re-Rendering**: Executed FFmpeg `jobs.render_one()` across all clips in OhnePixel streams (`20261124-022539-ccd6e4bef2` and `20261124-030820-3cdebdb524`, totaling 38 clips).
+    3. **Burned-in New Hooks & Canary Yellow Punch Words**: Generated updated ASS subtitle files burning `OHNEPIXEL` hooks with Canary Yellow punch word highlighting (`{\c&H00E5FF&}`) directly into the MP4 video streams.
+    4. **Regenerated Cover Thumbnails**: Extracted fresh `.jpg` thumbnails from the re-rendered video streams at 1.2s, completely replacing old cover thumbnails across all cards.
+    5. **Edge Case Fix**: Resolved `clip022` re-generation edge case where `version == 0` triggered AI override.
+
+### Tests and Verification
+- FFmpeg re-render batch script completed 38/38 clips with return code 0.
+- Inspected `.ass` subtitle files (`clip003.ass`, `clip005.ass`, `clip008.ass`): verified `OHNEPIXEL` hook dialogue lines with Canary Yellow punch word formatting.
+- Live browser subagent verification via `88fcb493-85e9-4aa9-a7bb-322e00c5a88d` on `http://localhost:8765/app/creators/ohnepixel`:
+  - Verified all 8 cards across both rows show OhnePixel facecam and the newly burned OhnePixel hooks on their video thumbnails.
+  - Zero "Speed" text remaining on any thumbnail.
+  - High-res screenshot saved to `ohnepixel_cards_rerendered_verified.png`.
+
 ## [2026-11-24] — Workspace-Wide Automated Viral Hooks & High-CTR SEO Optimization Across All 346 Clips
 
 ### Added & Optimized
