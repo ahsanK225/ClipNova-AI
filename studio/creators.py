@@ -6,7 +6,7 @@ import threading
 import time
 from pathlib import Path
 
-from . import config, ctx
+from . import config, ctx, safe
 
 
 def _root() -> Path:
@@ -196,11 +196,10 @@ def _mine() -> dict:
     if got is None:
         got = {}
         for f in sorted(_root().glob("*/creator.json")):
-            try:
-                c = _fix({**DEFAULTS, **json.loads(f.read_text(encoding="utf-8"))})
+            raw = safe.load_json_with_backup(f)
+            if isinstance(raw, dict):
+                c = _fix({**DEFAULTS, **raw})
                 got[c.get("id") or f.parent.name] = c
-            except Exception:  # noqa: BLE001
-                pass
         with _lock:
             got = _mem.setdefault(u, got)
     return got
@@ -228,9 +227,7 @@ def _write(c):
         d = root(c["id"])
         for sub in ("videos", "live"):
             (d / sub).mkdir(parents=True, exist_ok=True)
-        tmp = d / "creator.json.tmp"
-        tmp.write_text(json.dumps(c, indent=1), encoding="utf-8")
-        tmp.replace(d / "creator.json")
+        safe.atomic_write_text(d / "creator.json", json.dumps(c, indent=1), backup=True)
         _mine()[c["id"]] = copy.deepcopy(c)
     ctx.bump()
 

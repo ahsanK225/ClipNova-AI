@@ -1,11 +1,12 @@
 """Turns a time range into a vertical clip: 9:16 layout, bouncy word captions, hook title, cover."""
+import os
 import re
 import shutil
 import subprocess
 import tempfile
 from pathlib import Path
 
-from . import config, roman
+from . import config, facecam, roman
 from .media import NO_WINDOW, run
 
 W, H = config.OUT_W, config.OUT_H
@@ -688,8 +689,96 @@ def _hook_y(layout, hook_y, facecam=None, facecam_pos="top-right"):
     return hook_y
 
 
+_amf_ok = None
+_nvenc_ok = None
 _qsv_ok = None
+_ffmpeg_encoders = None
 RENDER_SECONDS = 600      # one clip's video encode; far beyond normal, so a frozen encoder is stopped, not waited on
+
+
+def _supported_encoders() -> set[str]:
+    """Return H.264 encoder names compiled into the active ffmpeg binary."""
+    global _ffmpeg_encoders
+    if _ffmpeg_encoders is not None:
+        return _ffmpeg_encoders
+    try:
+        p = subprocess.run(["ffmpeg", "-hide_banner", "-encoders"], capture_output=True, text=True,
+                           encoding="utf-8", errors="replace", creationflags=NO_WINDOW, timeout=10)
+        names = set()
+        for tok in ("h264_amf", "h264_nvenc", "h264_qsv", "libx264"):
+            if tok in (p.stdout or ""):
+                names.add(tok)
+        _ffmpeg_encoders = names or {"libx264"}
+    except Exception:
+        _ffmpeg_encoders = {"libx264"}
+    return _ffmpeg_encoders
+
+
+def _encode_with_fallback(base: list[str], out_target: str, *, cwd=None, preset_2k: bool = False,
+                          timeout: int = RENDER_SECONDS) -> str:
+    """Encode using fastest available hardware H.264 encoder (AMF -> NVENC -> QSV) with lossless-grade CPU fallback."""
+    global _amf_ok, _nvenc_ok, _qsv_ok
+    cpu_only = str(config.env("PEAKCUT_CPU_ENCODE", "") or os.environ.get("PEAKCUT_CPU_ENCODE", "")).strip() == "1"
+    avail = _supported_encoders()
+    encoders = []
+    if not cpu_only:
+        if _amf_ok is not False and "h264_amf" in avail:
+            encoders.append(("amf", [
+                "nv12", "-c:v", "h264_amf", "-usage", "high_quality", "-quality", "quality",
+                "-rc", "cqp", "-qp_i", "14" if preset_2k else "15", "-qp_p", "15" if preset_2k else "16",
+                "-qp_b", "16" if preset_2k else "18", "-profile:v", "high",
+                *([] if preset_2k else ["-level", "4.2"]), "-g", "60",
+                "-color_primaries", "bt709", "-color_trc", "bt709", "-colorspace", "bt709", "-color_range", "tv",
+            ]))
+        if _nvenc_ok is not False and "h264_nvenc" in avail:
+            encoders.append(("nvenc", [
+                "nv12", "-c:v", "h264_nvenc", "-preset", "p5", "-tune", "hq", "-rc", "vbr", "-cq", "16",
+                "-b:v", "25M" if preset_2k else "20M", "-maxrate", "35M" if preset_2k else "30M",
+                "-bufsize", "50M" if preset_2k else "40M",
+            ]))
+        if _qsv_ok is not False and "h264_qsv" in avail:
+            encoders.append(("qsv", [
+                "nv12", "-c:v", "h264_qsv", "-global_quality", "18", "-preset", "medium",
+                "-b:v", "25M" if preset_2k else "16M", "-maxrate", "35M" if preset_2k else "24M",
+            ]))
+    encoders.append(("x264", [
+        "yuv420p", "-c:v", "libx264", "-crf", "14", "-preset", "veryfast" if preset_2k else "medium",
+        "-b:v", "25M" if preset_2k else "20M", "-maxrate", "35M" if preset_2k else "30M",
+        "-bufsize", "50M" if preset_2k else "40M",
+        "-profile:v", "high", *([] if preset_2k else ["-level", "4.2"]),
+        "-tune", "film", "-g", "60", "-keyint_min", "30",
+        "-color_primaries", "bt709", "-color_trc", "bt709", "-colorspace", "bt709", "-color_range", "tv",
+    ]))
+    err = None
+    for label, enc in encoders:
+        p = subprocess.run(base + enc + [out_target], cwd=cwd, capture_output=True, text=True,
+                           encoding="utf-8", errors="replace", creationflags=NO_WINDOW, timeout=timeout)
+        if p.returncode == 0:
+            if label == "amf":
+                _amf_ok = True
+            elif label == "nvenc":
+                _nvenc_ok = True
+            elif label == "qsv":
+                _qsv_ok = True
+            return label
+        err = (p.stderr or p.stdout or "unknown ffmpeg error")[-1200:]
+        if label == "amf":
+            _amf_ok = False
+        elif label == "nvenc":
+            _nvenc_ok = False
+        elif label == "qsv":
+            _qsv_ok = False
+    raise RuntimeError(f"Render failed: {err}")
+
+
+def scale_to_2k(src: Path, dst: Path) -> None:
+    """Upscale a vertical clip to 1440x2560 (2K VP9/AV1 YouTube tier) using GPU when available."""
+    base = [
+        "ffmpeg", "-y", "-v", "error", "-i", str(src),
+        "-vf", "scale=1440:2560:flags=lanczos+accurate_rnd,cas=0.20",
+        "-c:a", "copy", "-movflags", "+faststart", "-pix_fmt",
+    ]
+    _encode_with_fallback(base, str(dst), preset_2k=True, timeout=RENDER_SECONDS)
 
 
 VIDEO_FILTERS = {
@@ -707,8 +796,12 @@ def render_clip(src: Path, out_dir: Path, name: str, clip: dict, words: list, sr
     start, end = clip["start"], clip["end"]
     layout, fg_h, hook_y, cap_y = geometry(src_w, src_h, clip.get("layout", "blur"))
     face = clip.get("facecam")
-    if layout in ("gameplay", "split", "split_half") and not (face and len(face) == 4):
-        layout = "crop"     # no webcam found: the game fills the screen, which is still the right shape
+    if layout in ("gameplay", "split", "split_half") and (
+        not (face and len(face) == 4)
+        or clip.get("facecam_fullscreen")
+        or facecam.is_fullscreen_cam(src, start, end, face, src_w, src_h)
+    ):
+        layout = "crop"     # no webcam or full-screen camera scene: fill vertical canvas cleanly
     facecam_pos = clip.get("facecam_pos", "top-right")
     facecam_delay = float(clip.get("facecam_delay") or 0.0)
     audio_delay = float(clip.get("audio_delay") or 0.0)
@@ -875,33 +968,7 @@ def _render_in(work: Path, src: Path, out_dir: Path, name: str, start, end, layo
         if v:
             base += ["-metadata", f"{k}={v}"]
     base += ["-shortest", "-movflags", "+faststart", "-pix_fmt"]
-    encoders = []
-    # Ultra-clear 1080p60 broadcast profile: CRF 14, 20M average bitrate, 30M peak burst, film-tuned texture fidelity
-    encoders.append(("x264", [
-        "yuv420p", "-c:v", "libx264", "-crf", "14", "-preset", "medium",
-        "-b:v", "20M", "-maxrate", "30M", "-bufsize", "40M",
-        "-profile:v", "high", "-level", "4.2",
-        "-tune", "film", "-g", "60", "-keyint_min", "30",
-        "-color_primaries", "bt709", "-color_trc", "bt709", "-colorspace", "bt709", "-color_range", "tv"
-    ]))
-    if _qsv_ok is not False:
-        encoders.append(("qsv", [
-            "nv12", "-c:v", "h264_qsv", "-global_quality", "18", "-preset", "medium",
-            "-b:v", "16M", "-maxrate", "24M"
-        ]))
-    err = None
-    for label, enc in encoders:
-        p = subprocess.run(base + enc + [f"{name}.mp4"], cwd=work, capture_output=True, text=True,
-                           encoding="utf-8", errors="replace", creationflags=NO_WINDOW, timeout=RENDER_SECONDS)
-        if p.returncode == 0:
-            if label == "qsv":
-                _qsv_ok = True
-            break
-        err = p.stderr[-1200:]
-        if label == "qsv":
-            _qsv_ok = False
-    else:
-        raise RuntimeError(f"Render failed: {err}")
+    _encode_with_fallback(base, f"{name}.mp4", cwd=work, preset_2k=False, timeout=RENDER_SECONDS)
     cover_t = min(1.2, (t_dur / 2) if (teaser_enabled and teaser_dur > 0) else ((end - start) / 2))
     run(["ffmpeg", "-y", "-v", "error", "-i", f"{name}.mp4", "-ss", f"{cover_t:.2f}", "-frames:v", "1",
          "-q:v", "3", f"{name}.jpg"], cwd=work)

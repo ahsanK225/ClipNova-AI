@@ -84,6 +84,19 @@ STRONG_REACTION_PHRASES: tuple[str, ...] = (
     "oh mein gott",
     "nicht dein ernst",
     "bist du dumm",
+    # Roman Urdu & Universal Creator Hype
+    "bhai kya hua",
+    "ye kya hua",
+    "yeh kya hua",
+    "ye kya tha",
+    "yeh kya tha",
+    "mazaq hai kya",
+    "dimag kharab",
+    "are you kidding me",
+    "chat is this real",
+    "what is that bro",
+    "w speed",
+    "w kai",
 )
 
 # LEVEL 2: OhnePixel Community Expressions & Slang (Creator-specific contextual signals)
@@ -98,6 +111,10 @@ COMMUNITY_EXPRESSIONS: tuple[str, ...] = (
     "bazalright",
     "naur",
     "vas",
+    "wallahi",
+    "w chat",
+    "bhai sahab",
+    "mazaq",
     "vas?!",
     "huss",
     "tsak",

@@ -59,14 +59,16 @@ F:\Games\GTA 6 CLIPPING\
 │   │   │   ├── pyJianYingDraft\            # Pure Python CapCut desktop draft AST builder & track manager
 │   │   │   └── template\                   # Base CapCut project template (draft_info.json, draft_meta_info.json)
 │   │   ├── media.py                        # Long-video stream inspector, format resolver & Netscape cookie manager
-│   │   ├── ohnepixel.py                    # OhnePixel intelligent detection database, tiered phrases, German/English slang, false-positive protection & Mode B fallback
-│   │   ├── posting.py                      # YouTube Shorts cloud scheduling, IG, TikTok & channel exclusivity
-│   │   ├── render.py                       # FFmpeg 9:16 vertical render, split layouts, Bouncy/Hormozi/MrBeast subtitles, Hook styles (Purple Whip, etc.)
-│   │   ├── server.py                       # FastAPI application & HTTP routes (CapCut export endpoints, multi-key pool, presets)
-│   │   ├── storage.py                      # Local file, clip & recording management
-│   │   └── video.py                        # FFmpeg rendering, 9:16 layout & caption burn
-│   ├── tests\                              # Test suite (31 comprehensive suites)
-│   │   ├── run.py                          # Master test runner (690+ automated checks)
+│   │   ├── ohnepixel.py                    # Intelligent livestream reaction database, tiered phrases (EN/DE/Roman Urdu), false-positive protection & Mode B fallback
+│   │   ├── posting.py                      # YouTube Shorts cloud scheduling, GPU 2K upscale ladder, IG, TikTok & channel exclusivity
+│   │   ├── render.py                       # FFmpeg 9:16 vertical render, AMD AMF/NVENC/QSV GPU + libx264 fallback, split layouts, dynamic full-cam crop, Bouncy/Hormozi/MrBeast subtitles & Hook styles
+│   │   ├── safe.py                         # User-safe error redaction & Windows-resilient atomic file persistence (.tmp + .bak auto-recovery)
+│   │   ├── server.py                       # FastAPI application & HTTP routes (CapCut export endpoints, caption word editor API, multi-key pool, presets)
+│   │   └── storage.py                      # Local file, clip & recording management
+│   ├── tests\                              # Test suite (34 comprehensive suites in run.py + standalone suites)
+│   │   ├── run.py                          # Master test runner (725+ automated checks)
+│   │   ├── test_phase1_upgrades.py         # Phase 1 tests: atomic .bak recovery, GPU AMF/CPU fallback, ASR cache reuse, route dedup & yt_tags
+│   │   ├── test_phase2_upgrades.py         # Phase 2 tests: caption word editor API, multi-frame live AI, Roman Urdu pack, full-cam check & UI filter bar
 │   │   ├── test_ohnepixel_engine.py        # OhnePixel intelligent detection & false-positive suite (12 scenarios)
 │   │   ├── test_hashtags.py                # Hashtags generation tests
 │   │   ├── test_jobsave.py                 # Windows file locking resilience tests
@@ -124,12 +126,17 @@ F:\Games\GTA 6 CLIPPING\
 
 ## 5. Video Rendering & Audio/Video Sync Architecture
 - **`studio/render.py`**:
+  - GPU-first H.264 hardware encoding (`_encode_with_fallback` + `scale_to_2k`): prefers AMD AMF (`h264_amf`, `nv12`, `-usage high_quality`, CQP), Nvidia NVENC, or Intel QSV, with `PEAKCUT_CPU_ENCODE=1` override and automatic cached fallback to broadcast `libx264` (`-crf 14`).
+  - Dynamic Fullscreen Webcam Check (`facecam.is_fullscreen_cam`): automatically falls back to centered `crop` when a clip switches to full-screen webcam ("Just Chatting") rather than applying a corner box.
   - Normalizes frame PTS via `[0:v]setpts=PTS-STARTPTS,fps=30` at the very entrance of the video filter graph to eliminate initial frame drops and timestamp jitter.
   - Normalizes audio PTS via `asetpts=PTS-STARTPTS,aresample=async=1000:min_hard_comp=0.010:first_pts=0`.
   - Calibrated subtitle lead: `CAPTION_LEAD = 0.00` for exact acoustic word onset.
   - Multi-layout support: `blur`, `zoom`, `crop`, `gameplay` (corner PIP with `top-right`, `top-left`, `bottom-left`, `bottom-right`), and `split` (1080x960 facecam top + 1080x960 gameplay bottom).
   - 3D Hook banner & 3D Outro Support Badge ('NEW CHANNEL • LIKE & SUBSCRIBE!') burned in the last 3.2 seconds.
-- **`studio/jobs.py`**:
+- **`studio/jobs.py` & `studio/safe.py`**:
+  - Crash-Safe Atomic Persistence & Backup Recovery (`safe.atomic_write_text`, `safe.load_json_with_backup`): atomic sibling `.tmp` swaps with Windows `PermissionError` backoff retries and verified `.bak` snapshots across `job.json`, `words.json`, `clips/{id}.json`, `posts.json`, `creator.json`, `accounts`, and `analytics`. Automatically repairs missing legacy `"source"` / `"clips"` fields in `jobs.public()` and `jobs._load_file()`.
+  - Live ASR Transcript Alignment Cache (`_aligned_words`): reuses aligned Whisper transcripts produced by `live.Session._align()` directly inside `jobs._caption_words()`, avoiding duplicate ffmpeg WAV extraction and Whisper runs on live clips.
+  - In-Modal Caption Word Editor (`get_clip_words`, `save_clip_words`): serves and persists timestamped word edits via `GET/PUT /api/jobs/{jid}/clips/{cid}/words` so edited words burn deterministically without AI/Whisper overwrites.
   - VOD Deduplication: Checks `prior_spans` of previous jobs on the same source URL so re-submitting links automatically discovers the next fresh highlights instead of duplicating old moments.
   - Direct slice Whisper transcription with local timestamp alignment.
   - Configurable `audio_delay`, `facecam_delay`, and `facecam_pos`.

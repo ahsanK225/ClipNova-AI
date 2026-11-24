@@ -6,14 +6,12 @@ from pathlib import Path
 
 import json
 
-from . import accounts, alerts, calendar, config, creators, ctx, jobs, live, media
+from . import accounts, alerts, calendar, config, creators, ctx, jobs, live, media, render, safe
 
 _lock = threading.RLock()
 _FILE = config.DATA_DIR / "posts.json"
-try:
-    _posts: list = json.loads(_FILE.read_text(encoding="utf-8")) if _FILE.exists() else []
-except ValueError:
-    _posts = []
+_loaded_posts = safe.load_json_with_backup(_FILE, default=[])
+_posts: list = _loaded_posts if isinstance(_loaded_posts, list) else []
 
 
 def _mine() -> list:
@@ -24,9 +22,7 @@ OPEN = ("scheduled", "posting")
 
 def _save():
     with _lock:
-        tmp = _FILE.with_suffix(".tmp")
-        tmp.write_text(json.dumps(_posts, indent=1), encoding="utf-8")
-        tmp.replace(_FILE)
+        safe.atomic_write_text(_FILE, json.dumps(_posts, indent=1), backup=True)
 
 
 def forget(uid: str):
@@ -265,6 +261,10 @@ def _post(p):
         cap = _caption(clip, creator)
         upload_path = path
         temp_yt2k = None
+        yt_tags = list(clip.get("seo_tags") or [])
+        for h in clip.get("hashtags", []):
+            if h not in yt_tags:
+                yt_tags.append(h)
         if acc["platform"] == "youtube":
             try:
                 probe = media.probe(path)
@@ -273,20 +273,12 @@ def _post(p):
                 # preventing YouTube mobile/desktop player from downscaling the Short to blurry 240p/360p!
                 if probe.get("height", 0) < 2160 and probe.get("width", 0) < 1440:
                     temp_yt2k = path.with_name(f"{path.stem}_yt2k.mp4")
-                    media.run(["ffmpeg", "-y", "-v", "error", "-i", str(path),
-                               "-vf", "scale=1440:2560:flags=lanczos+accurate_rnd,cas=0.20",
-                               "-c:v", "libx264", "-crf", "14", "-preset", "veryfast",
-                               "-b:v", "25M", "-maxrate", "35M", "-bufsize", "50M",
-                               "-tune", "film", "-c:a", "copy", str(temp_yt2k)])
+                    render.scale_to_2k(path, temp_yt2k)
                     if temp_yt2k.is_file() and temp_yt2k.stat().st_size > 1024:
                         upload_path = temp_yt2k
             except Exception as ue:
                 creators.log(p["creator"], f"YouTube 2K VP9 pipeline notice: {ue}")
 
-            yt_tags = list(clip.get("seo_tags") or [])
-            for h in clip.get("hashtags", []):
-                if h not in yt_tags:
-                    yt_tags.append(h)
             pcomment = str(clip.get("pinned_comment") or "").strip()
             desc = cap + "\n\n#Shorts"
             if pcomment:

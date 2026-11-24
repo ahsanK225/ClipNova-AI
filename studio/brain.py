@@ -711,7 +711,20 @@ def describe(text, title="", uploader="", game=None, timeout=None):
         return res
 
 
-def describe_multimodal(image_bytes: bytes, text: str = "", title: str = "", uploader: str = "", game: str = None, timeout: float = None, model: str = None, tone: str = None) -> dict:
+def _apply_yellow_punch(hook: str, highlight_words: list | None = None) -> str:
+    """Wrap the single strongest action punch word in *WORD* if the hook has multiple words and none yet."""
+    h = (hook or "").strip()
+    if not h or "*" in h or len(h.split()) < 2:
+        return h
+    try:
+        from . import render
+        hw_set = {re.sub(r"[^\w]", "", str(w)).lower() for w in (highlight_words or []) if str(w).strip()}
+        return render._select_single_punch_word(h, highlight_words=hw_set or None)
+    except Exception:
+        return h
+
+
+def describe_multimodal(image_bytes: bytes | list[bytes], text: str = "", title: str = "", uploader: str = "", game: str = None, timeout: float = None, model: str = None, tone: str = None) -> dict:
     """Visually grounded, creator-centric Hook, Title, Description, and SEO for a clip using the actual video frame.
     Guarantees that the hook and title 100% match what is visually happening on screen and spoken,
     tailored specifically to the creator's personality (ohnepixel, IShowSpeed, Kai Cenat, etc.)."""
@@ -825,9 +838,9 @@ def describe_multimodal(image_bytes: bytes, text: str = "", title: str = "", upl
             if "#Shorts" not in stitle and "#shorts" not in stitle:
                 stitle = f"{stitle} #Shorts"[:100]
             raw_hooks = data.get("hooks") or []
-            hooks_list = [str(h)[:60].upper() for h in raw_hooks if isinstance(h, str) and h.strip()][:5]
+            hooks_list = [_apply_yellow_punch(str(h)[:60].upper()) for h in raw_hooks if isinstance(h, str) and h.strip()][:5]
             if not hooks_list and data.get("hook"):
-                hooks_list = [str(data["hook"])[:60].upper()]
+                hooks_list = [_apply_yellow_punch(str(data["hook"])[:60].upper())]
             raw_titles = data.get("titles") or []
             titles_list = [str(t)[:100] for t in raw_titles if isinstance(t, str) and t.strip()][:4]
             if stitle and stitle not in titles_list:
@@ -845,7 +858,7 @@ def describe_multimodal(image_bytes: bytes, text: str = "", title: str = "", upl
                     if fb not in titles_list:
                         titles_list.append(fb)
             titles_list = titles_list[:4]
-            best_hook = str(data.get("hook") or (hooks_list[1] if len(hooks_list) > 1 else hooks_list[0]))[:60].upper()
+            best_hook = _apply_yellow_punch(str(data.get("hook") or (hooks_list[1] if len(hooks_list) > 1 else hooks_list[0]))[:60].upper())
 
             out = {
                 "score": int(data.get("score") or 85),
@@ -1037,7 +1050,7 @@ CRITICAL GROUNDING & VIRALITY INSTRUCTIONS (LIKE CHATGPT / VIRAL EDITORS):
         try:
             out, _ti, _to = ai.see_json(vision_prompt, image, schema=HOOKS_SCHEMA, timeout=18)
             if isinstance(out, dict) and "hooks" in out and isinstance(out["hooks"], list):
-                res = [re.sub(r'["\\]', '', str(h)).strip() for h in out["hooks"] if str(h).strip()]
+                res = [_apply_yellow_punch(re.sub(r'["\\]', '', str(h)).strip()) for h in out["hooks"] if str(h).strip()]
                 if len(res) >= 3:
                     return res[:count]
         except Exception as e:
@@ -1225,7 +1238,7 @@ def judge_multimodal_moment(
     z_scores: list[float] | np.ndarray | None = None,
     frame_bytes: bytes | list[bytes] | None = None,
     title: str = "",
-    uploader: str = "ohnePixel",
+    uploader: str = "Streamer",
     game: str | None = None,
     chat: list[int] | None = None,
     timeout: float | None = None,
@@ -1296,8 +1309,10 @@ def judge_multimodal_moment(
     has_visual = False
 
     if frame_bytes:
+        is_multi_vis = isinstance(frame_bytes, list) and len(frame_bytes) > 1
+        frame_scope = f"{len(frame_bytes)} sequential video frames across this moment" if is_multi_vis else "a candidate video frame"
         prompt = (
-            f"You are an expert livestream clipping judge analyzing a candidate video frame from {uploader}'s stream.\n"
+            f"You are an expert livestream clipping judge analyzing {frame_scope} from {uploader or 'Streamer'}'s stream.\n"
             f"Game/Category: {game or 'Gaming'} | Stream Title: {title or 'Live'}\n"
             f"Spoken words during this moment: \"{cls.get('matches') or 'none'}\"\n\n"
             "Analyze the on-screen visual evidence:\n"

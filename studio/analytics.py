@@ -28,7 +28,7 @@ from zoneinfo import ZoneInfo
 
 import httpx
 
-from . import config, ctx
+from . import config, ctx, safe
 
 logger = logging.getLogger("studio.analytics")
 PKT_TZ = ZoneInfo("Asia/Karachi")
@@ -65,7 +65,7 @@ def _analytics_file(cid: str) -> Path:
 
 def _load_data(cid: str) -> dict:
     f = _analytics_file(cid)
-    if not f.exists():
+    if not f.exists() and not f.with_name(f"{f.name}.bak").exists():
         # Seed with initial default profile
         return {
             "creator_id": cid,
@@ -80,31 +80,22 @@ def _load_data(cid: str) -> dict:
             "detected_peaks_pkt": [18, 23, 5],
             "primed_slots_pkt": ["16:30", "21:30", "03:30"]
         }
-    try:
-        data = json.loads(f.read_text(encoding="utf-8"))
+    data = safe.load_json_with_backup(f)
+    if isinstance(data, dict):
         if "settings" not in data:
             data["settings"] = copy.deepcopy(DEFAULT_SETTINGS)
         if "hourly_velocity" not in data or len(data.get("hourly_velocity", [])) != 24:
             data["hourly_velocity"] = list(DEFAULT_HOURLY_WEIGHTS)
         return data
-    except Exception as e:
-        logger.warning("Error loading analytics for %s: %s", cid, e)
-        return {
-            "creator_id": cid,
-            "settings": copy.deepcopy(DEFAULT_SETTINGS),
-            "snapshots": [],
-            "hourly_velocity": list(DEFAULT_HOURLY_WEIGHTS),
-            "detected_peaks_pkt": [18, 23, 5],
-            "primed_slots_pkt": ["16:30", "21:30", "03:30"]
-        }
-
-
-def _save_data(cid: str, data: dict):
-    with _lock:
-        f = _analytics_file(cid)
-        tmp = f.with_suffix(".tmp")
-        tmp.write_text(json.dumps(data, indent=2), encoding="utf-8")
-        tmp.replace(f)
+    logger.warning("Error loading analytics for %s: unreadable or corrupt JSON", cid)
+    return {
+        "creator_id": cid,
+        "settings": copy.deepcopy(DEFAULT_SETTINGS),
+        "snapshots": [],
+        "hourly_velocity": list(DEFAULT_HOURLY_WEIGHTS),
+        "detected_peaks_pkt": [18, 23, 5],
+        "primed_slots_pkt": ["16:30", "21:30", "03:30"]
+    }
 
 
 def circular_hour_diff(h1: float, h2: float) -> float:

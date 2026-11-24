@@ -383,3 +383,68 @@ def detect(path: str | Path, ask=None) -> dict | None:
     if not found:
         return None
     return _finish(path, found[0], w, h, still)
+
+
+def _clip_frames(path: str | Path, start: float, end: float, count: int = 3) -> np.ndarray:
+    """Extract small grayscale frames strictly inside a single clip [start, end] for fast scene inspection."""
+    cw, ch = 160, 90
+    dur = max(0.5, float(end) - float(start))
+    pts = [max(0.0, float(start) + dur * r) for r in (0.2, 0.5, 0.8)][:max(1, count)]
+    buf = bytearray()
+    for t in pts:
+        try:
+            proc = subprocess.run(
+                ["ffmpeg", "-v", "error", "-ss", f"{t:.2f}", "-i", str(path),
+                 "-frames:v", "1", "-vf", f"scale={cw}:{ch},format=gray", "-f", "rawvideo", "-"],
+                capture_output=True, timeout=15)
+            raw = proc.stdout or b""
+            if len(raw) >= cw * ch:
+                buf.extend(raw[:cw * ch])
+        except Exception:
+            continue
+    n = len(buf) // (cw * ch)
+    if not n:
+        return np.zeros((0, ch, cw), dtype=np.uint8)
+    return np.frombuffer(bytes(buf[:n * cw * ch]), dtype=np.uint8).reshape(n, ch, cw)
+
+
+def is_fullscreen_cam(path: str | Path, start: float, end: float,
+                      face: list | tuple | None, src_w: int, src_h: int) -> bool:
+    """Detect whether this specific clip switched to a full-screen camera (Just Chatting) instead of a corner cam."""
+    if not face or len(face) != 4 or src_w <= 0 or src_h <= 0:
+        return False
+    fx, fy, fw, fh = [float(v) for v in face]
+    if fw <= 0 or fh <= 0:
+        return False
+    if (fw * fh) >= 0.45 * (src_w * src_h):
+        return True
+    p = Path(path)
+    if not p.is_file():
+        return False
+    frames = _clip_frames(p, start, end, count=3)
+    if len(frames) == 0:
+        return False
+    cw, ch = frames.shape[2], frames.shape[1]
+    x0 = max(0, min(cw - 4, int(round(fx * cw / src_w))))
+    y0 = max(0, min(ch - 4, int(round(fy * ch / src_h))))
+    x1 = max(x0 + 4, min(cw, int(round((fx + fw) * cw / src_w))))
+    y1 = max(y0 + 4, min(ch, int(round((fy + fh) * ch / src_h))))
+    box = frames[:, y0:y1, x0:x1].astype(np.float32)
+    center = frames[:, ch // 6:(5 * ch) // 6, cw // 4:(3 * cw) // 4].astype(np.float32)
+    box_std = float(box.std()) if box.size else 99.0
+    center_std = float(center.std()) if center.size else 0.0
+    # Check whether the corner box has an actual overlay border jump relative to the full frame
+    med_f = frames.astype(np.float32).mean(axis=0)
+    gx = float(np.mean(np.abs(np.diff(med_f, axis=1)))) + 1e-3
+    edge_jumps = []
+    if 1 <= x0 < cw - 1:
+        edge_jumps.append(float(np.mean(np.abs(med_f[y0:y1, x0] - med_f[y0:y1, x0 - 1]))))
+    if 1 <= x1 < cw - 1:
+        edge_jumps.append(float(np.mean(np.abs(med_f[y0:y1, x1] - med_f[y0:y1, x1 - 1]))))
+    if 1 <= y0 < ch - 1:
+        edge_jumps.append(float(np.mean(np.abs(med_f[y0, x0:x1] - med_f[y0 - 1, x0:x1]))))
+    if 1 <= y1 < ch - 1:
+        edge_jumps.append(float(np.mean(np.abs(med_f[y1, x0:x1] - med_f[y1 - 1, x0:x1]))))
+    border_jump = max(edge_jumps) if edge_jumps else gx
+    # Only switch to fullscreen crop when corner box has flat empty background + no overlay border while center is active
+    return box_std < 6.5 and border_jump < (0.9 * gx) and center_std > max(18.0, box_std * 2.5)

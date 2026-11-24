@@ -75,7 +75,9 @@ def main() -> int:
                 ("long logs, the machine monitor, failed recordings, admin day totals", ["tests/test_robustness.py"]),
                 ("speech models for other languages: Arabic, downloads, the second machine", ["tests/test_speech.py"]),
                 ("post text: write again with AI, edit, post without re-making", ["tests/test_post_text.py"]),
-                ("live recording stops and empty stream URLs", ["tests/test_live.py"])]
+                ("live recording stops and empty stream URLs", ["tests/test_live.py"]),
+                ("phase 1 upgrades: atomic .bak recovery, GPU encode fallback, ASR reuse", ["tests/test_phase1_upgrades.py"]),
+                ("phase 2 upgrades: word editor, multi-frame live AI, full-cam check, UI filter", ["tests/test_phase2_upgrades.py"])]
         for name, args in runs:
             print(f"\n=== {name} ===", flush=True)
             r = subprocess.run([sys.executable, *args], cwd=ROOT, env=env, capture_output=True, text=True, encoding="utf-8", errors="replace")

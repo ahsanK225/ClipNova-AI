@@ -1130,22 +1130,23 @@ def clip_text(jid: str, cid: str, body: dict = Body(...)):
     return jobs.public(job)
 
 
-@app.post("/api/jobs/{jid}/clips/{cid}/review")
-def review_clip(jid: str, cid: str, body: dict = Body(...)):
-    """Set review feedback rating for a clip (great, good, bad, missed, duplicate, false_reaction)."""
-    job = _job_or_404(jid)
-    clip = next((c for c in job["clips"] if c["id"] == cid), None)
-    if not clip:
-        raise HTTPException(404, "No such clip")
-    rating = str(body.get("rating", "")).strip().lower()
-    valid_ratings = {"great", "good", "bad", "missed", "duplicate", "false_reaction"}
-    if rating not in valid_ratings:
-        raise HTTPException(400, f"Invalid rating. Must be one of: {', '.join(sorted(valid_ratings))}")
-    clip["feedback"] = rating
-    clip["feedback_at"] = time.time()
-    jobs.save(job)
-    return {"ok": True, "feedback": rating}
+@app.get("/api/jobs/{jid}/clips/{cid}/words")
+def get_clip_words(jid: str, cid: str):
+    """Return editable timestamped caption words for one clip."""
+    job, clip = _clip_or_404(jid, cid)
+    return jobs.get_clip_words(job, clip)
 
+
+@app.put("/api/jobs/{jid}/clips/{cid}/words")
+def save_clip_words(jid: str, cid: str, body: dict = Body(...)):
+    """Save user-edited caption words on a clip so the next render burns those exact words."""
+    job, clip = _clip_or_404(jid, cid)
+    _throttle("clipwords:" + ctx.uid(), 120, 600)
+    words_in = body.get("words") if isinstance(body, dict) else None
+    if not isinstance(words_in, list):
+        raise HTTPException(400, "Body must include a 'words' list.")
+    saved = jobs.save_clip_words(job, clip, words_in)
+    return {"ok": True, "count": len(saved), "words": saved}
 
 
 @app.post("/api/jobs/{jid}/clips/{cid}/write")

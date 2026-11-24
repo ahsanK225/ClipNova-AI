@@ -1,6 +1,44 @@
 ﻿# Changelog
 All notable project changes are documented here.
 
+## [2026-11-25] — Phase 1 (Speed & Stability) & Phase 2 (Viral Quality & Workflow) Platform Upgrades
+
+### Added
+- **AMD AMF GPU Hardware Encoding Pipeline (`studio/render.py`, `studio/posting.py`)**:
+  - Added `_supported_encoders()`, `_encode_with_fallback()`, and `scale_to_2k()` prioritizing `h264_amf` (`nv12`, `-usage high_quality -quality quality -rc cqp`), followed by `h264_nvenc`, `h264_qsv`, and `libx264` CPU fallback with per-encoder health caching and `PEAKCUT_CPU_ENCODE=1` override.
+- **Crash-Safe Atomic Persistence & Backup Auto-Recovery (`studio/safe.py`, `jobs.py`, `live.py`, `creators.py`, `posting.py`, `analytics.py`, `accounts.py`)**:
+  - Added `safe.atomic_write_text()`, `safe.atomic_replace()`, and `safe.load_json_with_backup()` using PID/thread-unique `.tmp` files, Windows `PermissionError` backoff retries, validated sibling `.bak` snapshots, and automatic corruption recovery (including orphaned `.bak` directory scanning in `jobs.load_user()`).
+- **Focus-Safe Clips Search, Filter & Sort Toolbar (`web/index.html`)**:
+  - Added `#clip_filter_bar` (`#clip_search_q`, `#clip_filter_status`, `#clip_filter_sort`, `#clip_filter_count`, `#clip_filter_clear`) mounted outside `#jobs` so 2-second live sync polls never disrupt input focus, supporting instant keyword search, status filters (`unposted`, `scheduled`, `posted`, `top80`, `done`), sort modes (`newest`, `score`, `shortest`, `longest`), and temporary folder auto-expansion during active filters.
+- **In-Modal Caption Word Editor (`studio/jobs.py`, `studio/server.py`, `web/index.html`)**:
+  - Added `GET /api/jobs/{jid}/clips/{cid}/words` and `PUT /api/jobs/{jid}/clips/{cid}/words`, `jobs.get_clip_words()`, `jobs.save_clip_words()`, and the lazy-loaded collapsible `📝 Edit Caption Words` panel (`#dlg_caption_words_box`) inside `#clipdlg` with `💾 Save Words` and `🔥 Save Words & Re-make MP4`.
+- **Multi-Frame Live Visual Grounding & Universal Creator Packs (`studio/live.py`, `studio/brain.py`, `studio/ohnepixel.py`, `studio/jobs.py`)**:
+  - Added `live.Session._extract_window_frames()` to capture 3 sequential frames from `src_mp4` or live `.ts` buffer segments (`self.segments`) during live broadcasts, eliminating live `VIS 0%` gaps.
+  - Enabled 3-frame `describe_multimodal()` and `judge_multimodal_moment()` calls across `live._ai_check()`, `live._manual_step()`, and `jobs.render_one()`, added Roman Urdu / universal creator hype phrases to `ohnepixel.py`, generalized Level 1 phrase triggers for creators using `MASTER_TRIGGER_WORDS` (preserving strict Pure-AI `""` bypass), and added `brain._apply_yellow_punch()` for single Canary Yellow `*WORD*` emphasis.
+- **Dynamic Fullscreen Webcam vs Corner-Cam Check (`studio/facecam.py`, `studio/render.py`)**:
+  - Added `facecam.is_fullscreen_cam()` integrated into `render.render_clip()` to fall back cleanly to `crop` when a clip switches to full-screen camera or lacks a distinct corner overlay box.
+- **New Automated Test Suites (`tests/test_phase1_upgrades.py`, `tests/test_phase2_upgrades.py`, `tests/run.py`)**:
+  - Added 13 checks for Phase 1 and 23 checks for Phase 2 and registered both in `tests/run.py` (34 total suites).
+
+### Changed
+- **Live ASR Transcript Caching (`studio/live.py`, `studio/jobs.py`)**:
+  - `live.Session._align()` populates optional `heard_out` and passes transient `clip["_aligned_words"]` (stripped by `jobs.public()`) so `jobs._caption_words()` reuses the aligned ASR transcript instead of running a duplicate `ffmpeg` WAV extract and Whisper pass.
+- **YouTube 2K Upscale & Non-YouTube Posting (`studio/posting.py`)**:
+  - Switched inline CPU `libx264` 1440x2560 upscale to GPU-accelerated `render.scale_to_2k()`.
+
+### Fixed
+- **Duplicate Route Removal (`studio/server.py`)**: Removed duplicate `@app.post("/api/jobs/{jid}/clips/{cid}/review")` (`review_clip`) endpoint definition.
+- **Non-YouTube `yt_tags` Scope Bug (`studio/posting.py`)**: Initialized `yt_tags` outside `if acc["platform"] == "youtube":` so paired community post formatting for Instagram/TikTok never raises `UnboundLocalError`.
+- **Legacy Recovered `job.json` KeyError (`studio/jobs.py`)**: Added defensive defaults in `jobs.public()` and `jobs._load_file()` when recovered jobs lack `"source"` or `"clips"`, fixing `/api/sync?v=` HTTP 500 errors on historical job folders.
+- **Modal UI Polish (`web/index.html`)**: Adjusted `#clip_filter_bar` controls into a single `52px` flex row and removed nested input borders inside `.cw-inp` caption word chips.
+
+### Tests and Verification
+- **Node.js JS AST Validation (`scratch/check_index_js.py`)**: Passed (`2 script blocks`, 0 syntax errors).
+- **Full Master Test Suite (`PeakCut/tests/run.py`)**: All **34 suites passed** after final edits (`All tests passed.`, including `phase 1 upgrades` [13 checks] and `phase 2 upgrades` [23 checks]).
+- **Standalone Unit Test Suites**: `test_ohnepixel_engine.py` (12/12), `test_creators_trigger_words.py` (7/7), `test_trigger_timeline.py` (6/6), `test_hook_banner_sync.py` (4/4), `test_hook_single_yellow.py` (3/3), `test_hook_overlay_no_duplicate.py` (6/6), `test_ai_verdicts_clean_ui.py` (5/5), and `test_capcut_and_styles.py` (all passed) ran cleanly against backend changes.
+- **Real GPU Hardware Benchmark (`render.render_clip` on 10s `clip001.src.mp4`)**: `h264_amf` finished end-to-end clip render (`1080x1920`, `split_half` + ASS captions) in `16.15s` vs `22.23s` CPU `libx264` (`1.38x` faster end-to-end; `scale_to_2k` completed in `19.51s` -> `1440x2560`).
+- **Live Server & Browser Verification (`http://localhost:8765/app/creators/ohnepixel`)**: `/api/sync` returned HTTP 200 (`70` jobs, `5` creators, `252` clips); browser verified compact `52px` single-row `#clip_filter_bar`, live search filtering (`252` -> `128` -> `82` -> reset `252`), and `#clipdlg` `#dlg_caption_words_box` loading 26 timestamped `.cw-inp` word chips via `HTTP 200 GET /words`. Evidence: `final_step_26.png`.
+
 ## [2026-11-24] — Restored Layout & Framing Studio Card & Removed Music Section in Clip Modal
 
 ### Removed

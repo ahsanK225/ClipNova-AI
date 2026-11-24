@@ -18,7 +18,7 @@ from urllib.parse import urlencode
 
 import httpx
 
-from . import config, ctx
+from . import config, ctx, safe
 
 _lock = threading.RLock()
 _states: dict = {}   # one-time values for the connect redirects: state -> (user id, when, platform)
@@ -44,24 +44,14 @@ def _dir() -> Path:
 
 def _read(name, default):
     f = _dir() / name
-    if not f.exists():
-        return default
-    try:
-        return json.loads(f.read_text(encoding="utf-8"))
-    except ValueError:
-        return default
+    got = safe.load_json_with_backup(f, default=default)
+    return default if got is None else got
 
 
 def _write(name, data):
     with _lock:
         d = _dir()
-        tmp = d / (name + ".tmp")
-        tmp.write_text(json.dumps(data, indent=1), encoding="utf-8")
-        try:
-            tmp.chmod(0o600)                 # these hold posting tokens: readable by the app only
-        except OSError:
-            pass
-        tmp.replace(d / name)
+        safe.atomic_write_text(d / name, json.dumps(data, indent=1), backup=True, mode=0o600)
         if name == "settings.json":
             _settings_mem[ctx.uid()] = {**SETTING_DEFAULTS, **data}
     ctx.bump()

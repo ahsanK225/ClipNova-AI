@@ -176,8 +176,11 @@ HIDDEN = ("dir", "user", "source_path", "recover")
 def public(job) -> dict:
     """What the browser may see: no server paths, no owner id."""
     out = {k: v for k, v in job.items() if k not in HIDDEN}
-    out["source"] = {k: v for k, v in job["source"].items() if k != "path"}
-    out["clips"] = [{k: v for k, v in c.items() if k not in ("src", "fixed_words", "fixed_for")} for c in job["clips"]]
+    src_obj = job.get("source") if isinstance(job.get("source"), dict) else {}
+    out["source"] = {k: v for k, v in src_obj.items() if k != "path"}
+    if not out["source"].get("name"):
+        out["source"]["name"] = job.get("title") or job.get("id") or "Video"
+    out["clips"] = [{k: v for k, v in c.items() if k not in ("src", "fixed_words", "fixed_for", "_aligned_words")} for c in (job.get("clips") or [])]
     ai = job.get("ai") or {}
     out["ai"] = {"tokens": ai.get("tokens", 0), "note": ai.get("note", ""), "used": bool(ai.get("model"))}   # never the model, never raw errors
     if job.get("status") == "queued":
@@ -204,10 +207,14 @@ def save(job):
             return
         tmp = d / "job.json.tmp"
         tmp.write_text(text, encoding="utf-8")
-        _put_in_place(tmp, d / "job.json")
+        if _put_in_place(tmp, d / "job.json"):
+            try:
+                (d / "job.json.bak").write_bytes(text.encode("utf-8"))
+            except OSError:
+                pass
 
 
-def _put_in_place(tmp: Path, target: Path):
+def _put_in_place(tmp: Path, target: Path) -> bool:
     """Move the freshly written job.json over the old one.
 
     Windows refuses this ("Access is denied") for a moment whenever anything else has the old file open: a virus
@@ -217,14 +224,15 @@ def _put_in_place(tmp: Path, target: Path):
     for i in range(8):
         try:
             tmp.replace(target)
-            return
+            return True
         except PermissionError:
             time.sleep(0.05 * (i + 1))
     try:
         target.write_text(tmp.read_text(encoding="utf-8"), encoding="utf-8")
         tmp.unlink(missing_ok=True)
+        return True
     except OSError:
-        pass
+        return False
 
 
 def _set(job, **kw):
@@ -243,13 +251,16 @@ def _remap(path, folder: Path):
 
 
 def _load_file(f: Path, uid: str):
-    try:
-        job = json.loads(f.read_text(encoding="utf-8"))
-    except Exception:  # noqa: BLE001
+    job = safe.load_json_with_backup(f)
+    if not isinstance(job, dict):
         return
     job.update(dir=str(f.parent), user=uid)
     job.setdefault("kind", "video")
     job.setdefault("creator", None)
+    job.setdefault("clips", [])
+    if not isinstance(job.get("source"), dict):
+        job["source"] = {"type": "live" if job.get("kind") == "live" else "url",
+                         "url": job.get("url") or "", "name": job.get("title") or job.get("id") or "Video"}
     job.setdefault("options", {}).setdefault("captions", True)
     if job.get("source_path"):
         job["source_path"] = _remap(job["source_path"], f.parent)
@@ -282,8 +293,16 @@ def _load_file(f: Path, uid: str):
 
 def load_user(uid: str):
     d = config.USERS_DIR / uid
-    for f in list((d / "jobs").glob("*/job.json")) + list((d / "creators").glob("*/*/*/job.json")):
-        _load_file(f, uid)
+    seen_dirs = set()
+    candidates = (list((d / "jobs").glob("*/job.json")) + list((d / "creators").glob("*/*/*/job.json"))
+                  + list((d / "jobs").glob("*/job.json.bak")) + list((d / "creators").glob("*/*/*/job.json.bak")))
+    for f in candidates:
+        pdir = f.parent.resolve()
+        if pdir in seen_dirs:
+            continue
+        seen_dirs.add(pdir)
+        target = f.parent / "job.json"
+        _load_file(target if target.is_file() else f, uid)
 
 
 def load_all():
@@ -428,7 +447,12 @@ def request_render(jid, cid, changes: dict):
         except (ValueError, TypeError):
             new["speed"] = 1.0
     if "words" in changes and isinstance(changes["words"], list):
-        new["words"] = changes["words"]
+        cleaned_w = _sanitize_words(changes["words"])
+        new["words"] = cleaned_w
+        if cleaned_w:
+            new["fixed_words"] = cleaned_w
+            new["fixed_for"] = [round(new["start"], 2), round(new["end"], 2), "en2"]
+            new["manual_words"] = True
     if "hashtags" in changes:
         new["hashtags"] = clean_hashtags(changes["hashtags"])
     if "outro_cta" in changes:
@@ -641,20 +665,69 @@ def save_post_text(job, clip, changes: dict):
     save(job)
     side = Path(job["dir"]) / "clips" / f"{clip['id']}.json"   # the copy that sits next to the video file
     try:
-        if side.is_file():
-            side.write_text(json.dumps({**json.loads(side.read_text(encoding="utf-8")), **text}, indent=1), encoding="utf-8")
+        if side.is_file() or side.with_name(f"{side.name}.bak").is_file():
+            prev = safe.load_json_with_backup(side, default={}) or {}
+            safe.atomic_write_text(side, json.dumps({**prev, **text}, indent=1), backup=True)
     except (OSError, ValueError):
         pass
 
 
 def spoken_in(job, clip) -> str:
     """What is said during a clip, from the video's transcript."""
-    try:
-        words = json.loads((Path(job["dir"]) / "words.json").read_text(encoding="utf-8"))
-    except (OSError, ValueError):
+    words = safe.load_json_with_backup(Path(job["dir"]) / "words.json", default=None)
+    if not isinstance(words, list):
         return ""
     return " ".join(str(w.get("w", "")) for w in words
                     if isinstance(w, dict) and clip["start"] - 0.5 <= _f(w.get("s")) <= clip["end"] + 0.5)
+
+
+def _sanitize_words(words_in: list) -> list[dict]:
+    """Validate and Roman-normalize user-edited caption words while keeping finite increasing timings."""
+    cleaned = []
+    for item in words_in[:600]:
+        if not isinstance(item, dict):
+            continue
+        text = str(item.get("w") or "").strip()[:60]
+        if not text:
+            continue
+        s = _f(item.get("s"))
+        e = _f(item.get("e"))
+        if s < 0 or not math.isfinite(s):
+            s = cleaned[-1]["e"] if cleaned else 0.0
+        if e < s or not math.isfinite(e):
+            e = round(s + 0.35, 2)
+        cleaned.append({"w": text, "s": round(s, 2), "e": round(max(s + 0.05, e), 2)})
+    return roman.words(cleaned) if cleaned else []
+
+
+def get_clip_words(job: dict, clip: dict) -> dict:
+    """Return editable timestamped words for a clip (prefers user-edited/fixed words, else transcript slice)."""
+    span = [round(clip["start"], 2), round(clip["end"], 2), "en2"]
+    fixed = clip.get("fixed_words")
+    if isinstance(fixed, list) and fixed and (clip.get("fixed_for") == span or clip.get("manual_words")):
+        return {"words": _sanitize_words(fixed), "start": clip["start"], "end": clip["end"],
+                "source": "edited" if clip.get("manual_words") else "fixed"}
+    words = safe.load_json_with_backup(Path(job["dir"]) / "words.json", default=None)
+    if isinstance(words, list):
+        sliced = [w for w in words if isinstance(w, dict) and clip["start"] - 0.5 <= _f(w.get("s")) <= clip["end"] + 0.5]
+        if sliced:
+            return {"words": _sanitize_words(sliced), "start": clip["start"], "end": clip["end"], "source": "transcript"}
+    if isinstance(fixed, list) and fixed:
+        return {"words": _sanitize_words(fixed), "start": clip["start"], "end": clip["end"], "source": "fixed"}
+    return {"words": [], "start": clip["start"], "end": clip["end"], "source": "empty"}
+
+
+def save_clip_words(job: dict, clip: dict, words_in: list) -> list[dict]:
+    """Persist user-edited caption words onto a clip so the next render burns those exact words."""
+    cleaned = _sanitize_words(words_in)
+    span = [round(clip["start"], 2), round(clip["end"], 2), "en2"]
+    with _lock:
+        clip["fixed_words"] = cleaned
+        clip["fixed_for"] = span
+        clip["manual_words"] = True
+        clip["words"] = cleaned
+    save(job)
+    return cleaned
 
 
 def _f(v):
@@ -731,8 +804,11 @@ def render_one(job, clip, words):
                             clip.get("needs_ai_seo") or clip.get("version", 0) == 0)
         if needs_visual_seo and src.is_file() and ai.ready():
             try:
-                frame_t = max(0.0, (clip["start"] - off) + min(2.5, max(0.5, (clip["end"] - clip["start"]) * 0.25)))
-                fbytes = _extract_frame_bytes(src, frame_t)
+                loc_s = max(0.0, float(clip["start"]) - off)
+                loc_e = max(loc_s + 1.0, float(clip["end"]) - off)
+                fbytes = extract_clip_frames_bytes(src, loc_s, loc_e, n_frames=3) or _extract_frame_bytes(
+                    src, loc_s + min(2.5, max(0.5, (loc_e - loc_s) * 0.25))
+                )
                 if fbytes:
                     clip_text = " ".join(w.get("w", "") for w in (words or []) if clip["start"] <= w.get("s", 0) <= clip["end"])
                     meta = brain.describe_multimodal(fbytes, text=clip_text, title=job.get("title", ""),
@@ -764,7 +840,7 @@ def render_one(job, clip, words):
         out = render.render_clip(src, d / "clips", clip["id"], local, near, job["width"], job["height"])
         clip.update(out, status="done", version=clip.get("version", 0) + 1, error=None, rendered_hook=local.get("hook", ""), rendered_hook_style=clip.get("hook_style", ""))
         post = {k: clip[k] for k in ("title", "description", "hashtags", "hook", "start", "end", "score", "seo_title", "seo_tags", "pinned_comment", "hook_style", "outro_cta", "outro_text", "audio_delay", "facecam_pos", "facecam_delay") if k in clip}
-        (d / "clips" / f"{clip['id']}.json").write_text(json.dumps(post, indent=1), encoding="utf-8")
+        safe.atomic_write_text(d / "clips" / f"{clip['id']}.json", json.dumps(post, indent=1), backup=True)
         if clip["version"] == 1:
             clip.setdefault("made_at", time.time())
             creators.log(job["creator"], f"Clip ready (score {clip['score']}): {clip['title'] or clip['hook']}")
@@ -781,15 +857,16 @@ def render_one(job, clip, words):
 
 
 def _caption_words(job, clip, words, off, src=None, local_start=0.0, local_end=None):
+    aligned = clip.pop("_aligned_words", None)
     span = [round(clip["start"], 2), round(clip["end"], 2), "en2"]      # "en2": captions made always-English
     if clip.get("fixed_for") == span and clip.get("fixed_words") and not any(
             roman.needs_roman(w.get("w", "")) for w in clip["fixed_words"]):
         raw = clip["fixed_words"]          # already tidied for this exact span: no second AI call
     else:
-        raw = None
-        # Direct slice transcription: extract and transcribe the clip's exact audio slice directly.
-        # This gives 100% sample-accurate, zero-drift word timestamps directly from the clip itself!
-        if src and Path(src).is_file() and local_end and local_end > local_start:
+        raw = [dict(w) for w in aligned] if isinstance(aligned, list) and aligned else None
+        # Direct slice transcription (VOD / misses): extract and transcribe the clip's exact audio slice once.
+        # Live clips already pass aligned ASR words via _aligned_words, skipping redundant ffmpeg + Whisper work.
+        if raw is None and src and Path(src).is_file() and local_end and local_end > local_start:
             tmp_wav = None
             try:
                 tmp_wav = Path(tempfile.gettempdir()) / f"pk_cap_{clip.get('id', 'c')}_{int(time.time() * 1000)}.wav"
@@ -856,14 +933,14 @@ def _english_part(job, clip):
     if (job.get("source") or {}).get("type") != "url":
         return None
     f = Path(job["dir"]) / "words_en.json"
-    if f.is_file():
-        en = json.loads(f.read_text(encoding="utf-8"))
+    if f.is_file() or f.with_name(f"{f.name}.bak").is_file():
+        en = safe.load_json_with_backup(f, default=[]) or []
     else:
         try:
             en = media.youtube_english_words(job["source"]["url"]) or []
         except Exception:  # noqa: BLE001 - YouTube often refuses its translations: the AI translates instead
             en = []
-        f.write_text(json.dumps(en), encoding="utf-8")       # asked once per video, refused or not
+        safe.atomic_write_text(f, json.dumps(en), backup=False)       # asked once per video, refused or not
     return [w for w in en if clip["start"] - 0.5 <= w["s"] <= clip["end"] + 0.5]
 
 
@@ -1183,7 +1260,7 @@ def _run_job(job):
             bw = heard.pop(bi).result()
         _set(job, progress=max(job["progress"], 0.14 + 0.78 * (b - lo) / max(1, hi - lo)))
         words += [dict(w, s=round(w["s"] + shift, 2), e=round(w["e"] + shift, 2)) for w in bw]
-        (d / "words.json").write_text(json.dumps(words), encoding="utf-8")
+        safe.atomic_write_text(d / "words.json", json.dumps(words), backup=True)
         _set(job, stage="Finding the best moments" + where, word_count=len(words))
         left = int(o["max_clips"]) - len(job["clips"])
         if left <= 0 or len(bw) < 8:
@@ -1260,7 +1337,7 @@ def _run_job(job):
         for a_s, b_s, tw in exact.values():
             words = [w for w in words if not a_s <= w["s"] < b_s] + tw
         words.sort(key=lambda w: w["s"])
-        (d / "words.json").write_text(json.dumps(words), encoding="utf-8")
+        safe.atomic_write_text(d / "words.json", json.dumps(words), backup=True)
     renders.shutdown(wait=False)
     ahead.shutdown(wait=False)
     fetch.shutdown(wait=False)

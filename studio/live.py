@@ -11,7 +11,7 @@ from pathlib import Path
 
 import numpy as np
 
-from . import ai, alerts, auth, brain, config, creators, ctx, facecam, games, hashtags, jobs, load, media, transcribe, usage, ohnepixel
+from . import ai, alerts, auth, brain, config, creators, ctx, facecam, games, hashtags, jobs, load, media, safe, transcribe, usage, ohnepixel
 
 # ":username!user@host PRIVMSG #channel :the message"
 _NICK = re.compile(r"(?m)^:([A-Za-z0-9_]{2,25})!")
@@ -496,7 +496,7 @@ class Session:
             self.words += words
             self.t_done = self.pending_base / SR
         self._triggers(words)
-        (self.dir / "words.json").write_text(json.dumps(self.words), encoding="utf-8")
+        safe.atomic_write_text(self.dir / "words.json", json.dumps(self.words), backup=True)
         return True
 
     AUTO_BEFORE, AUTO_AFTER, AUTO_GAP = 30, 20, 60   # seconds of stream sent around a jump; least time between jumps
@@ -594,14 +594,7 @@ class Session:
             self.job["ai"]["last_error"] = str(e)[-200:]
         added = 0
         for c in keep:
-            frame_bytes = None
-            try:
-                src_file = getattr(self, "src_mp4", None)
-                if src_file and src_file.is_file():
-                    frame_t = max(0.0, (c["start"] + c["end"]) / 2.0)
-                    frame_bytes = jobs._extract_frame_bytes(src_file, frame_t)
-            except Exception:
-                pass
+            frame_bytes = self._extract_window_frames(c["start"], c["end"], count=3) or None
 
             c_text = " ".join(w["w"] for w in win if c["start"] <= w["s"] <= c["end"])
             c_lo, c_hi = max(0, int(c["start"])), min(len(z), int(c["end"]) + 1)
@@ -706,6 +699,32 @@ class Session:
             if added >= (1 if every <= 2 else 2):
                 break
 
+    def _extract_window_frames(self, start_t: float, end_t: float, count: int = 3) -> list[bytes]:
+        """Grab sequential JPEG frames from src_mp4 or live .ts buffer segments across [start_t, end_t]."""
+        try:
+            src_file = getattr(self, "src_mp4", None)
+            if src_file and Path(src_file).is_file():
+                frames = jobs.extract_clip_frames_bytes(Path(src_file), start_t, end_t, n_frames=count)
+                if frames:
+                    return frames
+        except Exception:
+            pass
+        with self.lock:
+            segs = [(p, s, e) for p, s, e in self.segments if e >= start_t - 1.0 and s <= end_t + 1.0]
+        if not segs:
+            return []
+        dur = max(1.0, float(end_t) - float(start_t))
+        ratios = [0.22, 0.55, 0.85] if count == 3 else [(i + 1) / (count + 1) for i in range(max(1, count))]
+        out = []
+        for r in ratios:
+            t = float(start_t) + dur * r
+            seg = next((x for x in segs if x[1] <= t <= x[2]), None) or min(segs, key=lambda x: abs(((x[1] + x[2]) / 2.0) - t))
+            if seg[0].is_file():
+                b = jobs._extract_frame_bytes(seg[0], max(0.0, t - seg[1]))
+                if b:
+                    out.append(b)
+        return out
+
     def _verdict(self, v, result):
         d = dict(v, result=result)
         if "wall_t" not in d:
@@ -772,16 +791,17 @@ class Session:
                 if self.said:
                     break
 
-        # 2. OhnePixel Intelligent Detection (Only for OhnePixel channels!)
+        # 2. Intelligent Reaction Phrase Discovery (ohnePixel + creators using default MASTER_TRIGGER_WORDS pack)
         creator_val = str(self.job.get("creator") or "").lower()
         uploader_val = str(self.job.get("uploader") or "").lower()
         channel_val = str(getattr(self, "channel", "") or "").lower()
         is_ohnepixel = "ohnepixel" in creator_val or "ohnepixel" in uploader_val or "ohnepixel" in channel_val
+        is_master_pack = str(self.settings.get("trigger_words", "")).strip() == creators.MASTER_TRIGGER_WORDS.strip()
 
         # Golden Retention Timeline: trigger occurs within first 10-15s (target 12s), followed by 25-30s reaction
         pre_roll, post_roll = 12.0, 28.0
 
-        if is_ohnepixel:
+        if is_ohnepixel or is_master_pack:
             g = self._game()
             c_class = ohnepixel.classify_transcript(window_words, game=g)
 
@@ -875,15 +895,8 @@ class Session:
             text = " ".join(w["w"] for w in self.words if req["start"] <= w["s"] <= req["end"])
             usage.set_context(self.job["creator"], self.job["title"] or "Live stream")
 
-            # Extract video frame for multimodal evaluation
-            fbytes = None
-            try:
-                src_file = getattr(self, "src_mp4", None)
-                if src_file and src_file.is_file():
-                    frame_t = max(0.0, (req["start"] + req["end"]) / 2.0)
-                    fbytes = jobs._extract_frame_bytes(src_file, frame_t)
-            except Exception:
-                fbytes = None
+            # Extract sequential video frames for true multimodal evaluation
+            fbytes = self._extract_window_frames(req["start"], req["end"], count=3) or None
 
             # Audio z-score slice & chat
             lo = max(0, int(req["start"]))
@@ -915,8 +928,12 @@ class Session:
                 continue
 
             try:
-                c = brain.describe(text, self.job["title"], self.job["uploader"], game=self._game(),
-                                   timeout=config.LIVE_AI_TIMEOUT)
+                if fbytes:
+                    c = brain.describe_multimodal(fbytes, text=text, title=self.job["title"], uploader=self.job["uploader"],
+                                                  game=self._game(), timeout=config.LIVE_AI_TIMEOUT)
+                else:
+                    c = brain.describe(text, self.job["title"], self.job["uploader"], game=self._game(),
+                                       timeout=config.LIVE_AI_TIMEOUT)
             except Exception as e:  # noqa: BLE001
                 self.job["ai"]["last_error"] = str(e)[-200:]
                 c = {"score": mm["score"], "category": "other", "hook": "", "title": self.job["title"],
@@ -1088,7 +1105,8 @@ class Session:
                 self.facecam_box = self._find_facecam(src)
             if self.facecam_box:
                 clip["facecam"] = self.facecam_box
-        offset = self._align(src, segs[0][1] + self.clock_fix, dur)
+        heard_src = []
+        offset = self._align(src, segs[0][1] + self.clock_fix, dur, heard_out=heard_src)
         self.clock_fix = offset - segs[0][1]  # the two clocks drift ~4 s an hour; start the next clip from here
         src_offset, src_end = round(offset, 2), round(offset + dur, 2)
         span = _clip_span(clip, src_offset, src_end)
@@ -1103,20 +1121,33 @@ class Session:
             return
         clip.update(src=str(src), src_offset=src_offset, src_end=src_end)
         clip["start"], clip["end"] = span
+        if heard_src:
+            a_s, b_s = clip["start"] - 0.5, clip["end"] + 0.5
+            aligned_slice = [
+                dict(w, s=round(w["s"] + src_offset, 2), e=round(w["e"] + src_offset, 2))
+                for w in heard_src
+                if a_s <= (w["s"] + src_offset) <= b_s
+            ]
+            if aligned_slice:
+                clip["_aligned_words"] = aligned_slice
         jobs.render_one(self.job, clip, list(self.words))
 
-    def _align(self, src, guess, dur):
+    def _align(self, src, guess, dur, heard_out=None):
         """Where `src` really starts on the transcript clock. The video pieces and the audio feed keep separate
         clocks that drift apart, so transcribe the clip's own audio and line its words up with the live words.
         Local speech model only: no AI calls."""
         key = lambda w: _plain(w).replace("'", "")
         clip_pcm = None
+        wav = src.with_suffix(".wav")
         try:
-            wav = src.with_suffix(".wav")
-            media.extract_audio(src, wav)
-            clip_pcm = media.load_audio(wav)
-            wav.unlink(missing_ok=True)
+            try:
+                media.extract_audio(src, wav)
+                clip_pcm = media.load_audio(wav)
+            finally:
+                wav.unlink(missing_ok=True)
             heard = transcribe.transcribe(clip_pcm, lang=self.job.get("lang") or "en")
+            if heard_out is not None and heard:
+                heard_out[:] = heard
             with self.lock:
                 near = [w for w in self.words if guess - 15 <= w["s"] <= guess + dur + 15]
             diffs = []

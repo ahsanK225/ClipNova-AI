@@ -476,3 +476,37 @@ Integrated directly in `studio/brain.py` and `studio/posting.py`:
 4. **Clean Single-Line Header**:
    - Header is formatted as a single crisp line: <span>🧠</span> Latest AI Decisions accompanied by a subtle ● LIVE MONITOR cyan pill.
    - Avoids text wrapping onto two lines by keeping the authoritative model name in the stats bar above (Active AI Model: gemini-3.5-flash-lite).
+
+
+---
+
+## 28. Phase 1 Architecture: Hardware Acceleration, Atomic Persistence & Live ASR Caching
+1. **AMD AMF GPU Hardware Video Encoding (`studio/render.py`, `studio/posting.py`)**:
+   - `_supported_encoders()` probes active H.264 encoders once (`h264_amf`, `h264_nvenc`, `h264_qsv`, `libx264`).
+   - `_encode_with_fallback()` selects hardware encoders in priority order (`amf -> nvenc -> qsv -> x264`) using `nv12` pixel format for GPU encoders (`-usage high_quality -quality quality -rc cqp -qp_i 15 -qp_p 16 -qp_b 18` for 1080p; `qp 14/15/16` for 2K), caches per-encoder health flags (`_amf_ok`, `_nvenc_ok`, `_qsv_ok`), falls back seamlessly to broadcast `libx264` (`-crf 14`) on error, and honors `PEAKCUT_CPU_ENCODE=1`.
+   - `scale_to_2k()` reuses `_encode_with_fallback(..., preset_2k=True)` inside `posting._post()` for YouTube 1440x2560 VP9/AV1 tier uploads and initializes `yt_tags` unconditionally outside platform branches so non-YouTube paired community posts never hit `UnboundLocalError`.
+2. **Crash-Safe Atomic File Writes & `.bak` Auto-Recovery (`studio/safe.py`, `jobs.py`, `live.py`, `creators.py`, `posting.py`, `analytics.py`, `accounts.py`)**:
+   - `safe.atomic_write_text()` writes to a PID/thread-unique sibling `.tmp` file with optional POSIX permissions (`0o600` for OAuth tokens), snapshots validated non-corrupt primaries (`{`/`[`, no null bytes) to `.bak`, and retries Windows `PermissionError` file locks up to 8 backoff steps.
+   - `safe.load_json_with_backup()` transparently recovers `.bak` files when primaries are corrupted or zero-padded; `jobs.load_user()` scans orphaned `.bak` folders when `job.json` is absent, and `jobs.public()` / `jobs._load_file()` backfill legacy missing `source` or `clips` fields.
+3. **Double Transcription Elimination (`studio/live.py`, `studio/jobs.py`)**:
+   - `live.Session._align()` populates optional `heard_out` from its full-source Whisper pass; `_render()` slices those timestamped words to `[start-0.5, end+0.5]` into transient `clip["_aligned_words"]` (stripped by `jobs.public()`).
+   - `jobs._caption_words()` pops `_aligned_words` directly when present, skipping duplicate `.wav` ffmpeg extraction and redundant `sherpa-onnx` ASR inference.
+4. **API Route Hygiene (`studio/server.py`)**:
+   - Removed the duplicate `/api/jobs/{jid}/clips/{cid}/review` POST handler definition.
+
+---
+
+## 29. Phase 2 Architecture: Clips Search Toolbar, Word Editor, Multi-Frame Live Grounding & Dynamic Full-Cam Detection
+1. **Focus-Safe Clips Search, Filter & Sort Toolbar (`web/index.html`)**:
+   - Stateful `S.clipFilter` (`q`, `status`, `sort`) rendered by `ensureClipFilterBar()` outside `#jobs` (`52px` single-row flex bar), preventing 2-second polling redraws from stealing cursor focus while typing.
+   - Instant filtering across `title`, `seo_title`, `hook`, `reason`, `description`, `pinned_comment`, tags, and status (`all`, `unposted`, `scheduled`, `posted`, `top80`, `done`), plus sorting (`newest`, `score`, `shortest`, `longest`) and temporary folder auto-expansion during search.
+2. **In-Modal Caption Word Editor (`studio/jobs.py`, `studio/server.py`, `web/index.html`)**:
+   - Exposes `GET /api/jobs/{jid}/clips/{cid}/words` and `PUT /api/jobs/{jid}/clips/{cid}/words`.
+   - `jobs.save_clip_words()` validates word timings, normalizes text with `roman.words()`, updates `fixed_words` + `fixed_for` + `manual_words=True` so `_caption_words()` burns exact user edits without overwriting them via Whisper/LLM.
+   - Lazy-loaded collapsible `📝 Edit Caption Words` panel inside `#clipdlg` with timestamped borderless word chips, `💾 Save Words`, and `🔥 Save Words & Re-make MP4`.
+3. **Multi-Frame Live Visual Grounding & Universal Creator Packs (`studio/live.py`, `studio/brain.py`, `studio/jobs.py`, `studio/ohnepixel.py`)**:
+   - Added `live.Session._extract_window_frames()` extracting 3 sequential JPEGs directly from `src_mp4` OR rolling `.ts` buffer segments (`self.segments`) during live broadcasts, eliminating live `VIS 0%` blindness.
+   - Wired 3-frame payloads into `live._ai_check()`, `live._manual_step()` (`judge_multimodal_moment` + `describe_multimodal`), and `jobs.render_one()` (`n_frames=3`).
+   - Generalized Level 1 intelligent reaction phrase triggers across creators using default `MASTER_TRIGGER_WORDS` while preserving custom triggers and strict Pure-AI (`""`) bypass; expanded `ohnepixel.py` with Roman Urdu & universal streamer hype phrases; added `brain._apply_yellow_punch()` for single Canary Yellow `*WORD*` emphasis on multimodal hooks.
+4. **Dynamic Full-Cam vs Corner-Cam Detection (`studio/facecam.py`, `studio/render.py`)**:
+   - Added `facecam.is_fullscreen_cam()` (`render_clip()` switches `gameplay`/`split`/`split_half` to `crop` if box covers >=45% area or 3-frame analysis detects flat unbordered corner backdrop with active center subject).

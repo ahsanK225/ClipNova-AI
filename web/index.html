@@ -1584,6 +1584,7 @@ function startTour() {
 /* ============================================================ state */
 const S = {status:{styles:{}, layouts:{}}, jobs:[], creators:[], accounts:[], overview:null, settings:null,
            view:"overview", ctab:"clips",
+           clipFilter:{q:"", status:"all", sort:"newest"},
            collapsedJobs: (() => { try { return new Set(JSON.parse(localStorage.getItem("peakcut_collapsed_jobs") || "[]")); } catch { return new Set(); } })()};
 const D = {jid:null, cid:null, sig:""};
 const creatorId = () => S.view.startsWith("c:") ? S.view.slice(2) : null;
@@ -2841,14 +2842,19 @@ function liveHtml(j) {
     </div>${j.error ? `<div class="err">${esc(j.error)}</div>` : ""}</div>
     ${(j.clips.length && !isCollapsed) ? `<div class="grid" style="margin-bottom:28px">${[...j.clips].reverse().map(c => clipHtml(j, c)).join("")}</div>` : ""}`;
 }
-function jobHtml(j) {
+function jobHtml(j, visibleClips, forceExpand) {
   if (j.status === "live") return liveHtml(j);
+  const allClips = j.clips || [];
+  const clips = Array.isArray(visibleClips) ? visibleClips : allClips;
   const busy = j.status === "queued" || j.status === "running";
   const who = !creatorId() && j.creator ? S.creators.find(c => c.id === j.creator)?.name : "";
-  const meta = [who, j.uploader, j.duration ? fmt(j.duration) + " long" : "", j.clips.length ? j.clips.length + (j.clips.length === 1 ? " clip" : " clips") : "",
+  const clipCountMeta = (clips.length !== allClips.length)
+    ? `${clips.length}/${allClips.length} clips shown`
+    : (allClips.length ? allClips.length + (allClips.length === 1 ? " clip" : " clips") : "");
+  const meta = [who, j.uploader, j.duration ? fmt(j.duration) + " long" : "", clipCountMeta,
                 j.took ? "made in " + fmt(j.took) : "", j.kind === "live" ? "recording, " + j.stage.toLowerCase() : ""].filter(Boolean).map(esc).join(" · ");
-  const isCollapsed = S.collapsedJobs?.has(j.id);
-  const firstClip = j.clips?.find(c => c.status === "done") || j.clips?.[0];
+  const isCollapsed = !forceExpand && S.collapsedJobs?.has(j.id);
+  const firstClip = clips.find(c => c.status === "done") || clips[0] || allClips.find(c => c.status === "done") || allClips[0];
   const thumbUrl = j.thumb ? `/media/${esc(j.id)}/thumb.jpg` : (firstClip ? `/media/${esc(j.id)}/${esc(firstClip.id)}.jpg` : null);
   const pic = thumbUrl
     ? `<img src="${thumbUrl}" alt="" loading="lazy" style="width:100%;height:100%;object-fit:cover;display:block">`
@@ -2869,28 +2875,28 @@ function jobHtml(j) {
         <div style="min-width:0">
           <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
             <h3 style="margin:0;font-size:${isCollapsed ? '13.5px' : '15px'};font-weight:600;color:var(--brand-ink);white-space:${isCollapsed ? 'nowrap' : 'normal'};overflow:hidden;text-overflow:ellipsis;max-width:${isCollapsed ? '520px' : '100%'}">${esc(j.title || j.source.name)}</h3>
-            ${isCollapsed && j.clips.length ? `<span class="pill" style="font-size:10.5px;padding:2px 8px;border-radius:10px;background:rgba(0,240,255,0.12);color:var(--accent,#00F0FF);border:1px solid rgba(0,240,255,0.28);font-weight:700">📁 ${j.clips.length} Clips</span>` : ''}
+            ${isCollapsed && clips.length ? `<span class="pill" style="font-size:10.5px;padding:2px 8px;border-radius:10px;background:rgba(0,240,255,0.12);color:var(--accent,#00F0FF);border:1px solid rgba(0,240,255,0.28);font-weight:700">📁 ${clips.length} Clips</span>` : ''}
           </div>
           <p class="sub" style="${isCollapsed ? 'margin:2px 0 0 0;font-size:12px' : ''}">${meta}</p>
         </div>
       </div>
       <div class="row" style="flex-wrap:nowrap;gap:6px;align-items:center">
         ${busy ? "" : `
-          ${j.clips.length ? `<button type="button" class="btn sm" data-act="toggle_job_collapse" data-j="${j.id}" title="${isCollapsed ? 'Expand folder' : 'Fold folder'}" style="${isCollapsed ? 'background:linear-gradient(135deg,rgba(0,240,255,0.16),rgba(0,136,255,0.08));border:1px solid rgba(0,240,255,0.35);color:var(--accent,#00F0FF);font-weight:700' : 'background:var(--bg-2);border:1px solid var(--line)'};font-size:11px;display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:8px;cursor:pointer">
+          ${clips.length ? `<button type="button" class="btn sm" data-act="toggle_job_collapse" data-j="${j.id}" title="${isCollapsed ? 'Expand folder' : 'Fold folder'}" style="${isCollapsed ? 'background:linear-gradient(135deg,rgba(0,240,255,0.16),rgba(0,136,255,0.08));border:1px solid rgba(0,240,255,0.35);color:var(--accent,#00F0FF);font-weight:700' : 'background:var(--bg-2);border:1px solid var(--line)'};font-size:11px;display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:8px;cursor:pointer">
             <span>${isCollapsed ? '📁' : '📂'}</span>
             <span>${isCollapsed ? 'Open Folder' : 'Fold'}</span>
             <span style="font-size:8px;transform:${isCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)'};transition:transform .2s">▼</span>
           </button>` : ""}
-          ${j.clips.some(c => c.status === "done") ? `<button class="btn sm icon ghost" data-act="dlall" data-j="${j.id}" title="Download all clips of this video" aria-label="Download all clips of this video">${ic("down")}</button>` : ""}
+          ${allClips.some(c => c.status === "done") ? `<button class="btn sm icon ghost" data-act="dlall" data-j="${j.id}" title="Download all clips of this video" aria-label="Download all clips of this video">${ic("down")}</button>` : ""}
           <button class="btn sm icon ghost" data-act="deljob" data-j="${j.id}" title="Delete" aria-label="Delete this video and its clips">${ic("trash")}</button>
           <label class="selck" title="Select this video and its clips"><input type="checkbox" data-sel="j:${j.id}" ${sel().has("j:" + j.id) ? "checked" : ""} aria-label="Select this video"></label>
         `}
       </div>
     </div>
     ${busy ? `<div class="bar"><i style="width:${Math.round(j.progress * 100)}%"></i></div><p class="sub">${esc(j.stage)} · ${Math.round(j.progress * 100)}%</p>` : ""}
-    ${j.status === "done" && !j.clips.length ? `<p class="sub">${esc(j.stage)}</p>` : ""}
+    ${j.status === "done" && !allClips.length ? `<p class="sub">${esc(j.stage)}</p>` : ""}
     ${j.error ? `<div class="err">${esc(j.error)}<button class="rep" data-act="report" data-ctx="${esc("Video failed: " + (j.title || j.source.name || "") + " | " + j.error)}">Report this</button></div>` : ""}${j.ai?.note ? `<p class="sub">${esc(j.ai.note)}</p>` : ""}
-    ${(j.clips.length && !isCollapsed) ? `<div class="grid" style="margin-top:12px">${j.clips.map(c => clipHtml(j, c)).join("")}</div>` : ""}`;
+    ${(clips.length && !isCollapsed) ? `<div class="grid" style="margin-top:12px">${clips.map(c => clipHtml(j, c)).join("")}</div>` : ""}`;
 }
 /* ---- selecting several videos and clips: delete or download them together */
 const sel = () => (S.sel = S.sel || new Set());
@@ -2944,6 +2950,79 @@ function askTyped(title, text, mustType, okLabel) {
     d.onclose = () => res(d.returnValue === "yes" ? i.value.trim() : null); d.returnValue = "no"; d.showModal(); i.focus();
   });
 }
+function clipMatchesFilter(c, q, status) {
+  if (status && status !== "all") {
+    const posts = Object.values(c.posts || {});
+    if (status === "unposted" && posts.some(p => p.status === "posted" || p.status === "scheduled" || p.status === "posting")) return false;
+    if (status === "scheduled" && !posts.some(p => p.status === "scheduled")) return false;
+    if (status === "posted" && !posts.some(p => p.status === "posted")) return false;
+    if (status === "top80" && (Number(c.score) || 0) < 80) return false;
+    if (status === "done" && c.status !== "done") return false;
+  }
+  if (q) {
+    const hay = [
+      c.title, c.seo_title, c.hook, c.reason, c.description, c.pinned_comment,
+      c.priority, ...(c.hashtags || []), ...(c.seo_tags || []),
+    ].filter(Boolean).join(" ").toLowerCase();
+    if (!hay.includes(q)) return false;
+  }
+  return true;
+}
+function sortClipsForView(clips, sortMode) {
+  const arr = [...(clips || [])];
+  if (sortMode === "score") arr.sort((a, b) => (Number(b.score) || 0) - (Number(a.score) || 0));
+  else if (sortMode === "shortest") arr.sort((a, b) => ((a.end || 0) - (a.start || 0)) - ((b.end || 0) - (b.start || 0)));
+  else if (sortMode === "longest") arr.sort((a, b) => ((b.end || 0) - (b.start || 0)) - ((a.end || 0) - (a.start || 0)));
+  return arr;
+}
+function resetClipFilter() {
+  S.clipFilter = {q:"", status:"all", sort:"newest"};
+  const qEl = $("#clip_search_q"), sEl = $("#clip_filter_status"), oEl = $("#clip_filter_sort");
+  if (qEl) qEl.value = "";
+  if (sEl) sEl.value = "all";
+  if (oEl) oEl.value = "newest";
+  drawJobs();
+}
+function ensureClipFilterBar(root, totalClips, shownClips, filterActive) {
+  let bar = $("#clip_filter_bar");
+  if (!bar && root.parentElement) {
+    bar = document.createElement("div");
+    bar.id = "clip_filter_bar";
+    bar.style.cssText = "display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:10px 0 14px 0;padding:8px 12px;background:rgba(18,24,38,0.85);border:1px solid var(--line);border-radius:12px";
+    bar.innerHTML = `
+      <input id="clip_search_q" type="search" placeholder="🔍 Search clips by title, hook, tags or reason…" autocomplete="off" style="flex:1 1 220px;width:auto;min-width:180px;height:34px;background:var(--bg-1,#0d1117);border:1px solid var(--line);border-radius:8px;color:var(--text,#f1f5f9);padding:5px 10px;font-size:12.5px">
+      <select id="clip_filter_status" aria-label="Filter clips" style="flex:0 0 auto;width:auto;height:34px;background:var(--bg-1,#0d1117);border:1px solid var(--line);border-radius:8px;color:var(--text,#f1f5f9);padding:4px 10px;font-size:12px;font-weight:600">
+        <option value="all">All Status</option>
+        <option value="unposted">Unposted Only</option>
+        <option value="scheduled">Scheduled</option>
+        <option value="posted">Posted</option>
+        <option value="top80">Top Score (80+)</option>
+        <option value="done">Rendered Ready</option>
+      </select>
+      <select id="clip_filter_sort" aria-label="Sort clips" style="flex:0 0 auto;width:auto;height:34px;background:var(--bg-1,#0d1117);border:1px solid var(--line);border-radius:8px;color:var(--text,#f1f5f9);padding:4px 10px;font-size:12px;font-weight:600">
+        <option value="newest">Sort: Default Order</option>
+        <option value="score">Sort: Highest Score</option>
+        <option value="shortest">Sort: Shortest First</option>
+        <option value="longest">Sort: Longest First</option>
+      </select>
+      <span id="clip_filter_count" style="font-size:11px;color:var(--text-sub);font-weight:600;white-space:nowrap;flex:0 0 auto"></span>
+      <button type="button" id="clip_filter_clear" data-act="reset_clip_filter" class="btn sm ghost" style="font-size:11px;padding:4px 9px;display:none;flex:0 0 auto">✕ Reset</button>`;
+    root.parentElement.insertBefore(bar, root);
+    const qIn = $("#clip_search_q", bar), sIn = $("#clip_filter_status", bar), oIn = $("#clip_filter_sort", bar);
+    qIn.value = S.clipFilter.q || "";
+    sIn.value = S.clipFilter.status || "all";
+    oIn.value = S.clipFilter.sort || "newest";
+    qIn.addEventListener("input", () => { S.clipFilter.q = qIn.value; drawJobs(); });
+    sIn.addEventListener("change", () => { S.clipFilter.status = sIn.value; drawJobs(); });
+    oIn.addEventListener("change", () => { S.clipFilter.sort = oIn.value; drawJobs(); });
+  }
+  if (!bar) return;
+  bar.style.display = totalClips > 0 ? "flex" : "none";
+  const cnt = $("#clip_filter_count", bar);
+  if (cnt) cnt.textContent = shownClips !== totalClips ? `${shownClips} of ${totalClips} clips` : `${totalClips} clip${totalClips === 1 ? "" : "s"}`;
+  const clr = $("#clip_filter_clear", bar);
+  if (clr) clr.style.display = (filterActive || (S.clipFilter.sort && S.clipFilter.sort !== "newest")) ? "" : "none";
+}
 function drawJobs() {
   const root = $("#jobs"); if (!root) return;
   const cid = creatorId();
@@ -2953,21 +3032,42 @@ function drawJobs() {
     if (!liveBox.querySelector(".pick.open")) put(liveBox, lj ? liveHtml(lj) : "");  // don't redraw under an open menu
     list = list.filter(j => j.status !== "live"); }
   if (!list.length) {
+    ensureClipFilterBar(root, 0, 0, false);
     root.querySelectorAll("section").forEach(e => e.remove());
     if (!$(".empty", root)) root.innerHTML = `<div class="empty"><img src="/brand/favicon.svg" alt=""><b>${cid ? "No clips for this creator yet" : "No videos yet"}</b>${cid ? "Start recording their stream, or paste a link to one of their videos above." : "Paste a link above and the studio will find the best moments and turn them into clips."}</div>`;
     return;
   }
+  const cf = S.clipFilter || {q:"", status:"all", sort:"newest"};
+  const q = (cf.q || "").trim().toLowerCase();
+  const status = cf.status || "all";
+  const sortMode = cf.sort || "newest";
+  const filterActive = Boolean(q || status !== "all");
+  let totalClips = 0, shownClips = 0;
+  const renderedList = [];
+  list.forEach(j => {
+    const rawClips = j.clips || [];
+    totalClips += rawClips.length;
+    const filtered = sortClipsForView(rawClips.filter(c => clipMatchesFilter(c, q, status)), sortMode);
+    shownClips += filtered.length;
+    if (!filterActive || filtered.length > 0) renderedList.push([j, filtered]);
+  });
+  ensureClipFilterBar(root, totalClips, shownClips, filterActive);
+  if (filterActive && totalClips > 0 && shownClips === 0) {
+    root.querySelectorAll("section").forEach(e => e.remove());
+    root.innerHTML = `<div class="empty"><b>No clips match this search or filter</b><span>Try clearing your search text or status filter.</span><button type="button" class="btn sm primary" data-act="reset_clip_filter" style="margin-top:8px">Reset Filters</button></div>`;
+    return;
+  }
   $(".empty", root)?.remove();
-  const ids = new Set(list.map(j => j.id));
+  const ids = new Set(renderedList.map(([j]) => j.id));
   $$("section[data-job]", root).forEach(el => { if (!ids.has(el.dataset.job)) el.remove(); });
-  list.forEach((j, i) => {
+  renderedList.forEach(([j, visClips], i) => {
     let el = $(`section[data-job="${j.id}"]`, root);
-    const isCollapsed = S.collapsedJobs?.has(j.id);
+    const isCollapsed = !filterActive && S.collapsedJobs?.has(j.id);
     if (!el) { el = document.createElement("section"); el.dataset.job = j.id; }
     el.className = isCollapsed ? "job is-collapsed" : "job";
     el.style.marginBottom = isCollapsed ? "8px" : "";
     if (root.children[i] !== el) root.insertBefore(el, root.children[i] || null);
-    put(el, jobHtml(j));
+    put(el, jobHtml(j, visClips, filterActive));
   });
 }
 
@@ -5529,6 +5629,15 @@ function drawClipDlg(full) {
               <label class="sw" style="margin:0;font-size:11px"><input type="checkbox" data-f="captions" data-caption-toggle ${(c.captions === false || (!('captions' in c) && j.options?.captions === false)) ? "" : "checked"}>Generate captions</label>
               <label class="sw" style="margin:0;font-size:11px"><input type="checkbox" data-f="outro_cta" ${c.outro_cta === false ? "" : "checked"}>End support badge (Outro)</label>
             </div>
+            <details id="dlg_caption_words_box" style="margin-top:10px;padding:8px 10px;background:rgba(15,23,42,0.55);border:1px solid var(--line);border-radius:8px" ontoggle="if(this.open) loadClipWordsEditor()">
+              <summary style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;list-style:none;font-size:11.5px;font-weight:700;color:#E2E8F0">
+                <span>📝 Edit Caption Words <span style="font-weight:500;color:var(--text-sub);font-size:10.5px">(Fix misheard words &amp; names before re-making MP4)</span></span>
+                <span style="font-size:10px;color:#00F0FF">Toggle ▾</span>
+              </summary>
+              <div id="dlg_caption_words_body" style="margin-top:8px">
+                <div class="sub" style="font-size:11px">Click to load caption words…</div>
+              </div>
+            </details>
             <div style="margin-top:12px;padding:8px 12px;background:var(--bg-3);border:1px solid var(--line);border-radius:8px;display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
               <div style="font-size:11px;color:var(--text-sub);display:flex;align-items:center;gap:6px">
                 <span style="color:#00F0FF;font-weight:800">⚡ Live Hook Preview:</span>
@@ -5760,6 +5869,46 @@ function drawClipDlg(full) {
   put($("#dposts"), postPills(c));
   updateClipDlgLayoutPreview();
 }
+window.loadClipWordsEditor = async function(force) {
+  const body = $("#dlg_caption_words_body");
+  if (!body || !D.jid || !D.cid) return;
+  if (!force && body.dataset.loadedFor === `${D.jid}:${D.cid}`) return;
+  body.innerHTML = `<div class="sub" style="font-size:11px">Loading caption words…</div>`;
+  try {
+    const res = await api(`/api/jobs/${encodeURIComponent(D.jid)}/clips/${encodeURIComponent(D.cid)}/words`);
+    body.dataset.loadedFor = `${D.jid}:${D.cid}`;
+    const list = res.words || [];
+    if (!list.length) {
+      body.innerHTML = `<div class="sub" style="font-size:11px">No transcript words saved for this span yet. Re-make the clip once with captions enabled to populate words.</div>`;
+      return;
+    }
+    body.innerHTML = `
+      <div style="display:flex;flex-wrap:wrap;gap:5px;max-height:165px;overflow-y:auto;padding:4px 2px">
+        ${list.map(w => `
+          <label style="display:inline-flex;align-items:center;gap:3px;background:var(--bg-1,#0d1117);border:1px solid var(--line);border-radius:6px;padding:2px 6px" title="${Number(w.s).toFixed(2)}s - ${Number(w.e).toFixed(2)}s">
+            <span style="font-size:9px;color:#64748B;font-family:ui-monospace,monospace">${Number(w.s).toFixed(1)}s</span>
+            <input class="cw-inp" data-ws="${Number(w.s)}" data-we="${Number(w.e)}" value="${esc(w.w)}" oninput="this.style.width=Math.max(44,Math.min(140,this.value.length*8+16))+'px'" style="width:${Math.max(44, Math.min(140, String(w.w || '').length * 8 + 16))}px;background:transparent!important;border:none!important;box-shadow:none!important;height:auto!important;min-height:0!important;color:#F8FAFC;font-size:11.5px;font-weight:600;padding:1px 2px!important;outline:none">
+          </label>`).join("")}
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;margin-top:8px;flex-wrap:wrap">
+        <button type="button" class="btn sm" data-act="save_clip_words" style="background:rgba(16,185,129,0.2);border:1px solid rgba(16,185,129,0.5);color:#34D399;font-weight:700;font-size:11px">💾 Save Words (${list.length})</button>
+        <button type="button" class="btn sm" data-act="save_and_remake_words" style="background:linear-gradient(135deg,#00F0FF,#0099FF);color:#020617;border:none;font-weight:800;font-size:11px">🔥 Save Words &amp; Re-make MP4</button>
+        <button type="button" class="btn sm ghost" data-act="reload_clip_words" style="font-size:11px">↻ Reload</button>
+        <span class="sub" style="font-size:10px;margin-left:auto">Source: ${esc(res.source || "transcript")} · Clear a box to delete word</span>
+      </div>`;
+  } catch (err) {
+    body.innerHTML = `<div class="err" style="font-size:11px">${esc(err.message || "Could not load words.")}</div>`;
+  }
+};
+window.collectClipWordsPayload = function() {
+  const out = [];
+  $$("#dlg_caption_words_body .cw-inp").forEach(inp => {
+    const w = inp.value.trim();
+    if (!w) return;
+    out.push({ w, s: Number(inp.dataset.ws) || 0, e: Number(inp.dataset.we) || 0 });
+  });
+  return out;
+};
 function postText() {   // the post text and SEO as it is in the clip editor right now
   const v = k => {
     const el = $(`#clipdlg [data-f="${k}"]`);
@@ -9253,7 +9402,18 @@ HOOKS:
       if (!await ask("Disconnect this account?", "Posts still waiting for it will fail.", "Disconnect", true)) return;
       await api(`/api/accounts/${d.id}`, {method:"DELETE"}); await tick(); return drawSettings();
     }
-    if (a === "remake") {
+    if (a === "reset_clip_filter") { resetClipFilter(); return; }
+    if (a === "reload_clip_words") { return void await loadClipWordsEditor(true); }
+    if (a === "save_clip_words" || a === "save_and_remake_words") {
+      const words = collectClipWordsPayload();
+      await send(`/api/jobs/${D.jid}/clips/${D.cid}/words`, {words}, "PUT");
+      if (a === "save_clip_words") {
+        toast(`Saved ${words.length} caption words!`, "ok");
+        return loadClipWordsEditor(true);
+      }
+      toast(`Saved ${words.length} caption words, re-making clip…`, "ok");
+    }
+    if (a === "remake" || a === "save_and_remake_words") {
       const btn = e.target.closest("button");
       if (btn) { btn.disabled = true; btn.dataset.orig = btn.innerHTML; btn.innerHTML = `${ic("scissors")} Re-making clip…`; }
       const stage = $("#stage");
