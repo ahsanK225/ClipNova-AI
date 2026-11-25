@@ -158,7 +158,25 @@ class TestUSAPublishingCalendar(unittest.TestCase):
         self.assertIn("renderCreatorCalendarCard", html)
         self.assertIn("creator_calendar_view", html)
         self.assertIn("copy_post_comm", html)
+        self.assertIn("dlg_cal_slot_select", html)
+        self.assertIn("_bookedVideo", html)
         self.assertNotIn("setup_creator_calendar_card", html)
+
+    def test_format_slot_info_infers_slot_num_and_cycle_date(self):
+        """format_slot_info infers slot_num 1/2/3 and cycle_date accurately across midnight."""
+        from datetime import date, datetime
+        d = date(2026, 11, 25)
+        slots = calendar.get_slots_for_cycle(d, creator_id="ishowspeed")
+        self.assertEqual(len(slots), 3)
+        s1 = calendar.format_slot_info(slots[0], creator_id="ishowspeed")
+        s2 = calendar.format_slot_info(slots[1], creator_id="ishowspeed")
+        s3 = calendar.format_slot_info(slots[2], creator_id="ishowspeed")
+        self.assertEqual(s1["slot_num"], 1)
+        self.assertEqual(s2["slot_num"], 2)
+        self.assertEqual(s3["slot_num"], 3)
+        self.assertEqual(s1["cycle_date"], "2026-11-25")
+        self.assertEqual(s2["cycle_date"], "2026-11-25")
+        self.assertEqual(s3["cycle_date"], "2026-11-25")
 
 
 if __name__ == "__main__":

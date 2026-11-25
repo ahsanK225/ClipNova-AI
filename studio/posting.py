@@ -164,11 +164,26 @@ def enqueue(job, clip, account_ids, now=False, force=False, target_ts=None) -> l
                 continue
             open_posts = [p for p in existing_mine if p["job"] == job["id"] and p["clip"] == clip["id"] and p["account"] == aid and p["status"] in OPEN]
             if open_posts:
-                if now or force:
+                if now:
                     # User clicked "Post now": advance the existing open post to post immediately!
                     for ep in open_posts:
                         ep["due_at"] = time.time()
+                        ep["scheduled_at"] = ep["due_at"]
                         ep["now"] = True
+                        ep["status"] = "scheduled"
+                        ep["tries"] = 0
+                        ep["error"] = None
+                        ep["title"] = clip.get("title") or clip.get("hook") or ep["title"]
+                        made.append(ep)
+                    continue
+                elif force and target_ts:
+                    due = float(target_ts)
+                    slot_info = calendar.format_slot_info(due, creator_id=job.get("creator"))
+                    for ep in open_posts:
+                        ep["due_at"] = due
+                        ep["scheduled_at"] = due
+                        ep["calendar_slot"] = slot_info
+                        ep["now"] = False
                         ep["status"] = "scheduled"
                         ep["tries"] = 0
                         ep["error"] = None

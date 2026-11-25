@@ -34,7 +34,7 @@ def get_tz_now() -> datetime:
     return datetime.now(PKT_TZ)
 
 
-def format_slot_info(video_ts: float, slot_num: int = 1, cycle_date: Optional[date] = None, creator_id: Optional[str] = None) -> Dict[str, Any]:
+def format_slot_info(video_ts: float, slot_num: Optional[int] = None, cycle_date: Optional[date] = None, creator_id: Optional[str] = None) -> Dict[str, Any]:
     """Generates rich timezone-aware human readable metadata for a scheduled slot."""
     dt_pkt = datetime.fromtimestamp(video_ts, tz=PKT_TZ)
     dt_ny = datetime.fromtimestamp(video_ts, tz=US_EAST_TZ)
@@ -42,7 +42,27 @@ def format_slot_info(video_ts: float, slot_num: int = 1, cycle_date: Optional[da
     comm_ts = video_ts + COMMUNITY_OFFSET_SECONDS
     dt_comm_pkt = datetime.fromtimestamp(comm_ts, tz=PKT_TZ)
 
-    c_date = cycle_date or dt_pkt.date()
+    # Infer cycle_date & slot_num accurately (03:30 AM early-morning slot belongs to previous evening's cycle)
+    c_date = cycle_date
+    if c_date is None and creator_id:
+        for cand_d in (dt_pkt.date(), dt_pkt.date() - timedelta(days=1)):
+            try:
+                cand_slots = get_slots_for_cycle(cand_d, creator_id=creator_id)
+                for idx_cand, cand_ts in enumerate(cand_slots, 1):
+                    if abs(cand_ts - video_ts) < 3600:
+                        c_date = cand_d
+                        if slot_num is None:
+                            slot_num = idx_cand
+                        break
+            except Exception:
+                pass
+            if c_date is not None:
+                break
+    if c_date is None:
+        c_date = dt_pkt.date()
+    if slot_num is None:
+        h = dt_pkt.hour
+        slot_num = 1 if 12 <= h < 20 else (2 if 20 <= h <= 23 or h == 0 else 3)
 
     # Dynamic analytics algorithm priming metadata
     is_analytics_driven = False

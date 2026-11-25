@@ -2732,12 +2732,25 @@ def add_posts(body: dict = Body(...)):
     if not accounts_list:
         raise HTTPException(400, "Tick at least one account first.")
     now = bool(body.get("now"))
-    made = posting.enqueue(job, clip, accounts_list, now=now, force=now)
+    target_ts = float(body.get("slot_ts") or 0) or None
+    made = posting.enqueue(job, clip, accounts_list, now=now, force=bool(now or target_ts), target_ts=target_ts)
     if not made:
-        made = posting.enqueue(job, clip, accounts_list, now=now, force=True)
+        made = posting.enqueue(job, clip, accounts_list, now=now, force=True, target_ts=target_ts)
     if not made:
         raise HTTPException(400, "Nothing was queued. Pick at least one account.")
-    return {"queued": len(made)}
+    return {
+        "queued": len(made),
+        "posts": [
+            {
+                "id": p.get("id"),
+                "kind": p.get("kind"),
+                "account_name": p.get("account_name"),
+                "scheduled_at": p.get("scheduled_at") or p.get("due_at"),
+                "calendar_slot": p.get("calendar_slot"),
+            }
+            for p in made
+        ],
+    }
 
 
 @app.post("/api/posts/{pid}/{action}")
