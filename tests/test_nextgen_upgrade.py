@@ -324,7 +324,10 @@ try:
           and 'id="studio_track_vfx"' in html
           and 'id="studio_vfx_grid"' in html
           and 'id="studio_meme_sfx_grid"' in html
-          and 'studioAddSfxCue' in html)
+          and 'studioAddSfxCue' in html
+          and 'studioStartCueDrag' in html
+          and 'studioDeleteSelected' in html
+          and 'studioUploadCustomSfx' in html)
 
 finally:
     shutil.rmtree(os.environ["PEAKCUT_DATA"], ignore_errors=True)

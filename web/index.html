@@ -4457,6 +4457,7 @@ let _studioWords = [];
 let _studioDrawerTab = "cut";
 let _studioVfxCues = [];
 let _studioSfxCues = [];
+let _studioSelCue = null;
 let _studioFiredCues = new Set();
 let _studioCuts = [];
 let _studioSegments = [];
@@ -4602,6 +4603,7 @@ async function drawVideoStudioTab() {
       }))
     : [{ id: "seg_1", job_id: jid, clip_id: cid, title: project.title || "Main Cut", start: 0.0, end: round2(project.duration || 30.0), max_dur: round2(project.duration || 30.0), video_url: project.video_url, cover_url: "" }];
   _studioSelSegIdx = 0;
+  _studioSelCue = null;
   _studioPlayhead = 0.0;
   _studioPlayingSegIdx = 0;
 
@@ -4786,7 +4788,7 @@ function renderStudioWorkspace() {
             <button type="button" class="btn sm" onclick="studioTrimSelectedToPlayhead('end')" style="background:#131B2E;border:1px solid #334155;color:#E2E8F0;font-weight:700" title="Trim selected clip end to playhead">
               Trim Out ⫸
             </button>
-            <button type="button" class="btn sm danger ghost" onclick="studioRemoveSegment(_studioSelSegIdx)" ${_studioSegments.length <= 1 ? "disabled" : ""} style="font-weight:700" title="Delete selected clip block">
+            <button type="button" class="btn sm danger ghost" onclick="studioDeleteSelected()" ${(!_studioSelCue && _studioSegments.length <= 1) ? "disabled" : ""} style="font-weight:700" title="Delete selected clip, effect, or meme sound">
               🗑 Delete
             </button>
             <span style="height:18px;width:1px;background:#1E293B;margin:0 2px"></span>
@@ -4868,30 +4870,32 @@ function renderStudioWorkspace() {
                 ` : ""}
               </div>
 
-              <!-- Track 2: Effects & Meme SFX Cues (CapCut Style!) -->
-              <div class="studio-track-row" id="studio_track_vfx" style="height:34px;width:${canvasW}px;background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.28);position:relative;border-radius:8px" title="Placed VFX &amp; Meme SFX cues">
-                <div style="position:absolute;left:8px;top:9px;font-size:10px;font-weight:700;color:#FBBF24;z-index:1;pointer-events:none;opacity:${(_studioVfxCues.length || _studioSfxCues.length) ? '0.35' : '0.9'}">
-                  ⚡ Effects &amp; 💥 Meme SFX (${_studioVfxCues.length + _studioSfxCues.length} placed)
+              <!-- Track 2: Effects & Meme SFX Cues (CapCut Style: Click to Select, Hold & Drag Left/Right!) -->
+              <div class="studio-track-row" id="studio_track_vfx" style="height:36px;width:${canvasW}px;background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.28);position:relative;border-radius:8px;overflow:hidden" title="Hold &amp; drag any VFX or Meme SFX pill left/right to move it; click to select">
+                <div style="position:absolute;left:8px;top:10px;font-size:10px;font-weight:700;color:#FBBF24;z-index:1;pointer-events:none;opacity:${(_studioVfxCues.length || _studioSfxCues.length) ? '0.35' : '0.9'}">
+                  ⚡ Effects &amp; 💥 Meme SFX (${_studioVfxCues.length + _studioSfxCues.length} placed — hold &amp; drag to move)
                 </div>
                 ${_studioVfxCues.map((vc, i) => {
-                  const leftPx = Math.max(2, Math.round(Number(vc.time || 0) * pxPerSec));
+                  const leftPx = Math.max(2, Math.min(Math.max(2, canvasW - 115), Math.round(Number(vc.time || 0) * pxPerSec)));
                   const vMeta = (_studioProj.available_vfx || []).find(x => x.id === vc.type);
+                  const isCueSel = _studioSelCue && _studioSelCue.kind === "vfx" && _studioSelCue.idx === i;
                   return `
-                    <div onclick="event.stopPropagation();_studioSeekGlobal(${Number(vc.time || 0)}, false)" style="position:absolute;left:${leftPx}px;top:4px;bottom:4px;z-index:5;background:linear-gradient(135deg,#F59E0B,#D97706);color:#020617;border-radius:6px;padding:0 7px;display:inline-flex;align-items:center;gap:5px;font-size:10px;font-weight:800;cursor:pointer;box-shadow:0 2px 8px rgba(245,158,11,0.35);white-space:nowrap" title="${esc(vMeta?.name || vc.type)} @ ${Number(vc.time || 0).toFixed(1)}s">
+                    <div data-cue-kind="vfx" data-cue-idx="${i}" onpointerdown="studioStartCueDrag(event, 'vfx', ${i})" style="position:absolute;left:${leftPx}px;top:4px;bottom:4px;z-index:${isCueSel ? 12 : 5};background:linear-gradient(135deg,#F59E0B,#D97706);color:#020617;border-radius:6px;padding:0 7px;display:inline-flex;align-items:center;gap:5px;font-size:10px;font-weight:800;cursor:grab;border:2px solid ${isCueSel ? '#FFFFFF' : 'transparent'};box-shadow:${isCueSel ? '0 0 0 2px #00F0FF, 0 4px 12px rgba(0,240,255,0.4)' : '0 2px 8px rgba(245,158,11,0.35)'};white-space:nowrap;user-select:none" title="Hold &amp; drag to move | Click to select (${esc(vMeta?.name || vc.type)} @ ${Number(vc.time || 0).toFixed(1)}s)">
                       <span>${esc(vMeta?.name || vc.type)}</span>
-                      <span style="opacity:0.75;font-family:monospace">${Number(vc.time || 0).toFixed(1)}s</span>
-                      <button type="button" onclick="event.stopPropagation();studioRemoveVfxCue(${i})" style="background:none;border:none;color:#020617;font-weight:900;cursor:pointer;padding:0 2px;font-size:11px" title="Remove effect">×</button>
+                      <span class="cue-time-lbl" style="opacity:0.78;font-family:monospace">${Number(vc.time || 0).toFixed(1)}s</span>
+                      <button type="button" onpointerdown="event.stopPropagation()" onclick="event.stopPropagation();studioRemoveVfxCue(${i})" style="background:none;border:none;color:#020617;font-weight:900;cursor:pointer;padding:0 2px;font-size:11px" title="Remove effect">×</button>
                     </div>
                   `;
                 }).join("")}
                 ${_studioSfxCues.map((sc, i) => {
-                  const leftPx = Math.max(2, Math.round(Number(sc.time || 0) * pxPerSec));
+                  const leftPx = Math.max(2, Math.min(Math.max(2, canvasW - 135), Math.round(Number(sc.time || 0) * pxPerSec)));
                   const sMeta = (_studioProj.available_sounds || []).find(x => x.id === sc.track_id);
+                  const isCueSel = _studioSelCue && _studioSelCue.kind === "sfx" && _studioSelCue.idx === i;
                   return `
-                    <div onclick="event.stopPropagation();_studioSeekGlobal(${Number(sc.time || 0)}, false)" style="position:absolute;left:${leftPx}px;top:4px;bottom:4px;z-index:6;background:linear-gradient(135deg,#EC4899,#8B5CF6);color:#FFFFFF;border-radius:6px;padding:0 7px;display:inline-flex;align-items:center;gap:5px;font-size:10px;font-weight:800;cursor:pointer;box-shadow:0 2px 8px rgba(236,72,153,0.35);white-space:nowrap" title="${esc(sMeta?.title || sc.track_id)} @ ${Number(sc.time || 0).toFixed(1)}s">
+                    <div data-cue-kind="sfx" data-cue-idx="${i}" onpointerdown="studioStartCueDrag(event, 'sfx', ${i})" style="position:absolute;left:${leftPx}px;top:4px;bottom:4px;z-index:${isCueSel ? 13 : 6};background:linear-gradient(135deg,#EC4899,#8B5CF6);color:#FFFFFF;border-radius:6px;padding:0 7px;display:inline-flex;align-items:center;gap:5px;font-size:10px;font-weight:800;cursor:grab;border:2px solid ${isCueSel ? '#FFFFFF' : 'transparent'};box-shadow:${isCueSel ? '0 0 0 2px #00F0FF, 0 4px 12px rgba(0,240,255,0.4)' : '0 2px 8px rgba(236,72,153,0.35)'};white-space:nowrap;user-select:none" title="Hold &amp; drag to move | Click to select (${esc(sMeta?.title || sc.track_id)} @ ${Number(sc.time || 0).toFixed(1)}s)">
                       <span>${esc(sMeta?.emoji || "🔊")} ${esc(sMeta?.title || sc.track_id)}</span>
-                      <span style="opacity:0.8;font-family:monospace">${Number(sc.time || 0).toFixed(1)}s</span>
-                      <button type="button" onclick="event.stopPropagation();studioRemoveSfxCue(${i})" style="background:none;border:none;color:#FFFFFF;font-weight:900;cursor:pointer;padding:0 2px;font-size:11px" title="Remove SFX">×</button>
+                      <span class="cue-time-lbl" style="opacity:0.85;font-family:monospace">${Number(sc.time || 0).toFixed(1)}s</span>
+                      <button type="button" onpointerdown="event.stopPropagation()" onclick="event.stopPropagation();studioRemoveSfxCue(${i})" style="background:none;border:none;color:#FFFFFF;font-weight:900;cursor:pointer;padding:0 2px;font-size:11px" title="Remove SFX">×</button>
                     </div>
                   `;
                 }).join("")}
@@ -5114,9 +5118,15 @@ function renderStudioDrawerContent() {
             <h4 style="margin:0;font-size:14px;color:#F8FAFC">💥 Meme Soundboard &amp; 🎵 BGM</h4>
             <p style="margin:2px 0 0;font-size:11.5px;color:#94A3B8">Playhead par viral meme sounds (Vine Boom, Bruh, Metal Pipe, Airhorn) drop karein ya BGM lagayein.</p>
           </div>
-          <span class="pill" style="font-size:11px;padding:3px 10px;border-radius:999px;background:rgba(236,72,153,0.16);color:#F472B6;border:1px solid rgba(236,72,153,0.35);font-weight:800">
-            🔊 ${_studioSfxCues.length} SFX placed
-          </span>
+          <div style="display:flex;align-items:center;gap:6px">
+            <label class="btn sm" style="background:rgba(0,240,255,0.12);border:1px solid rgba(0,240,255,0.4);color:#00F0FF;font-weight:800;cursor:pointer;font-size:10.5px;padding:4px 9px" title="Apne PC se .mp3 ya .wav sound upload karein">
+              📤 Upload My Sound
+              <input id="studio_custom_sfx_input" type="file" accept="audio/*,.mp3,.wav,.m4a,.ogg" style="display:none" onchange="studioUploadCustomSfx(this)">
+            </label>
+            <span class="pill" style="font-size:11px;padding:3px 10px;border-radius:999px;background:rgba(236,72,153,0.16);color:#F472B6;border:1px solid rgba(236,72,153,0.35);font-weight:800">
+              🔊 ${_studioSfxCues.length} SFX placed
+            </span>
+          </div>
         </div>
 
         <div id="studio_meme_sfx_grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(215px,1fr));gap:8px;max-height:175px;overflow-y:auto;padding-right:2px">
@@ -5347,6 +5357,7 @@ function studioAddVfxMarker(vfxId) {
 
 window.studioRemoveVfxCue = function(idx) {
   _studioVfxCues.splice(idx, 1);
+  if (_studioSelCue?.kind === "vfx") _studioSelCue = null;
   renderStudioWorkspace();
 };
 
@@ -5363,14 +5374,100 @@ window.studioPlaySfx = function(trackId, vol = 0.95) {
 window.studioAddSfxCue = function(trackId) {
   const t = round2(_studioPlayhead || 0);
   _studioSfxCues.push({ id: `sfx_${Date.now()}`, track_id: trackId, time: t, volume: 0.95 });
+  _studioSelCue = { kind: "sfx", idx: _studioSfxCues.length - 1 };
   studioPlaySfx(trackId, 0.95);
   renderStudioWorkspace();
-  toast(`💥 Dropped ${trackId} at ${t.toFixed(1)}s`, "ok", 2500);
+  toast(`💥 Dropped ${trackId} at ${t.toFixed(1)}s — drag left/right anytime!`, "ok", 2500);
 };
 
 window.studioRemoveSfxCue = function(idx) {
   _studioSfxCues.splice(idx, 1);
+  if (_studioSelCue?.kind === "sfx") _studioSelCue = null;
   renderStudioWorkspace();
+};
+
+window.studioDeleteSelected = function() {
+  if (_studioSelCue) {
+    if (_studioSelCue.kind === "vfx" && _studioVfxCues[_studioSelCue.idx]) {
+      _studioVfxCues.splice(_studioSelCue.idx, 1);
+      _studioSelCue = null;
+      renderStudioWorkspace();
+      return toast("🗑️ Effect removed from timeline", "ok");
+    }
+    if (_studioSelCue.kind === "sfx" && _studioSfxCues[_studioSelCue.idx]) {
+      _studioSfxCues.splice(_studioSelCue.idx, 1);
+      _studioSelCue = null;
+      renderStudioWorkspace();
+      return toast("🗑️ Meme sound removed from timeline", "ok");
+    }
+  }
+  studioRemoveSegment(_studioSelSegIdx);
+};
+
+window.studioStartCueDrag = function(e, kind, idx) {
+  e.stopPropagation();
+  e.preventDefault();
+  const list = kind === "vfx" ? _studioVfxCues : _studioSfxCues;
+  const cue = list[idx];
+  if (!cue) return;
+  _studioSelCue = { kind, idx };
+  const { totalDur } = _studioTimelineMap();
+  const { pxPerSec, canvasW } = _studioScaleInfo(totalDur);
+  const startX = e.clientX;
+  const origTime = Number(cue.time || 0);
+  let moved = false;
+  const pill = e.currentTarget;
+
+  const onMove = (ev) => {
+    const dx = ev.clientX - startX;
+    if (Math.abs(dx) >= 4) moved = true;
+    if (!moved) return;
+    const nt = round2(Math.max(0, Math.min(Math.max(0.2, totalDur - 0.2), origTime + dx / Math.max(4, pxPerSec))));
+    cue.time = nt;
+    if (pill) {
+      const maxL = Math.max(2, canvasW - (kind === "sfx" ? 135 : 115));
+      pill.style.left = `${Math.max(2, Math.min(maxL, Math.round(nt * pxPerSec)))}px`;
+      const lbl = pill.querySelector(".cue-time-lbl");
+      if (lbl) lbl.innerText = `${nt.toFixed(1)}s`;
+    }
+  };
+  const onUp = () => {
+    window.removeEventListener("pointermove", onMove);
+    window.removeEventListener("pointerup", onUp);
+    if (!moved) _studioSeekGlobal(cue.time, false);
+    renderStudioWorkspace();
+  };
+  window.addEventListener("pointermove", onMove);
+  window.addEventListener("pointerup", onUp);
+};
+
+window.studioUploadCustomSfx = async function(input) {
+  if (!input?.files || !input.files[0]) return;
+  const file = input.files[0];
+  const formData = new FormData();
+  formData.append("file", file);
+  toast(`⏳ Uploading ${file.name}…`, "ok");
+  try {
+    const res = await fetch("/api/audio/upload", { method: "POST", body: formData });
+    const data = await res.json();
+    if (data.ok && data.track) {
+      if (_studioProj) {
+        _studioProj.available_sounds = _studioProj.available_sounds || [];
+        if (!_studioProj.available_sounds.some(s => s.id === data.track.id)) {
+          _studioProj.available_sounds.unshift(data.track);
+        }
+      }
+      studioPlaySfx(data.track.id, 0.95);
+      renderStudioWorkspace();
+      toast(`✨ "${data.track.title}" uploaded! Click ➕ Drop @ Playhead to place it.`, "ok", 4000);
+    } else {
+      toast("Upload failed: " + (data.detail || "Server error"), "bad");
+    }
+  } catch (err) {
+    toast("Upload error: " + err.message, "bad");
+  } finally {
+    input.value = "";
+  }
 };
 
 function _studioSeekGlobal(globalSec, autoPlay) {
@@ -5527,6 +5624,7 @@ window.studioSelectSegment = function(idx) {
   const { items: tMap } = _studioTimelineMap();
   if (idx < 0 || idx >= tMap.length) return;
   _studioSelSegIdx = idx;
+  _studioSelCue = null;
   const item = tMap[idx];
   if (_studioPlayhead < item.outStart || _studioPlayhead > item.outEnd) {
     _studioPlayhead = item.outStart;
