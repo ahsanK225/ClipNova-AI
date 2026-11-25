@@ -678,27 +678,33 @@ img.av{object-fit:cover}
 .clip-foot{display:flex;gap:4px;align-items:center;margin-top:auto;padding-top:8px}
 
 /* ---------- live */
-.livecard{background:#fff;border:1px solid #F4C9CD;border-radius:var(--r);padding:20px;margin-bottom:28px}
-.lc-head{display:flex;gap:16px;align-items:flex-start;justify-content:space-between}
+.livecard{position:relative;background:var(--card-bg);border:1px solid var(--line);border-radius:18px;padding:20px 22px;margin-bottom:28px;overflow:hidden;box-shadow:0 16px 40px -12px rgba(0,0,0,0.45)}
+.livecard::before{content:"";position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,#EF4444 0%,#00F0FF 45%,#6366F1 100%);opacity:0.85}
+.lc-head{display:flex;gap:16px;align-items:flex-start;justify-content:space-between;padding-bottom:14px;border-bottom:1px solid var(--line)}
 .lc-title{flex:1;min-width:0}
-.lc-title h3{margin-top:8px;font-size:16px;line-height:1.4;color:var(--heading);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}
-.lc-acts{flex:none;display:flex;gap:8px;align-items:center}
-.lc-acts .btn{height:40px}
-@media (max-width:900px){.lc-head{flex-direction:column}.lc-acts{width:100%}.lc-acts .btn{flex:1;justify-content:center}}
-.stats{display:flex;gap:28px;flex-wrap:wrap;margin:18px 0}
-.stat b{display:block;font-size:20px;font-weight:600;font-variant-numeric:tabular-nums;color:var(--heading)}
-.evbtn{display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 8px 0 0;border:0;background:transparent;font:inherit;font-size:20px;font-weight:600;color:var(--heading);cursor:pointer;border-radius:8px;transition:color .15s ease}
+.lc-title h3{margin-top:6px;font-size:17px;font-weight:800;letter-spacing:-0.2px;line-height:1.35;color:var(--heading);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}
+.lc-acts{flex:none;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.lc-acts .btn{height:38px;border-radius:10px}
+@media (max-width:960px){.lc-head{flex-direction:column}.lc-acts{width:100%}.lc-acts .btn{flex:1;justify-content:center}}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(136px,1fr));gap:10px;margin:16px 0}
+.stat{background:var(--bg-3);border:1px solid var(--line);border-radius:12px;padding:10px 12px;display:flex;flex-direction:column;justify-content:space-between;gap:3px;min-width:0;transition:border-color .18s ease,transform .18s cubic-bezier(.16,1,.3,1)}
+.stat:hover{border-color:rgba(0,240,255,0.32);transform:translateY(-1px)}
+.stat b{display:block;font-size:18px;font-weight:800;font-variant-numeric:tabular-nums;color:var(--heading);line-height:1.2}
+.evbtn{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 6px 0 0;border:0;background:transparent;font:inherit;font-size:18px;font-weight:800;color:var(--heading);cursor:pointer;border-radius:8px;transition:color .15s ease}
 .evbtn:hover,.evpick.open .evbtn{color:var(--brand)}
 .evbtn .car{width:14px;height:14px;color:var(--faint)}
 .evpick .pick-menu{min-width:240px}
 .pick-opt .ph{font-size:11px;color:#9C8A7E;margin-left:6px}
-.stat .evpick .pick-opt .pl{font-size:13px;color:inherit}.stat .evpick .pick-opt .ph{font-size:11px;color:#9C8A7E}.stat .evpick .evbtn .pv{font-size:20px;color:inherit}
-.autonote{font-size:12px;color:var(--faint);margin:-8px 0 14px}.stat span{font-size:12px;color:var(--dim)}
-.meters{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px}
-.meter{background:var(--muted);border-radius:var(--r);padding:12px 14px}
-.meter h4{font-size:12px;color:var(--dim);font-weight:600;margin-bottom:9px}
-.spark{display:flex;align-items:flex-end;gap:1px;height:46px}
-.spark i{flex:1;background:var(--brand);min-height:2px;border-radius:1px}.spark.chat i{background:var(--good)}
+.stat .evpick .pick-opt .pl{font-size:13px;color:inherit}.stat .evpick .pick-opt .ph{font-size:11px;color:#9C8A7E}.stat .evpick .evbtn .pv{font-size:18px;color:inherit}
+.autonote{font-size:12px;color:var(--faint);margin:-8px 0 14px}.stat span{font-size:11px;color:var(--dim);font-weight:600;line-height:1.25}
+.meters{display:grid;grid-template-columns:minmax(165px,200px) minmax(165px,200px) minmax(360px,1fr);gap:12px;align-items:stretch}
+@media (max-width:980px){.meters{grid-template-columns:1fr}}
+.meter{background:var(--bg-3);border:1px solid var(--line);border-radius:14px;padding:12px 14px;display:flex;flex-direction:column;justify-content:space-between}
+.meter h4{font-size:11.5px;color:var(--dim);font-weight:700;margin:0}
+.meter-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px}
+.meter-readout{font-size:11px;font-weight:800;font-variant-numeric:tabular-nums;padding:2px 7px;border-radius:999px;background:rgba(99,102,241,0.14);color:var(--accent);border:1px solid rgba(99,102,241,0.28)}
+.spark{display:flex;align-items:flex-end;gap:2px;height:68px;padding:4px 2px 0;border-bottom:1px solid var(--line)}
+.spark i{flex:1;background:linear-gradient(180deg,#00F0FF 0%,#6366F1 100%);min-height:3px;border-radius:2px 2px 0 0;opacity:0.9}.spark.chat i{background:linear-gradient(180deg,#34D399 0%,#059669 100%)}
 .said{font-size:13px;color:var(--faint);height:76px;overflow:hidden;display:flex;flex-direction:column;justify-content:flex-end}
 .said div:last-child{color:var(--text)}
 
@@ -3131,28 +3137,44 @@ function everyPick(cid, v) {
 function liveHtml(j) {
   const L = j.live || {elapsed:0, lines:[], level:[], chat:null, checks:0, buffer_sec:0, pending_clips:0};
   const isCollapsed = S.collapsedJobs?.has(j.id);
+  const lvlArr = Array.isArray(L.level) && L.level.length ? L.level : [];
+  const lastDb = lvlArr.length ? Math.round(lvlArr[lvlArr.length - 1]) : null;
+  const chatArr = Array.isArray(L.chat) && L.chat.length ? L.chat : [];
+  const lastChat = chatArr.length ? Math.round(chatArr[chatArr.length - 1]) : 0;
+  const maxChat = chatArr.length ? Math.max(...chatArr) : 0;
+
   return `<div class="livecard">
-    <div class="lc-head"><div class="lc-title"><div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><span class="pill live"><span class="dot"></span>Live</span><span class="pill" style="font-size:11px;padding:2px 8px;border-radius:12px;background:rgba(0,240,255,0.12);color:var(--accent,#00F0FF);border:1px solid rgba(0,240,255,0.3);font-weight:700">⚡ ${esc(L.detection_mode || (S.status?.ai?.model ? 'MODE A (AI INTELLIGENT SCORING)' : 'MODE B (KEYWORD FALLBACK)'))}</span></div>
-        <h3>${esc(j.title || j.source.name)}</h3><p class="sub">${esc(j.uploader)}${j.uploader ? " · " : ""}${esc(j.stage)}</p></div>
+    <div class="lc-head"><div class="lc-title"><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px"><span class="pill live"><span class="dot"></span>Live</span><span class="pill" style="font-size:10.5px;padding:2px 9px;border-radius:999px;background:rgba(0,240,255,0.12);color:var(--accent,#00F0FF);border:1px solid rgba(0,240,255,0.32);font-weight:800;letter-spacing:0.2px">⚡ ${esc(L.detection_mode || (S.status?.ai?.model ? 'MODE A (AI INTELLIGENT SCORING)' : 'MODE B (KEYWORD FALLBACK)'))}</span></div>
+        <h3>${esc(j.title || j.source.name)}</h3><p class="sub" style="margin-top:2px;display:flex;align-items:center;gap:6px;flex-wrap:wrap"><span>${esc(j.uploader)}${j.uploader ? " · " : ""}${esc(j.stage)}</span></p></div>
       <div class="lc-acts">
-        ${j.clips.length ? `<button type="button" class="btn sm" data-act="toggle_job_collapse" data-j="${j.id}" title="${isCollapsed ? 'Expand clips folder' : 'Fold clips'}" style="background:var(--bg-2);border:1px solid var(--line);font-size:11px;font-weight:700;display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:8px;cursor:pointer"><span>${isCollapsed ? '📁' : '📂'}</span><span>${isCollapsed ? `${j.clips.length} Clips (Open)` : 'Fold Clips'}</span><span style="font-size:9px;transform:${isCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)'};transition:transform .2s">▼</span></button>` : ""}
+        ${j.clips.length ? `<button type="button" class="btn sm" data-act="toggle_job_collapse" data-j="${j.id}" title="${isCollapsed ? 'Expand clips folder' : 'Fold clips'}" style="background:var(--bg-2);border:1px solid var(--line);font-size:11.5px;font-weight:700;display:inline-flex;align-items:center;gap:6px;padding:0 12px;cursor:pointer"><span>${isCollapsed ? '📁' : '📂'}</span><span>${isCollapsed ? `${j.clips.length} Clips (Open)` : 'Fold Clips'}</span><span style="font-size:9px;transform:${isCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)'};transition:transform .2s">▼</span></button>` : ""}
         <button class="btn primary" data-act="clipnow" data-j="${j.id}" data-s="30">${ic("scissors")}Clip last 30s</button>
         <button class="btn" data-act="clipnow" data-j="${j.id}" data-s="60">Last 60s</button>
         <button class="btn danger" data-act="stoplive" data-j="${j.id}">${ic("stop")}Stop</button></div></div>
-    <div class="stats"><div class="stat"><b>${fmt(L.elapsed)}</b><span>Recorded</span></div><div class="stat"><b>${Math.round(L.buffer_sec / 60)} min</b><span>Kept in buffer</span></div>
-      <div class="stat">${everyPick(j.creator, L.every_min ?? 3)}<span>${L.every_min === 0 ? (L.auto?.warming ? "AI checks: learning the stream" : L.auto?.waiting ? "AI checks: jump spotted, checking soon" : `AI checks on jumps · ${L.auto?.spikes || 0} so far`) : "AI checks every"}</span></div>
-      <div class="stat"><b>${L.checks}</b><span>AI calls${L.skipped ? ` · ${L.skipped} skipped` : ""}${L.rejected ? ` · ${L.rejected} turned down` : ""}</span></div><div class="stat"><b>${j.clips.length}</b><span>Clips so far</span></div>
-      <div class="stat"><b style="color:var(--accent,#00F0FF);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;font-weight:700">${esc(S.status?.ai?.model || 'gemini-3.5-flash-lite')}</b><span>Active AI Model</span></div>
-      ${L.pending_clips ? `<div class="stat"><b>${L.pending_clips}</b><span>Hand clip being prepared</span></div>` : ""}</div>
-    <div class="meters" style="display:grid;grid-template-columns: minmax(130px, 170px) minmax(130px, 170px) minmax(360px, 1fr); gap: 12px; align-items: stretch;">
-      <div class="meter" style="padding:10px 12px"><h4>Loudness</h4>${spark(L.level, "", -55, -8)}</div>
-      ${L.chat ? `<div class="meter" style="padding:10px 12px"><h4>Chat / sec</h4>${spark(L.chat, "chat", 0, Math.max(4, ...L.chat))}</div>` : ""}
-      <div class="meter" style="min-width: 0; display:flex; flex-direction:column; padding:10px 14px">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-          <h4 style="margin:0;display:flex;align-items:center;gap:6px"><span>🧠</span> Latest AI Decisions</h4>
-          <span class="pill" style="font-size:9.5px;padding:1px 6px;border-radius:10px;background:rgba(0,240,255,0.1);color:var(--accent,#00F0FF);border:1px solid rgba(0,240,255,0.25);font-weight:700">● LIVE MONITOR</span>
+    <div class="stats">
+      <div class="stat"><span style="text-transform:uppercase;letter-spacing:0.5px;font-size:10px">⏱️ Recorded</span><b>${fmt(L.elapsed)}</b><span>Live stream timer</span></div>
+      <div class="stat"><span style="text-transform:uppercase;letter-spacing:0.5px;font-size:10px">💾 Buffer</span><b>${Math.round(L.buffer_sec / 60)} min</b><span>Kept in rolling buffer</span></div>
+      <div class="stat"><span style="text-transform:uppercase;letter-spacing:0.5px;font-size:10px">🔄 Check Pace</span>${everyPick(j.creator, L.every_min ?? 3)}<span>${L.every_min === 0 ? (L.auto?.warming ? "Learning stream" : L.auto?.waiting ? "Jump spotted soon" : `On jumps · ${L.auto?.spikes || 0}`) : "AI scan interval"}</span></div>
+      <div class="stat"><span style="text-transform:uppercase;letter-spacing:0.5px;font-size:10px">🧠 AI Calls</span><b>${L.checks}</b><span>${L.skipped ? `${L.skipped} skipped · ` : ""}${L.rejected ? `${L.rejected} turned down` : "Evaluations"}</span></div>
+      <div class="stat" style="border-color:rgba(0,240,255,0.28)"><span style="text-transform:uppercase;letter-spacing:0.5px;font-size:10px">🎬 Clips Made</span><b style="color:var(--accent,#00F0FF)">${j.clips.length}</b><span>Clips so far</span></div>
+      <div class="stat"><span style="text-transform:uppercase;letter-spacing:0.5px;font-size:10px">🤖 Active AI Model</span><b style="color:var(--accent,#00F0FF);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px;font-weight:800;margin-top:3px;word-break:break-word">${esc(S.status?.ai?.model || 'gemini-3.5-flash-lite')}</b><span>Free-tier router</span></div>
+      ${L.pending_clips ? `<div class="stat"><span style="text-transform:uppercase;letter-spacing:0.5px;font-size:10px">✂️ Rendering</span><b>${L.pending_clips}</b><span>Hand clip preparing</span></div>` : ""}
+    </div>
+    <div class="meters">
+      <div class="meter">
+        <div class="meter-head"><h4>🎙️ Loudness</h4><span class="meter-readout">${lastDb !== null ? `${lastDb} dB` : "Listening"}</span></div>
+        ${spark(L.level, "", -55, -8)}
+      </div>
+      ${L.chat ? `<div class="meter">
+        <div class="meter-head"><h4>💬 Chat / sec</h4><span class="meter-readout" style="background:rgba(16,185,129,0.14);color:#10B981;border-color:rgba(16,185,129,0.28)">${maxChat > 0 ? `${lastChat}/s · Peak ${Math.round(maxChat)}` : "Calm"}</span></div>
+        ${spark(L.chat, "chat", 0, Math.max(4, ...L.chat))}
+      </div>` : ""}
+      <div class="meter" style="min-width:0;justify-content:flex-start">
+        <div class="meter-head">
+          <h4 style="display:flex;align-items:center;gap:6px"><span>🧠</span> Latest AI Decisions</h4>
+          <span class="pill" style="font-size:9.5px;padding:2px 8px;border-radius:999px;background:rgba(0,240,255,0.1);color:var(--accent,#00F0FF);border:1px solid rgba(0,240,255,0.28);font-weight:800">● LIVE MONITOR</span>
         </div>
-        <div id="live_ai_verdicts_list" style="max-height:86px;overflow-y:auto;display:flex;flex-direction:column;gap:4px;padding-right:2px">
+        <div id="live_ai_verdicts_list" style="max-height:142px;overflow-y:auto;display:flex;flex-direction:column;gap:6px;padding-right:2px">
           ${(L.verdicts || []).length ? L.verdicts.slice(0, 20).map((v, idx) => {
             const res = v.result || "";
             const trig = v.trigger || "";
@@ -3255,20 +3277,20 @@ function liveHtml(j) {
             }
 
             return `
-              <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:4px 8px;background:${isLatest ? 'rgba(0,240,255,0.06)' : 'rgba(18,24,38,0.7)'};border:1px solid ${isLatest ? 'rgba(0,240,255,0.35)' : 'rgba(255,255,255,0.07)'};border-left:3px solid ${isLatest ? 'var(--accent,#00F0FF)' : (isClipped ? '#00FF88' : 'rgba(255,255,255,0.14)')};border-radius:6px;font-size:11px;min-height:24px;transition:all .15s ease;${isLatest ? 'box-shadow:0 0 10px rgba(0,240,255,0.08);' : ''}">
-                <div style="display:flex;align-items:center;gap:6px;min-width:0;flex:1">
-                  <span style="font-family:ui-monospace,monospace;font-size:10px;font-weight:700;color:#94A3B8;letter-spacing:0.02em;white-space:nowrap;flex:none">⏱️ ${time12}</span>
-                  <span class="pill" style="font-size:9px;padding:1px 6px;border-radius:4px;background:${badgeBg};color:${badgeCol};border:1px solid ${badgeBorder};font-weight:800;white-space:nowrap;flex:none">${badgeText}</span>
-                  ${isLatest ? `<span style="font-size:8.5px;padding:1px 4px;border-radius:3px;background:rgba(0,240,255,0.2);color:#00F0FF;border:1px solid rgba(0,240,255,0.4);font-weight:800;letter-spacing:0.03em;white-space:nowrap;flex:none">⚡ LATEST</span>` : ''}
-                  <span style="font-weight:600;color:var(--text,#F1F5F9);font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0" title="${esc(headline)}: ${esc(explanation)}">${icon} <b style="color:var(--brand-ink,#FFF)">${esc(headline)}</b>${explanation ? ` — <span style="color:var(--text-sub,#94A3B8);font-size:10.5px">${esc(explanation)}</span>` : ''}</span>
+              <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;padding:6px 10px;background:${isLatest ? 'rgba(0,240,255,0.08)' : 'var(--bg-2)'};border:1px solid ${isLatest ? 'rgba(0,240,255,0.38)' : 'var(--line)'};border-left:3px solid ${isLatest ? 'var(--accent,#00F0FF)' : (isClipped ? '#10B981' : 'var(--line-2)')};border-radius:9px;font-size:11px;transition:border-color .15s ease">
+                <div style="display:flex;align-items:flex-start;gap:7px;min-width:0;flex:1">
+                  <span style="font-family:ui-monospace,monospace;font-size:10px;font-weight:700;color:var(--dim);letter-spacing:0.02em;white-space:nowrap;flex:none;margin-top:1px">${time12}</span>
+                  <span class="pill" style="font-size:9px;padding:1px 6px;border-radius:5px;background:${badgeBg};color:${badgeCol};border:1px solid ${badgeBorder};font-weight:800;white-space:nowrap;flex:none">${badgeText}</span>
+                  ${isLatest ? `<span style="font-size:8.5px;padding:1px 5px;border-radius:4px;background:rgba(0,240,255,0.18);color:var(--accent,#00F0FF);border:1px solid rgba(0,240,255,0.38);font-weight:800;letter-spacing:0.03em;white-space:nowrap;flex:none">⚡ LATEST</span>` : ''}
+                  <span style="font-weight:600;color:var(--text);font-size:11px;line-height:1.35;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;min-width:0" title="${esc(headline)}: ${esc(explanation)}">${icon} <b style="color:var(--heading)">${esc(headline)}</b>${explanation ? ` — <span style="color:var(--text-sub);font-size:10.5px;font-weight:500">${esc(explanation)}</span>` : ''}</span>
                 </div>
                 ${(() => {
                   const hasMM = v.mm_score !== undefined && v.mm_score !== null;
                   if (hasMM) {
-                    const col = v.mm_score >= 60 ? '#00FF88' : '#94A3B8';
-                    return `<span title="${esc(v.breakdown || '')}" style="font-size:9.5px;font-weight:700;color:${col};font-family:ui-monospace,monospace;flex:none;margin-left:4px">MM ${v.mm_score}${v.transcript ? ` (Txt ${v.transcript})` : ''}</span>`;
+                    const col = v.mm_score >= 60 ? '#10B981' : 'var(--dim)';
+                    return `<span title="${esc(v.breakdown || '')}" style="font-size:9.5px;font-weight:800;color:${col};font-family:ui-monospace,monospace;flex:none;margin-left:4px;white-space:nowrap">MM ${v.mm_score}${v.transcript ? ` (Txt ${v.transcript})` : ''}</span>`;
                   }
-                  return v.transcript ? `<span style="font-size:9.5px;font-weight:700;color:${v.transcript >= 70 ? '#00FF88' : '#94A3B8'};font-family:ui-monospace,monospace;flex:none;margin-left:4px">Score ${v.transcript}</span>` : '';
+                  return v.transcript ? `<span style="font-size:9.5px;font-weight:800;color:${v.transcript >= 70 ? '#10B981' : 'var(--dim)'};font-family:ui-monospace,monospace;flex:none;margin-left:4px;white-space:nowrap">Score ${v.transcript}</span>` : '';
                 })()}
               </div>
             `;

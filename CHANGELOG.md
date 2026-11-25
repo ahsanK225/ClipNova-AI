@@ -1,6 +1,14 @@
 ﻿# Changelog
 All notable project changes are documented here.
 
+## [2026-11-25] — Live Recording Monitor Card (.livecard) Broadcast Redesign
+### Changed
+- **Live Recording Control Deck (`PeakCut/web/index.html`)**: Redesigned `.livecard` and `liveHtml()` into a broadcast-grade monitor with a top Red-to-Cyan accent hairline, 6 structured KPI telemetry tiles (`Recorded`, `Buffer`, `Check Pace`, `AI Calls`, `Clips Made`, `Active Model`), live dB & `msg/s` pill readouts on `68px` gradient spectrum meters (`🎙️ Loudness` / `💬 Chat / sec`), and a taller (`142px`) 2-line readable `Latest AI Decisions` feed using Light/Dark theme tokens.
+### Tests and Verification
+- Verified `tests/test_nextgen_upgrade.py` (`22 checks passed`, `node --check` exit 0), `tests/test_ai_verdicts_clean_ui.py`, full `tests/run.py`, and live browser screenshot of `.livecard` on `http://localhost:8765`.
+### Documentation
+- Updated `CHANGELOG.md` and synchronized to `PeakCut/CHANGELOG.md`.
+
 ## [2026-11-25] — Streamer-Only Captions (Skip In-Game NPC Dialogue)
 ### Added
 - **Facecam Mouth-Activity Speech Filter (`studio/facecam.py`, `studio/render.py`)**: Added `facecam.detect_speech_windows()` (10 fps `24x18` lower-face mouth ROI motion detector using `ffmpeg` + `numpy` with `±0.35s` padding and static-avatar/full-bleed safety fallbacks) and `render.filter_streamer_words()`, wired into `render_clip()` when `streamer_only_captions=True`.

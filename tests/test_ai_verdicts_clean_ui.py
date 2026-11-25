@@ -35,15 +35,15 @@ class TestAIVerdictsCleanUI(unittest.TestCase):
         self.assertIn('LIVE MONITOR', self.html)
 
     def test_compact_single_line_card_layout(self):
-        """Verify space-saving single-line row layout with status pill, AM/PM time, and compact 86px max-height."""
-        self.assertIn('max-height:86px', self.html)
+        """Verify readable 2-line broadcast monitor layout with status pill, AM/PM time, and 142px max-height."""
+        self.assertIn('max-height:142px', self.html)
         row_template_match = re.search(r'id="live_ai_verdicts_list"[\s\S]*?function jobHtml', self.html)
         row_template = row_template_match.group(0)
         
         self.assertIn('time12', row_template)
         self.assertIn('badgeText', row_template)
         self.assertIn('⚡ LATEST', row_template)
-        self.assertIn('${icon} <b style="color:var(--brand-ink,#FFF)">${esc(headline)}</b>', row_template)
+        self.assertIn('${icon} <b style="color:var(--heading)">${esc(headline)}</b>', row_template)
 
     def test_no_what_was_just_said(self):
         """Ensure raw transcript 'What was just said' meter is removed."""
