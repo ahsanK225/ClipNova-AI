@@ -893,7 +893,13 @@ class Session:
                             })
 
     def _manual_step(self):
-        for req in [m for m in self.manual if m["end"] <= self.t_done or self.ended]:
+        ready = []
+        for m in self.manual:
+            is_btn = m.get("source") == "manual" or (m.get("trigger_type") in (None, "manual") and m.get("why") in (None, "Hand", "Hand clip"))
+            vid_ready = m["end"] <= (self.seg_clock or (self.samples / SR))
+            if self.ended or (vid_ready if is_btn else m["end"] <= self.t_done):
+                ready.append(m)
+        for req in ready:
             text = " ".join(w["w"] for w in self.words if req["start"] <= w["s"] <= req["end"])
             usage.set_context(self.job["creator"], self.job["title"] or "Live stream")
 
@@ -1215,6 +1221,9 @@ class Session:
             "start": max(0.0, end - seconds),
             "end": end,
         })
+        self._verdict({"t": round(end), "wall_t": time.time(), "transcript": round(seconds),
+                       "reaction": None, "trigger": "Hand clip", "model": ai.last_active_model()},
+                      f"✂️ Manual clip queued: cutting last {round(seconds)}s now…")
 
     def _publish(self):
         elapsed = self.samples / SR

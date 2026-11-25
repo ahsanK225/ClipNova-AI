@@ -11167,7 +11167,22 @@ HOOKS:
       }
       return;
     }
-    if (a === "clipnow") { await send(`/api/live/${d.j}/clip`, {seconds:Number(d.s)}); return toast(`Clipping the last ${d.s} seconds…`, "ok"); }
+    if (a === "clipnow") {
+      const origHtml = b.innerHTML;
+      b.disabled = true;
+      b.innerText = `⏳ Clipping ${d.s}s…`;
+      try {
+        await send(`/api/live/${d.j}/clip`, {seconds: Number(d.s)});
+        toast(`✂️ Clipping the last ${d.s} seconds…`, "ok");
+        tick();
+      } catch (err) {
+        toast(err.message || "Could not clip right now.", "bad");
+      } finally {
+        b.disabled = false;
+        b.innerHTML = origHtml;
+      }
+      return;
+    }
     if (a === "resendverify") {
       b.disabled = true;
       try { const r = await send("/api/auth/resend-verification"); if (r.verified) { S.status = await api("/api/status"); drawShell(); return toast("Your email is already confirmed.", "ok"); }

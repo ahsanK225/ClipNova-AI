@@ -331,6 +331,13 @@ try:
           and 'studioDeleteSelected' in html
           and 'studioUploadCustomSfx' in html)
 
+    # 10. Manual 'Clip last 30s / 60s' processes button clicks without blocking on t_done
+    live_src = (Path(__file__).resolve().parent.parent / "studio" / "live.py").read_text(encoding="utf-8")
+    check("Manual clip_last queues verdict and _manual_step processes button clicks without waiting for t_done",
+          "Manual clip queued" in live_src
+          and "vid_ready if is_btn else m[\"end\"] <= self.t_done" in live_src
+          and 'Clipping ${d.s}s' in html)
+
 finally:
     shutil.rmtree(os.environ["PEAKCUT_DATA"], ignore_errors=True)
 

@@ -1,6 +1,15 @@
 ﻿# Changelog
 All notable project changes are documented here.
 
+## [2026-11-25] — Instant Manual Live Clipping (`Clip last 30s / 60s`) Fix
+
+### Fixed
+- **Manual Live Clipping Delay / Silent Stall (`PeakCut/studio/live.py`, `PeakCut/web/index.html`)**:
+  - Updated `clip_last()` to explicitly tag button requests with `source: "manual"` and emit an immediate live decision log (`✂️ Manual clip queued`).
+  - Updated `_manual_step()` so manual button clicks process immediately against recorded video (`seg_clock`) without blocking on Whisper's `t_done` cursor.
+  - Added `try/catch` error toast, loading state (`⏳ Clipping Xs…`), and immediate `tick()` refresh to the `clipnow` UI handler.
+- **Tests (`PeakCut/tests/test_nextgen_upgrade.py`)**: Added check #10 verifying immediate manual clip readiness and UI error handling.
+
 ## [2026-11-25] — CapCut-Style VFX Effects Grid, Meme Soundboard & FFmpeg Cue Mixing
 
 ### Added
