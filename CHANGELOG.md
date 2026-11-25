@@ -5,7 +5,7 @@ All notable project changes are documented here.
 
 ### Fixed
 - **Missing 3rd Slot in 7-Day Week Grid (`PeakCut/studio/routes/calendar_routes.py`)**:
-  - Increased `get_creator_calendar()` `upcoming_slots` limit from `count=9` to `count=21` so all remaining open slots across the full 7-day Week Grid (e.g., `S3 · 03:30a` on `2/3` days) are returned and clickable.
+  - Increased `get_creator_calendar()` `upcoming_slots` limit from `count=9` to `count=21` and deduplicated `all_mine + scheduled_posts` by post `id` so 2/3-booked days aren't double-counted as 4/3 full and always show their 3rd open slot (`S3`).
 
 ## [2026-11-25] — Instant Manual Live Clipping (`Clip last 30s / 60s`) Fix
 

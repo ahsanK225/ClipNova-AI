@@ -338,6 +338,11 @@ try:
           and "vid_ready if is_btn else m[\"end\"] <= self.t_done" in live_src
           and 'Clipping ${d.s}s' in html)
 
+    # 11. Calendar routes deduplicates scheduled_posts + all_mine so 2/3 days still show S3
+    cal_routes_src = (Path(__file__).resolve().parent.parent / "studio" / "routes" / "calendar_routes.py").read_text(encoding="utf-8")
+    check("calendar_routes deduplicates scheduled_posts + all_mine before assign_slots_to_videos",
+          "dedup_posts" in cal_routes_src and "count=21" in cal_routes_src)
+
 finally:
     shutil.rmtree(os.environ["PEAKCUT_DATA"], ignore_errors=True)
 
