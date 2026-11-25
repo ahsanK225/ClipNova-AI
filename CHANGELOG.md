@@ -1,6 +1,15 @@
 ﻿# Changelog
 All notable project changes are documented here.
 
+## [2026-11-25] — Multi-Segment Cut, Trim & Clip Merge Studio
+### Added
+- **Multi-Segment FFmpeg Concatenation & Caption Remapping (`studio/render.py`, `studio/jobs.py`)**: Extended `_render_in()` and `render_clip()` with `segments` support (`concat=n=N:v=1:a=1`, automatic resolution mismatch scaling/padding, and word-timestamp remapping across cut/merged segments); added `segments` validation and cross-clip source/caption resolution in `jobs.edit_clip()` & `jobs.render_one()`.
+- **Cut & Merge Studio Timeline (`studio/server.py`, `web/index.html`)**: Added `segments` and `creator_clips` to `GET /api/jobs/{jid}/clips/{cid}/studio-project`, forwarded `segments` on `POST /studio-export`, built the **`✂️ Cut & Merge`** drawer tab in Web Video Studio (`Split at Playhead`, `Trim Start/End`, `📍 Playhead` snap, `↑/↓` reorder, `🗑 Cut`, `➕ Add Clip`, live `▶ Preview Cut Sequence`), and added a **`✂️ Cut & Add Clips`** shortcut inside `#clipdlg`.
+### Tests and Verification
+- Executed `tests/test_nextgen_upgrade.py` (`23 checks passed`, `node --check` exit 0) and full `tests/run.py` (`All tests passed.`).
+### Documentation
+- Updated `CHANGELOG.md` and synchronized to `PeakCut/CHANGELOG.md`.
+
 ## [2026-11-25] — Clip Card Layout, Unclipped 2-Row Footer & Newest-First Chronology
 ### Changed
 - **Clip Cards & Grid (`PeakCut/web/index.html`)**: Widened `.grid` minimum track (`228px`), redesigned `.clip-foot` into a 2-row unclipped footer (`clip-foot-tools` + full-width `Post / Schedule` CTA), stripped raw `*` asterisks from `.hook` display, and added `.clip-meta-row` showing clip index (`#20`..`#1`), `✨ NEW` badge (for recent/latest clips), and exact relative + clock timestamp (`_clipAgeLabel`).

@@ -4454,9 +4454,10 @@ let _studioBgmVolume = 0.18;
 let _studioBgmOffset = 0.0;
 let _studioLayout = "split";
 let _studioWords = [];
-let _studioDrawerTab = "filters";
+let _studioDrawerTab = "cut";
 let _studioVfxCues = [];
 let _studioCuts = [];
+let _studioSegments = [];
 let _studioAudioAudition = null;
 
 async function drawVideoStudioTab() {
@@ -4582,17 +4583,22 @@ async function drawVideoStudioTab() {
   _studioWords = (project.tracks?.subtitles || []).map(w => ({ ...w }));
   _studioVfxCues = [];
   _studioCuts = [];
+  _studioSegments = (project.segments && project.segments.length)
+    ? project.segments.map((s, idx) => ({ ...s, id: s.id || `seg_${idx + 1}` }))
+    : [{ id: "seg_1", job_id: jid, clip_id: cid, title: project.title || "Main Cut", start: 0.0, end: round2(project.duration || 30.0) }];
 
   renderStudioWorkspace();
 }
 
+function round2(n) { return Math.round(Number(n || 0) * 100) / 100; }
 
-window.openWebStudio = function(jid, cid) {
+window.openWebStudio = function(jid, cid, targetTab) {
   const currentJid = jid || window._studioClip?.jid || D.jid;
   const currentCid = cid || window._studioClip?.cid || D.cid;
   if (currentJid && currentCid) {
     window._studioClip = { jid: currentJid, cid: currentCid };
   }
+  if (targetTab) _studioDrawerTab = targetTab;
   const dlg = $("#clipdlg");
   if (dlg && typeof dlg.close === "function" && dlg.open) dlg.close();
   setTab("studio");
@@ -4692,6 +4698,7 @@ function renderStudioWorkspace() {
           <!-- Drawer Navigation Bar -->
           <div style="display:flex;gap:6px;border-bottom:1px solid rgba(255,255,255,0.08);padding-bottom:12px;margin-bottom:14px;flex-wrap:wrap">
             ${[
+              ["cut", "✂️ Cut & Merge"],
               ["capcut", "🚀 CapCut Desktop Bridge"],
               ["filters", "🎨 Visual Filters"],
               ["vfx", "⚡ Viral VFX"],
@@ -4767,17 +4774,21 @@ function renderStudioWorkspace() {
             </div>
           </div>
 
-          <!-- Track 2: Video Track -->
-          <div class="studio-track-row" id="studio_track_video" style="background:linear-gradient(90deg, rgba(99,102,241,0.2), rgba(168,85,247,0.25));border-color:rgba(99,102,241,0.4)" title="Video Track">
-            <div style="position:absolute;left:8px;top:10px;font-size:10px;font-weight:700;color:#C084FC;z-index:2;pointer-events:none">
-              🎬 Video: ${_studioProj.title ? esc(_studioProj.title.slice(0, 30)) : 'Main Cut'}
-            </div>
-            <!-- Cuts slice lines -->
-            <div id="studio_cuts_container" style="position:absolute;inset:0;pointer-events:none">
-              ${_studioCuts.map(c => `
-                <div style="position:absolute;left:${(c / dur) * 100}%;top:0;bottom:0;width:2px;background:#FFF;border-left:1px dashed #EF4444"></div>
-              `).join("")}
-            </div>
+          <!-- Track 2: Video Track (Segments) -->
+          <div class="studio-track-row" id="studio_track_video" style="background:linear-gradient(90deg, rgba(99,102,241,0.16), rgba(168,85,247,0.2));border-color:rgba(99,102,241,0.4);display:flex;align-items:stretch;gap:3px;padding:3px" title="Video Segments Track">
+            ${(() => {
+              const segs = _studioSegments.length ? _studioSegments : [{ title: _studioProj.title || "Main Cut", start: 0, end: dur }];
+              const tot = Math.max(0.5, segs.reduce((acc, s) => acc + Math.max(0.2, s.end - s.start), 0));
+              return segs.map((s, i) => {
+                const sd = Math.max(0.2, s.end - s.start);
+                const wPct = (sd / tot) * 100;
+                const isMain = !s.job_id || (s.job_id === _studioProj.job_id && s.clip_id === _studioProj.clip_id);
+                return `<div style="width:${wPct.toFixed(2)}%;min-width:26px;background:${isMain ? 'rgba(99,102,241,0.38)' : 'rgba(16,185,129,0.34)'};border:1px solid ${isMain ? 'rgba(129,140,248,0.65)' : 'rgba(16,185,129,0.65)'};border-radius:6px;padding:0 6px;display:flex;align-items:center;justify-content:space-between;font-size:10px;font-weight:700;color:#F8FAFC;overflow:hidden;white-space:nowrap" title="#${i+1} ${esc(s.title || 'Segment')}: ${s.start.toFixed(1)}s–${s.end.toFixed(1)}s">
+                  <span style="overflow:hidden;text-overflow:ellipsis">#${i+1} ${esc((s.title || "Cut").slice(0, 18))}</span>
+                  <span style="opacity:0.85;font-family:monospace;margin-left:4px">${sd.toFixed(1)}s</span>
+                </div>`;
+              }).join("");
+            })()}
           </div>
 
           <!-- Track 3: Facecam Layout -->
@@ -4857,6 +4868,81 @@ function renderStudioWorkspace() {
 function renderStudioDrawerContent() {
   if (!_studioProj) return "";
   const dur = _studioProj.duration || 30.0;
+
+  if (_studioDrawerTab === "cut") {
+    const totalCutDur = _studioSegments.reduce((acc, s) => acc + Math.max(0.2, Number(s.end || 0) - Number(s.start || 0)), 0);
+    const allClips = (_studioProj.creator_clips || []);
+    return `
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+          <div>
+            <h4 style="margin:0;font-size:14px;color:#F8FAFC">✂️ Trim, Cut &amp; Add Clips</h4>
+            <p style="margin:2px 0 0;font-size:11.5px;color:#94A3B8">Boring hissay split karke delete karein, Start/End trim karein, ya dusri clips merge karein.</p>
+          </div>
+          <span class="pill" style="font-size:11px;padding:3px 10px;border-radius:999px;background:rgba(0,240,255,0.14);color:#00F0FF;border:1px solid rgba(0,240,255,0.35);font-weight:800">
+            ⏱️ Total: ${totalCutDur.toFixed(1)}s · ${_studioSegments.length} part${_studioSegments.length === 1 ? "" : "s"}
+          </span>
+        </div>
+
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button type="button" class="btn sm" onclick="studioSplitSegmentAtPlayhead()" style="background:rgba(0,240,255,0.14);border:1px solid rgba(0,240,255,0.4);color:#00F0FF;font-weight:700">
+            ✂️ Split at Playhead
+          </button>
+          <button type="button" class="btn sm" onclick="studioPreviewCutTimeline()" style="background:rgba(16,185,129,0.15);border:1px solid rgba(16,185,129,0.38);color:#34D399;font-weight:700">
+            ▶ Preview Cut Sequence
+          </button>
+          <button type="button" class="btn sm ghost" onclick="studioResetSegments()" style="font-size:11px">
+            ↺ Reset to Original
+          </button>
+        </div>
+
+        <div id="studio_segments_list" style="display:flex;flex-direction:column;gap:8px;max-height:230px;overflow-y:auto;padding-right:2px">
+          ${_studioSegments.map((s, idx) => {
+            const sd = Math.max(0.2, Number(s.end) - Number(s.start));
+            const isMain = s.job_id === _studioProj.job_id && s.clip_id === _studioProj.clip_id;
+            return `
+              <div style="background:#131B2E;border:1px solid ${isMain ? 'rgba(99,102,241,0.35)' : 'rgba(16,185,129,0.38)'};border-radius:10px;padding:9px 11px;display:flex;flex-direction:column;gap:7px">
+                <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+                  <div style="display:flex;align-items:center;gap:6px;min-width:0">
+                    <span style="font-size:10px;font-weight:800;padding:1px 6px;border-radius:5px;background:${isMain ? 'rgba(99,102,241,0.22)' : 'rgba(16,185,129,0.22)'};color:${isMain ? '#818CF8' : '#34D399'}">#${idx + 1}</span>
+                    <b style="font-size:12px;color:#F8FAFC;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(s.title || "Clip Segment")}</b>
+                    <span style="font-size:10.5px;color:#38BDF8;font-family:monospace;font-weight:700">${sd.toFixed(1)}s</span>
+                  </div>
+                  <div style="display:flex;gap:4px">
+                    ${idx > 0 ? `<button type="button" class="btn sm ghost" onclick="studioMoveSegment(${idx}, -1)" style="padding:2px 6px;font-size:10px" title="Move Up">↑</button>` : ""}
+                    ${idx < _studioSegments.length - 1 ? `<button type="button" class="btn sm ghost" onclick="studioMoveSegment(${idx}, 1)" style="padding:2px 6px;font-size:10px" title="Move Down">↓</button>` : ""}
+                    ${_studioSegments.length > 1 ? `<button type="button" class="btn sm danger ghost" onclick="studioRemoveSegment(${idx})" style="padding:2px 7px;font-size:10px" title="Remove / Cut out this part">🗑 Cut</button>` : ""}
+                  </div>
+                </div>
+                <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:11px">
+                  <label style="display:inline-flex;align-items:center;gap:4px;color:#94A3B8">
+                    Start <input type="number" step="0.5" min="0" value="${Number(s.start).toFixed(1)}" onchange="studioTrimSegment(${idx}, 'start', this.value)" style="width:62px;padding:3px 6px;font-size:11px;font-family:monospace">s
+                  </label>
+                  ${isMain ? `<button type="button" class="btn sm ghost" onclick="studioSnapSegmentToPlayhead(${idx}, 'start')" style="padding:2px 6px;font-size:10px;color:#00F0FF" title="Set Start to current video time">📍 Playhead</button>` : ""}
+                  <label style="display:inline-flex;align-items:center;gap:4px;color:#94A3B8">
+                    End <input type="number" step="0.5" min="0.5" value="${Number(s.end).toFixed(1)}" onchange="studioTrimSegment(${idx}, 'end', this.value)" style="width:62px;padding:3px 6px;font-size:11px;font-family:monospace">s
+                  </label>
+                  ${isMain ? `<button type="button" class="btn sm ghost" onclick="studioSnapSegmentToPlayhead(${idx}, 'end')" style="padding:2px 6px;font-size:10px;color:#00F0FF" title="Set End to current video time">📍 Playhead</button>` : ""}
+                </div>
+              </div>
+            `;
+          }).join("")}
+        </div>
+
+        <div style="background:#0F172A;border:1px solid #1E293B;border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:7px">
+          <div style="font-size:11.5px;font-weight:700;color:#CBD5E1">➕ Add Another Clip to This Video</div>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <select id="studio_add_clip_select" style="flex:1;min-width:180px;font-size:11.5px;padding:6px 8px;border-radius:8px">
+              ${allClips.map(cl => `<option value="${esc(cl.job_id)}::${esc(cl.clip_id)}" data-dur="${cl.duration}" data-title="${esc(cl.title)}">${esc(cl.title)} (${Math.round(cl.duration)}s${cl.score ? ` · ⚡${cl.score}` : ""})</option>`).join("")}
+            </select>
+            <button type="button" class="btn sm primary" onclick="studioAddSelectedClip()" style="font-size:11.5px;font-weight:700;padding:6px 12px;white-space:nowrap">
+              ➕ Add Clip
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+  }
 
   if (_studioDrawerTab === "filters") {
     const filters = _studioProj.available_filters || [];
@@ -5227,12 +5313,102 @@ function studioSetSubPos(px) {
   toast(`Subtitles positioned at ${px}px`, "ok", 1500);
 }
 
+window.studioSplitSegmentAtPlayhead = function() {
+  const vid = $("#studio_video_el");
+  if (!vid || !_studioSegments.length) return;
+  const t = round2(vid.currentTime || 0);
+  const idx = _studioSegments.findIndex(s => s.job_id === _studioProj?.job_id && s.clip_id === _studioProj?.clip_id && t > Number(s.start) + 0.5 && t < Number(s.end) - 0.5);
+  if (idx === -1) {
+    return toast("Move playhead inside the main clip (at least 0.5s from edges) to split.", "warn");
+  }
+  const orig = _studioSegments[idx];
+  const left = { ...orig, id: orig.id + "_a", end: t };
+  const right = { ...orig, id: orig.id + "_b", start: t, title: `${orig.title || "Main"} (Part 2)` };
+  _studioSegments.splice(idx, 1, left, right);
+  renderStudioWorkspace();
+  toast(`✂️ Split at ${t.toFixed(1)}s! You can now delete or trim either part.`, "ok");
+};
+
+window.studioTrimSegment = function(idx, edge, val) {
+  const s = _studioSegments[idx];
+  if (!s) return;
+  const num = round2(parseFloat(val));
+  if (Number.isNaN(num)) return;
+  if (edge === "start") s.start = Math.max(0, Math.min(num, Number(s.end) - 0.5));
+  else s.end = Math.max(Number(s.start) + 0.5, num);
+  renderStudioWorkspace();
+};
+
+window.studioSnapSegmentToPlayhead = function(idx, edge) {
+  const vid = $("#studio_video_el");
+  if (!vid || !_studioSegments[idx]) return;
+  studioTrimSegment(idx, edge, vid.currentTime || 0);
+};
+
+window.studioRemoveSegment = function(idx) {
+  if (_studioSegments.length <= 1) return toast("At least 1 segment must remain.", "warn");
+  _studioSegments.splice(idx, 1);
+  renderStudioWorkspace();
+  toast("🗑️ Segment removed from cut!", "ok");
+};
+
+window.studioMoveSegment = function(idx, dir) {
+  const ni = idx + dir;
+  if (ni < 0 || ni >= _studioSegments.length) return;
+  const [item] = _studioSegments.splice(idx, 1);
+  _studioSegments.splice(ni, 0, item);
+  renderStudioWorkspace();
+};
+
+window.studioResetSegments = function() {
+  if (!_studioProj) return;
+  _studioSegments = [{ id: "seg_1", job_id: _studioProj.job_id, clip_id: _studioProj.clip_id, title: _studioProj.title || "Main Cut", start: 0.0, end: round2(_studioProj.duration || 30.0) }];
+  renderStudioWorkspace();
+  toast("↺ Reset to original clip span", "ok");
+};
+
+window.studioAddSelectedClip = function() {
+  const selEl = $("#studio_add_clip_select");
+  if (!selEl || !selEl.value) return;
+  const [jid, cid] = selEl.value.split("::");
+  const opt = selEl.options[selEl.selectedIndex];
+  const dur = round2(parseFloat(opt?.dataset?.dur || "15"));
+  const title = opt?.dataset?.title || cid;
+  _studioSegments.push({ id: `seg_${Date.now()}`, job_id: jid, clip_id: cid, title, start: 0.0, end: Math.max(1.0, dur) });
+  renderStudioWorkspace();
+  toast(`➕ Added "${title}" (${dur.toFixed(1)}s) to timeline!`, "ok");
+};
+
+window.studioPreviewCutTimeline = function() {
+  const vid = $("#studio_video_el");
+  if (!vid || !_studioSegments.length) return;
+  const mainSegs = _studioSegments.filter(s => s.job_id === _studioProj?.job_id && s.clip_id === _studioProj?.clip_id);
+  if (!mainSegs.length) return toast("Click Render & Save Cut MP4 to preview merged external clips.", "ok");
+  let curSegIdx = 0;
+  vid.currentTime = mainSegs[0].start;
+  vid.play().catch(() => {});
+  const onStep = () => {
+    const seg = mainSegs[curSegIdx];
+    if (!seg) { vid.removeEventListener("timeupdate", onStep); return; }
+    if (vid.currentTime >= seg.end - 0.08) {
+      curSegIdx++;
+      if (curSegIdx < mainSegs.length) {
+        vid.currentTime = mainSegs[curSegIdx].start;
+      } else {
+        vid.pause();
+        vid.removeEventListener("timeupdate", onStep);
+      }
+    }
+  };
+  vid.addEventListener("timeupdate", onStep);
+};
+
 async function saveStudioExport(scheduleNow) {
   if (!_studioProj || !window._studioClip) return;
   const { jid, cid } = window._studioClip;
   const title = $("#studio_title_input")?.value || _studioProj.title;
 
-  toast(scheduleNow ? "⏳ Rendering Studio modifications & scheduling to USA YouTube Peak..." : "⏳ Rendering Studio video with FFmpeg...", "ok", 5000);
+  toast(scheduleNow ? "⏳ Rendering Cut & Merge modifications & scheduling to USA YouTube Peak..." : "⏳ Rendering Cut & Merge MP4 with FFmpeg...", "ok", 5000);
 
   const payload = {
     title: title,
@@ -5243,6 +5419,7 @@ async function saveStudioExport(scheduleNow) {
     bgm_offset: _studioBgmOffset,
     layout: _studioLayout,
     words: _studioWords.map(w => ({ w: w.text, s: w.start, e: w.end })),
+    segments: _studioSegments.map(s => ({ id: s.id, job_id: s.job_id, clip_id: s.clip_id, title: s.title, start: Number(s.start), end: Number(s.end) })),
     schedule_now: scheduleNow
   };
 
@@ -6664,6 +6841,9 @@ function drawClipDlg(full) {
           </button>
           <button class="btn" data-act="remake" style="font-size:11.5px;padding:8px 14px;border:1px solid var(--line);background:var(--bg-3);color:var(--text);display:inline-flex;align-items:center;gap:6px" title="Burn edits into a newly rendered MP4 video file (~15s)">
             ${ic("scissors")} Re-make MP4 Video (~15s)
+          </button>
+          <button type="button" class="btn" onclick="openWebStudio('${esc(j.id)}', '${esc(c.id)}', 'cut')" style="font-size:11.5px;padding:8px 14px;border:1px solid rgba(0,240,255,0.35);background:rgba(0,240,255,0.1);color:#00F0FF;font-weight:700;display:inline-flex;align-items:center;gap:6px" title="Split, cut out boring parts, trim, or merge multiple clips together">
+            ✂️ Cut &amp; Add Clips
           </button>
         </div>
         <h3>Post it</h3>

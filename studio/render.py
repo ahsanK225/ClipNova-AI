@@ -890,15 +890,50 @@ def render_clip(src: Path, out_dir: Path, name: str, clip: dict, words: list, sr
         else:
             teaser_start = max(start, end - teaser_dur)
 
-    active_words = words if clip.get("captions", True) else []
-    if active_words and clip.get("streamer_only_captions"):
-        speech_win = facecam.detect_speech_windows(src, start, end, face, src_w, src_h)
-        active_words = filter_streamer_words(active_words, speech_win)
+    segs = clip.get("segments")
+    if isinstance(segs, list) and len(segs) >= 1 and clip.get("captions", True):
+        # Remap transcript words onto concatenated output timeline [0..total_dur]
+        remapped = []
+        cum_t = 0.0
+        for seg in segs:
+            ss = float(seg.get("start", 0.0))
+            se = float(seg.get("end", ss))
+            sd = max(0.1, se - ss)
+            os_abs = float(seg.get("orig_start", ss))
+            oe_abs = float(seg.get("orig_end", se))
+            seg_words = seg.get("words") if isinstance(seg.get("words"), list) else words
+            if seg_words and clip.get("streamer_only_captions"):
+                sp_path = Path(seg.get("path") or src)
+                swin = facecam.detect_speech_windows(sp_path, ss, se, face, int(seg.get("src_w") or src_w), int(seg.get("src_h") or src_h))
+                seg_words = filter_streamer_words(seg_words, swin)
+            for w in (seg_words or []):
+                try:
+                    ws, we = float(w.get("s", 0.0)), float(w.get("e", 0.0))
+                except (TypeError, ValueError):
+                    continue
+                mid = (ws + we) * 0.5
+                if os_abs - 0.15 <= mid <= oe_abs + 0.15:
+                    nw = dict(w)
+                    nw["s"] = round(cum_t + max(0.0, ws - os_abs), 3)
+                    nw["e"] = round(cum_t + min(sd, max(0.05, we - os_abs)), 3)
+                    remapped.append(nw)
+            cum_t += sd
+        ass = build_ass(remapped, 0.0, max(0.1, cum_t), clip.get("hook", ""), clip.get("style", "bounce"),
+                        clip.get("highlight_words", []), hook_y, cap_y, hook_style,
+                        outro_cta=clip.get("outro_cta", True), outro_text=clip.get("outro_text"),
+                        hook_w=hook_w, hook_font_size=hook_fs, hook_x=hook_x, teaser_dur=0.0)
+        teaser_enabled = False
+        teaser_dur = 0.0
+    else:
+        active_words = words if clip.get("captions", True) else []
+        if active_words and clip.get("streamer_only_captions"):
+            speech_win = facecam.detect_speech_windows(src, start, end, face, src_w, src_h)
+            active_words = filter_streamer_words(active_words, speech_win)
 
-    ass = build_ass(active_words, start, end, clip.get("hook", ""), clip.get("style", "bounce"),
-                    clip.get("highlight_words", []), hook_y, cap_y, hook_style,
-                    outro_cta=clip.get("outro_cta", True), outro_text=clip.get("outro_text"),
-                    hook_w=hook_w, hook_font_size=hook_fs, hook_x=hook_x, teaser_dur=teaser_dur)
+        ass = build_ass(active_words, start, end, clip.get("hook", ""), clip.get("style", "bounce"),
+                        clip.get("highlight_words", []), hook_y, cap_y, hook_style,
+                        outro_cta=clip.get("outro_cta", True), outro_text=clip.get("outro_text"),
+                        hook_w=hook_w, hook_font_size=hook_fs, hook_x=hook_x, teaser_dur=teaser_dur)
     # The clip is made in a short work folder and moved into place afterwards. The caption step of ffmpeg cannot
     # open files whose full path is longer than 260 characters on Windows, which a data folder deep inside other
     # folders easily reaches. Inside the work folder every name is short and relative (a drive colon would also
@@ -915,7 +950,9 @@ def render_clip(src: Path, out_dir: Path, name: str, clip: dict, words: list, sr
                           facecam_offset_y=facecam_offset_y, game_offset_x=game_offset_x, zoom=zoom,
                           custom_layout=custom_layout, teaser_enabled=teaser_enabled, teaser_dur=teaser_dur,
                           teaser_start=teaser_start, bgm_track=bgm_track, bgm_volume=bgm_volume,
-                          bgm_offset=bgm_offset, video_filter=video_filter)
+                          bgm_offset=bgm_offset, video_filter=video_filter,
+                          segments=segs if (isinstance(segs, list) and len(segs) >= 1) else None,
+                          target_w=src_w, target_h=src_h)
     finally:
         shutil.rmtree(work, ignore_errors=True)
 
@@ -924,7 +961,8 @@ def _render_in(work: Path, src: Path, out_dir: Path, name: str, start, end, layo
                facecam_pos="top-right", facecam_delay=0.0, audio_delay=0.0, meta=None,
                facecam_offset_y=0, game_offset_x=0, zoom=1.0, custom_layout=None,
                teaser_enabled=False, teaser_dur=0.0, teaser_start=None,
-               bgm_track=None, bgm_volume=0.18, bgm_offset=0.0, video_filter=None) -> dict:
+               bgm_track=None, bgm_volume=0.18, bgm_offset=0.0, video_filter=None,
+               segments=None, target_w=1920, target_h=1080) -> dict:
     global _qsv_ok
     (work / f"{name}.ass").write_text(ass, encoding="utf-8")
     (work / "f").mkdir()
@@ -965,7 +1003,46 @@ def _render_in(work: Path, src: Path, out_dir: Path, name: str, start, end, layo
     af_chain = ",".join(af_filters)
     vf_extra = f",{VIDEO_FILTERS[video_filter]}" if (video_filter and video_filter in VIDEO_FILTERS) else ""
 
-    if teaser_enabled and teaser_dur > 0:
+    total_out_dur = dur
+    if segments and len(segments) >= 1:
+        seek_args = []
+        concat_parts = []
+        concat_inputs = []
+        total_out_dur = 0.0
+        for s_idx, seg in enumerate(segments):
+            sp = str(Path(seg.get("path") or src).resolve())
+            ss = max(0.0, float(seg.get("start", 0.0)))
+            sd = max(0.2, float(seg.get("end", ss + 1.0)) - ss)
+            total_out_dur += sd
+            seek_args += ["-ss", f"{ss:.3f}", "-i", sp, "-t", f"{sd:.3f}"]
+            sw = int(seg.get("src_w") or target_w or 1920)
+            sh = int(seg.get("src_h") or target_h or 1080)
+            scale_pad = ""
+            if target_w and target_h and (sw != target_w or sh != target_h):
+                scale_pad = f",scale={target_w}:{target_h}:force_original_aspect_ratio=decrease,pad={target_w}:{target_h}:(ow-iw)/2:(oh-ih)/2,setsar=1"
+            concat_parts.append(f"[{s_idx}:v]setpts=PTS-STARTPTS,fps={config.OUT_FPS}{scale_pad}[sv{s_idx}];[{s_idx}:a:0]asetpts=PTS-STARTPTS[sa{s_idx}];")
+            concat_inputs.append(f"[sv{s_idx}][sa{s_idx}]")
+        n_seg = len(segments)
+        concat_fc = "".join(concat_parts) + "".join(concat_inputs) + f"concat=n={n_seg}:v=1:a=1[v_raw][a_raw];"
+
+        if bgm_path:
+            if bgm_offset_f > 0.001:
+                seek_args += ["-ss", f"{bgm_offset_f:.3f}", "-stream_loop", "-1", "-i", str(bgm_path)]
+            else:
+                seek_args += ["-stream_loop", "-1", "-i", str(bgm_path)]
+            audio_filter = f";[{n_seg}:a]asetpts=PTS-STARTPTS,volume={bgm_vol_f:.2f}[bgma];[a_raw][bgma]amix=inputs=2:duration=first:dropout_transition=2[a_mix];[a_mix]{af_chain}[a]"
+        else:
+            audio_filter = f";[a_raw]{af_chain}[a]"
+
+        fc = concat_fc + _filter(layout, fg_h, face, facecam_pos=facecam_pos, facecam_delay=facecam_delay,
+                     facecam_offset_y=facecam_offset_y, game_offset_x=game_offset_x, zoom=zoom,
+                     custom_layout=custom_layout, vin="v_raw") + f"[v0]ass={name}.ass:fontsdir='{FONTS_DIR}'{vf_extra}[v]{audio_filter}"
+        base = ["ffmpeg", "-y", "-v", "error"] + seek_args + [
+                "-filter_complex", fc, "-map", "[v]", "-map", "[a]",
+                "-avoid_negative_ts", "make_zero",
+                "-fps_mode", "cfr",
+                "-c:a", "aac", "-b:a", "160k", "-ar", "48000"]
+    elif teaser_enabled and teaser_dur > 0:
         t_dur = min(float(teaser_dur), dur * 0.45)
         t_start = float(teaser_start if teaser_start is not None else (end - t_dur))
         seek_args = [
@@ -1021,9 +1098,9 @@ def _render_in(work: Path, src: Path, out_dir: Path, name: str, start, end, layo
             base += ["-metadata", f"{k}={v}"]
     base += ["-shortest", "-movflags", "+faststart", "-pix_fmt"]
     _encode_with_fallback(base, f"{name}.mp4", cwd=work, preset_2k=False, timeout=RENDER_SECONDS)
-    cover_t = min(1.2, (t_dur / 2) if (teaser_enabled and teaser_dur > 0) else ((end - start) / 2))
+    cover_t = min(1.2, (t_dur / 2) if (teaser_enabled and teaser_dur > 0) else (total_out_dur / 2))
     run(["ffmpeg", "-y", "-v", "error", "-i", f"{name}.mp4", "-ss", f"{cover_t:.2f}", "-frames:v", "1",
          "-q:v", "3", f"{name}.jpg"], cwd=work)
     for ext in ("mp4", "jpg", "ass"):
         shutil.move(str(work / f"{name}.{ext}"), str(out_dir / f"{name}.{ext}"))
-    return {"file": f"{name}.mp4", "cover": f"{name}.jpg", "layout": layout}
+    return {"file": f"{name}.mp4", "cover": f"{name}.jpg", "layout": layout, "dur": round(total_out_dur, 2)}

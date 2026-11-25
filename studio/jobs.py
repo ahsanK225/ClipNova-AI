@@ -513,6 +513,32 @@ def request_render(jid, cid, changes: dict):
                 new[hk] = int(float(changes[hk]))
             except (ValueError, TypeError):
                 pass
+    if "segments" in changes:
+        raw_segs = changes["segments"]
+        if isinstance(raw_segs, list) and raw_segs:
+            cleaned_segs = []
+            for seg in raw_segs[:12]:
+                if not isinstance(seg, dict):
+                    continue
+                try:
+                    ss = max(0.0, round(float(seg.get("start", 0.0)), 3))
+                    se = round(float(seg.get("end", 0.0)), 3)
+                    if se <= ss + 0.3:
+                        continue
+                    cleaned_segs.append({
+                        "id": str(seg.get("id") or f"seg_{len(cleaned_segs)+1}")[:40],
+                        "job_id": str(seg.get("job_id") or job["id"])[:64],
+                        "clip_id": str(seg.get("clip_id") or clip["id"])[:64],
+                        "title": str(seg.get("title") or "")[:80],
+                        "start": ss,
+                        "end": se,
+                    })
+                except (TypeError, ValueError):
+                    continue
+            if cleaned_segs:
+                new["segments"] = cleaned_segs
+        elif raw_segs is None or raw_segs == []:
+            new.pop("segments", None)
     if "teaser_enabled" in changes:
         new["teaser_enabled"] = bool(changes["teaser_enabled"])
     if "teaser_dur" in changes:
@@ -989,13 +1015,66 @@ def render_one(job, clip, words):
 
         local = dict(clip, start=clip["start"] - off, end=clip["end"] - off, hook=roman.to_roman(clip.get("hook") or ""))
         near = _caption_words(job, clip, words, off, src=src, local_start=local["start"], local_end=local["end"]) if use_caps else []
+
+        expected_dur = max(0.5, clip["end"] - clip["start"])
+        if isinstance(clip.get("segments"), list) and clip["segments"]:
+            resolved_segs = []
+            for seg in clip["segments"]:
+                sjid = seg.get("job_id") or job["id"]
+                scid = seg.get("clip_id") or clip["id"]
+                rel_s = max(0.0, float(seg.get("start", 0.0)))
+                rel_e = max(rel_s + 0.3, float(seg.get("end", rel_s + 1.0)))
+                if sjid == job["id"] and scid == clip["id"]:
+                    seg_src = src
+                    seg_off = off
+                    base_start = float(clip["start"])
+                    abs_s = base_start + rel_s
+                    abs_e = min(float(clip["end"]), base_start + rel_e) if rel_e > rel_s else base_start + rel_e
+                    if abs_e <= abs_s + 0.2:
+                        abs_e = base_start + rel_e
+                    seg_words = near
+                    sw, sh = job["width"], job["height"]
+                else:
+                    oj = get(sjid) or job
+                    oc = next((k for k in oj.get("clips", []) if k.get("id") == scid), None)
+                    if oc:
+                        seg_off = float(oc.get("src_offset", 0.0))
+                        seg_src = Path(oc["src"]) if oc.get("src") else Path(oj["source_path"])
+                        if not seg_src.is_file() and oc.get("file"):
+                            seg_src = Path(oj["dir"]) / "clips" / oc["file"]
+                            base_start = 0.0
+                            seg_off = 0.0
+                        else:
+                            base_start = float(oc.get("start", 0.0))
+                        abs_s = base_start + rel_s
+                        abs_e = base_start + rel_e
+                        oj_words = _load_words(Path(oj["dir"]))
+                        seg_words = _caption_words(oj, oc, oj_words, seg_off, src=seg_src, local_start=abs_s - seg_off, local_end=abs_e - seg_off) if use_caps else []
+                        sw, sh = oj.get("width") or job["width"], oj.get("height") or job["height"]
+                    else:
+                        continue
+                if seg_src and Path(seg_src).is_file():
+                    resolved_segs.append({
+                        "path": str(seg_src),
+                        "start": max(0.0, abs_s - seg_off),
+                        "end": max(0.3, abs_e - seg_off),
+                        "orig_start": abs_s,
+                        "orig_end": abs_e,
+                        "words": seg_words,
+                        "src_w": sw,
+                        "src_h": sh,
+                    })
+            if resolved_segs:
+                local["segments"] = resolved_segs
+                expected_dur = sum(max(0.1, s["end"] - s["start"]) for s in resolved_segs)
+
         out = render.render_clip(src, d / "clips", clip["id"], local, near, job["width"], job["height"])
         # Quality Control Gate on final exported MP4
         qg_warnings = []
         out_mp4 = (d / "clips" / Path(out.get("file", "")).name) if out.get("file") else None
         if not out_mp4 or not out_mp4.is_file() or out_mp4.stat().st_size < 10_000:
             qg_warnings.append("Output MP4 missing or unexpectedly small.")
-        if float(out.get("dur") or 0.0) < max(2.5, (clip["end"] - clip["start"]) * 0.75):
+        if float(out.get("dur") or 0.0) < max(2.5, expected_dur * 0.75):
             qg_warnings.append("Rendered duration shorter than expected cut span.")
         payoff_t = clip.get("payoff_at")
         if payoff_t is not None and not (clip["start"] <= float(payoff_t) <= clip["end"] + 0.5):

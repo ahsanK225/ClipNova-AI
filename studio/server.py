@@ -1570,6 +1570,32 @@ def get_studio_project(jid: str, cid: str):
         {"id": "clown", "emoji": "🤡", "label": "CLOWN/L"}
     ]
 
+    creator_clips = []
+    cid_owner = job.get("creator")
+    for oj in (jobs.list_jobs() if cid_owner else [job]):
+        if cid_owner and oj.get("creator") != cid_owner:
+            continue
+        for oc in oj.get("clips", []):
+            if oc.get("status") == "done":
+                odur = round(float(oc.get("dur") or (oc.get("end", 30.0) - oc.get("start", 0.0))), 2)
+                creator_clips.append({
+                    "job_id": oj["id"],
+                    "clip_id": oc["id"],
+                    "title": (oc.get("title") or oc.get("hook") or oc["id"]).replace("*", ""),
+                    "duration": max(1.0, odur),
+                    "score": oc.get("score", 0),
+                })
+    saved_segs = clip.get("segments")
+    if not (isinstance(saved_segs, list) and saved_segs):
+        saved_segs = [{
+            "id": "seg_1",
+            "job_id": jid,
+            "clip_id": cid,
+            "title": (clip.get("title") or clip.get("hook") or "Main Cut").replace("*", ""),
+            "start": 0.0,
+            "end": round(max(1.0, dur), 2),
+        }]
+
     return {
         "ok": True,
         "job_id": jid,
@@ -1579,6 +1605,8 @@ def get_studio_project(jid: str, cid: str):
         "video_url": rel_path,
         "duration": max(1.0, round(dur, 2)),
         "aspect_ratio": "9:16",
+        "segments": saved_segs,
+        "creator_clips": creator_clips[:40],
         "tracks": {
             "subtitles": subtitles,
             "facecam": {
@@ -1609,7 +1637,7 @@ def studio_export_clip(jid: str, cid: str, body: dict = Body(default={})):
     job, clip = _clip_or_404(jid, cid)
     
     changes = {}
-    for fld in ("hook", "title", "description", "layout", "facecam_pos", "bgm_track", "bgm_volume", "bgm_offset", "video_filter", "speed", "style"):
+    for fld in ("hook", "title", "description", "layout", "facecam_pos", "bgm_track", "bgm_volume", "bgm_offset", "video_filter", "speed", "style", "segments"):
         if fld in body:
             changes[fld] = body[fld]
     if "words" in body and isinstance(body["words"], list):
