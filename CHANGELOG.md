@@ -1,19 +1,31 @@
 ﻿# Changelog
 All notable project changes are documented here.
 
+## [2026-11-25] — CapCut-Style Visual Timeline Editor in Web Video Studio
+
+### Changed
+- **True CapCut-Style Multi-Clip Timeline (`PeakCut/web/index.html`, `PeakCut/studio/server.py`)**:
+  - Replaced the numeric Start/End form with a direct CapCut-style timeline toolbar above the ruler (`✂️ Split`, `⫷ Trim In`, `Trim Out ⫸`, `🗑 Delete`, `◀ / ▶ Move`, `↺ Reset`).
+  - Scaled the timeline ruler dynamically to the combined `totalDur` across all merged/cut clips instead of clamping to a single clip's duration.
+  - Added interactive clip blocks on `#studio_track_video` with thumbnails (`cover_url`), selection highlight, and draggable left/right white trim handles (`studioStartTrimDrag`).
+  - Implemented seamless cross-clip playback & seeking (`_studioSeekGlobal` + `ontimeupdate`) so the video player automatically transitions across merged segments.
+  - Converted the **`✂️ Cut & Merge`** drawer tab into a visual **Media Bin (`#studio_media_bin`)** with clip thumbnails, durations, scores, and 1-click `➕ Add` buttons; updated `studio/server.py` `GET /studio-project` to return `video_url` and `cover_url` on `creator_clips` and initial segments.
+  - Added **Timeline Zoom Controls (`− / Slider / + / ⊡ Fit`)** with horizontally scrollable pixel-scaled tracks (`#studio_timeline_scroll`, `_studioScaleInfo`, `studioSetZoom`), live **Selected Clip Max Duration & Total 180s Shorts Limit** badges, and a dashed `+Xs room` extension indicator when a clip is trimmed shorter than its source length.
+- **Tests (`PeakCut/tests/test_nextgen_upgrade.py`)**: Updated check #8 to assert the CapCut timeline handlers (`studioSplitSegmentAtPlayhead`, `studioStartTrimDrag`, `studioTrimSelectedToPlayhead`, `studioAddClipToTimeline`, `#studio_media_bin`).
+
 ## [2026-11-25] — YouTube Shorts Anti-Spam Burst Guard, Safety Sanitizer & `#Shorts` Deduplication
 
 ### Added
-- **YouTube Anti-Spam Burst & Daily Cap Guard (`studio/posting.py`)**:
+- **YouTube Anti-Spam Burst & Daily Cap Guard (`PeakCut/studio/posting.py`)**:
   - Added `YT_MIN_IMMEDIATE_GAP_SEC` (45 minutes) and `_yt_needs_spacing()` guard in `posting.enqueue()`.
   - Prevents accidental multi-video burst uploads on the same YouTube channel (within 45 min or exceeding 3 Shorts/day) from triggering YouTube's 0-view spam suppression; automatically spaces extra uploads to the next safe calendar slot with a clear creator log notice.
-- **YouTube Shorts Safety Sanitizer (`studio/posting.py`)**:
+- **YouTube Shorts Safety Sanitizer (`PeakCut/studio/posting.py`)**:
   - Added `sanitize_youtube_shorts_text()` applied to YouTube Shorts `title`, `description`, and `pinned_comment` at upload time to soften demonetization/suppression trigger words (e.g. `strippers` -> `club scene`, profanity) that freeze Shorts feed reach.
-- **Automated Test Suite (`tests/test_youtube_views_guard.py`)**:
+- **Automated Test Suite (`PeakCut/tests/test_youtube_views_guard.py`)**:
   - Added 3 unit tests covering `sanitize_youtube_shorts_text()`, `_yt_needs_spacing()` (45m cooldown + 3/day cap), and `#Shorts` deduplication in `_post()`.
 
 ### Fixed
-- **Duplicate `#Shorts` Hashtag Removal (`studio/posting.py`)**:
+- **Duplicate `#Shorts` Hashtag Removal (`PeakCut/studio/posting.py`)**:
   - Updated `_caption()` and `_post()` so `#Shorts` and existing hashtags are never appended twice in YouTube video descriptions.
 
 ### Tests and Verification

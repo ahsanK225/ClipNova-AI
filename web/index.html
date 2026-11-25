@@ -4461,6 +4461,8 @@ let _studioSegments = [];
 let _studioSelSegIdx = 0;
 let _studioPlayhead = 0.0;
 let _studioPlayingSegIdx = 0;
+let _studioZoomPx = 16;
+let _studioZoomMode = "px";
 let _studioAudioAudition = null;
 
 async function drawVideoStudioTab() {
@@ -4651,6 +4653,30 @@ function _studioTimelineMap() {
   return { items, totalDur: Math.max(0.5, cursor) };
 }
 
+function _studioScaleInfo(totalDur) {
+  const scrollBox = $("#studio_timeline_scroll");
+  const viewW = Math.max(620, (scrollBox?.clientWidth || 880) - 6);
+  const maxSourceRef = _studioSegments.length === 1
+    ? Math.max(totalDur, Number(_studioSegments[0]?.max_dur || _studioProj?.duration || totalDur))
+    : totalDur;
+  const scaleDur = Math.max(5, totalDur, maxSourceRef);
+  const pxPerSec = _studioZoomMode === "fit"
+    ? (viewW / scaleDur)
+    : Math.max(4, Math.min(48, Number(_studioZoomPx) || 16));
+  const canvasW = Math.max(viewW, Math.ceil(scaleDur * pxPerSec));
+  return { scaleDur, pxPerSec, canvasW, viewW };
+}
+
+window.studioSetZoom = function(px, mode) {
+  if (mode === "fit") {
+    _studioZoomMode = "fit";
+  } else {
+    _studioZoomMode = "px";
+    _studioZoomPx = Math.max(4, Math.min(48, Math.round(Number(px) || 16)));
+  }
+  renderStudioWorkspace();
+};
+
 function renderStudioWorkspace() {
   const box = $("#creator_studio_view");
   if (!box || !_studioProj) return;
@@ -4658,9 +4684,13 @@ function renderStudioWorkspace() {
   const { items: tMap, totalDur } = _studioTimelineMap();
   if (_studioSelSegIdx >= tMap.length) _studioSelSegIdx = Math.max(0, tMap.length - 1);
   _studioPlayhead = Math.max(0, Math.min(totalDur, _studioPlayhead));
-  const tickStep = totalDur <= 25 ? 2 : totalDur <= 65 ? 5 : totalDur <= 140 ? 10 : 20;
+  const { scaleDur, pxPerSec, canvasW } = _studioScaleInfo(totalDur);
+  const tickStep = pxPerSec >= 28 ? 2 : pxPerSec >= 12 ? 5 : pxPerSec >= 7 ? 10 : 15;
   const activeItem = tMap.find(m => _studioPlayhead >= m.outStart && _studioPlayhead <= m.outEnd + 0.01) || tMap[0];
   const initSrc = activeItem?.seg?.video_url || _studioProj.video_url;
+  const selItem = tMap[_studioSelSegIdx] || tMap[0];
+  const selMaxDur = Number(selItem?.seg?.max_dur || _studioProj.duration || selItem?.dur || 60);
+  const selAvailRoom = selItem ? Math.max(0, round2(selMaxDur - Number(selItem.seg.end || 0))) : 0;
 
   box.innerHTML = `
     <div style="background:#0B1120;border:1px solid #1E293B;border-radius:18px;padding:18px;box-shadow:0 20px 60px rgba(0,0,0,0.7);display:flex;flex-direction:column;gap:14px">
@@ -4760,71 +4790,93 @@ function renderStudioWorkspace() {
             <button type="button" class="btn sm ghost" onclick="studioMoveSegment(_studioSelSegIdx, 1)" ${_studioSelSegIdx >= tMap.length - 1 ? "disabled" : ""} title="Move selected clip right">▶</button>
             <button type="button" class="btn sm ghost" onclick="studioResetSegments()" style="font-size:11px" title="Reset timeline back to original clip">↺ Reset</button>
           </div>
-          <div style="display:flex;align-items:center;gap:8px;font-size:11px;color:#94A3B8">
-            <span>Selected: <b style="color:#00F0FF">#${_studioSelSegIdx + 1}</b> (${tMap[_studioSelSegIdx] ? `${tMap[_studioSelSegIdx].dur.toFixed(1)}s` : ""})</span>
-            <span style="padding:2px 8px;border-radius:999px;background:rgba(16,185,129,0.14);color:#34D399;border:1px solid rgba(16,185,129,0.3);font-weight:800">Total: ${totalDur.toFixed(1)}s</span>
-          </div>
-        </div>
-
-        <!-- Ruler Track (Synced to Total Cut Duration!) -->
-        <div id="studio_ruler" style="position:relative;height:24px;background:#0F172A;border:1px solid rgba(255,255,255,0.08);border-radius:6px;cursor:pointer;overflow:hidden" onclick="studioSeekRuler(event)">
-          ${(() => {
-            const ticks = [];
-            for (let t = 0; t <= totalDur; t += tickStep) {
-              const pct = (t / totalDur) * 100;
-              ticks.push(`
-                <div style="position:absolute;left:${pct.toFixed(2)}%;top:0;bottom:0;display:flex;flex-direction:column;align-items:center;pointer-events:none">
-                  <span style="height:6px;width:1px;background:#64748B"></span>
-                  <span style="font-size:9px;font-family:monospace;color:#94A3B8;margin-top:2px">${t}s</span>
-                </div>
-              `);
-            }
-            return ticks.join("");
-          })()}
-        </div>
-
-        <!-- Relative Tracks Wrapper with Draggable Playhead Needle -->
-        <div id="studio_tracks_wrapper" style="position:relative;margin-top:2px;cursor:pointer;user-select:none" onclick="studioSeekRuler(event)">
-          <div id="studio_needle" style="position:absolute;left:${((_studioPlayhead / totalDur) * 100).toFixed(2)}%;top:-8px;bottom:0;width:2px;background:#00F0FF;box-shadow:0 0 8px #00F0FF;z-index:50;pointer-events:none">
-            <div style="width:10px;height:10px;background:#00F0FF;transform:rotate(45deg);margin-left:-4px;margin-top:-5px;box-shadow:0 0 6px #00F0FF"></div>
-          </div>
-
-          <!-- Track 1: Main Video Segments Track (CapCut Interactive Blocks + Drag Trim Handles!) -->
-          <div class="studio-track-row" id="studio_track_video" style="height:56px;background:#0B1221;border:1px solid rgba(99,102,241,0.35);display:flex;align-items:stretch;gap:2px;padding:3px;border-radius:10px" title="Click any clip block to select; drag left/right white edges to trim">
-            ${tMap.map(({ idx, seg, dur: sd }) => {
-              const wPct = (sd / totalDur) * 100;
-              const isSel = idx === _studioSelSegIdx;
-              const isMain = seg.job_id === _studioProj.job_id && seg.clip_id === _studioProj.clip_id;
-              return `
-                <div data-seg-idx="${idx}" onclick="event.stopPropagation();studioSelectSegment(${idx})" style="position:relative;width:${wPct.toFixed(3)}%;min-width:34px;border-radius:8px;overflow:hidden;cursor:pointer;display:flex;align-items:center;gap:6px;padding:0 12px;background:${isMain ? 'linear-gradient(135deg, rgba(79,70,229,0.55), rgba(59,130,246,0.45))' : 'linear-gradient(135deg, rgba(16,185,129,0.45), rgba(6,182,212,0.45))'};border:2px solid ${isSel ? '#FFFFFF' : 'rgba(255,255,255,0.14)'};box-shadow:${isSel ? '0 0 0 2px #00F0FF, 0 4px 16px rgba(0,240,255,0.28)' : 'none'}">
-                  ${seg.cover_url ? `<img src="${esc(seg.cover_url)}" alt="" style="width:26px;height:40px;object-fit:cover;border-radius:4px;flex:none;pointer-events:none;border:1px solid rgba(255,255,255,0.2)">` : ""}
-                  <div style="min-width:0;flex:1;pointer-events:none">
-                    <div style="font-size:10.5px;font-weight:800;color:#FFFFFF;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">#${idx + 1} ${esc(seg.title || "Clip")}</div>
-                    <div style="font-size:9.5px;font-family:monospace;color:#E2E8F0;opacity:0.9">${Number(seg.start).toFixed(1)}s–${Number(seg.end).toFixed(1)}s · <b>${sd.toFixed(1)}s</b></div>
-                  </div>
-                  <!-- Draggable Left & Right CapCut Trim Handles -->
-                  <div onpointerdown="studioStartTrimDrag(event, ${idx}, 'start')" title="Drag to trim Start" style="position:absolute;left:0;top:0;bottom:0;width:9px;cursor:ew-resize;background:${isSel ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.22)'};display:flex;align-items:center;justify-content:center">
-                    <span style="width:2px;height:18px;background:#0F172A;border-radius:2px"></span>
-                  </div>
-                  <div onpointerdown="studioStartTrimDrag(event, ${idx}, 'end')" title="Drag to trim End" style="position:absolute;right:0;top:0;bottom:0;width:9px;cursor:ew-resize;background:${isSel ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.22)'};display:flex;align-items:center;justify-content:center">
-                    <span style="width:2px;height:18px;background:#0F172A;border-radius:2px"></span>
-                  </div>
-                </div>
-              `;
-            }).join("")}
-          </div>
-
-          <!-- Track 2: Subtitle Words -->
-          <div class="studio-track-row" id="studio_track_subtitles" title="Subtitles Track">
-            <div style="position:absolute;left:8px;top:10px;font-size:10px;font-weight:700;color:#818CF8;z-index:2;pointer-events:none">
-              💬 Subtitles (Auto-synced to cuts)
+          <div style="display:flex;align-items:center;gap:8px;font-size:11px;color:#94A3B8;flex-wrap:wrap">
+            <!-- Timeline Zoom Controls (Chota / Bara / Fit) -->
+            <div style="display:inline-flex;align-items:center;gap:4px;background:#0F172A;border:1px solid #1E293B;border-radius:8px;padding:2px 6px" title="Timeline ko zoom out (chota) ya zoom in (bara) karein">
+              <button type="button" class="btn sm ghost" onclick="studioSetZoom((_studioZoomMode==='fit' ? ${Math.round(pxPerSec)} : _studioZoomPx) - 4, 'px')" style="padding:1px 6px;font-size:12px;font-weight:900" title="Zoom Out (Chota)">−</button>
+              <input id="studio_zoom_slider" type="range" min="4" max="48" step="2" value="${Math.round(pxPerSec)}" oninput="studioSetZoom(this.value, 'px')" style="width:68px;accent-color:#00F0FF;cursor:pointer">
+              <button type="button" class="btn sm ghost" onclick="studioSetZoom((_studioZoomMode==='fit' ? ${Math.round(pxPerSec)} : _studioZoomPx) + 4, 'px')" style="padding:1px 6px;font-size:12px;font-weight:900" title="Zoom In (Bara)">+</button>
+              <button type="button" class="btn sm ${_studioZoomMode === 'fit' ? 'primary' : 'ghost'}" onclick="studioSetZoom(null, 'fit')" style="padding:1px 7px;font-size:10px;font-weight:800" title="Fit whole timeline in view">⊡ Fit</button>
             </div>
+            <span id="studio_sel_limit_badge" style="padding:2px 8px;border-radius:999px;background:rgba(0,240,255,0.1);border:1px solid rgba(0,240,255,0.28);color:#E2E8F0">
+              Selected <b style="color:#00F0FF">#${_studioSelSegIdx + 1}</b>: <b>${selItem ? selItem.dur.toFixed(1) : "0.0"}s</b> / ${selMaxDur.toFixed(1)}s max${selAvailRoom > 0.2 ? ` <span style="color:#38BDF8">(+${selAvailRoom.toFixed(1)}s)</span>` : ""}
+            </span>
+            <span id="studio_total_limit_badge" style="padding:2px 8px;border-radius:999px;background:rgba(16,185,129,0.14);color:#34D399;border:1px solid rgba(16,185,129,0.3);font-weight:800" title="Add more clips from Media Bin to extend up to 180s Shorts limit">
+              Total: ${totalDur.toFixed(1)}s / 180s Shorts max
+            </span>
           </div>
+        </div>
 
-          <!-- Track 3: Audio / BGM -->
-          <div class="studio-track-row" id="studio_track_audio" style="background:rgba(8,145,178,0.18);border-color:rgba(6,182,212,0.28)" title="Audio Track">
-            <div style="position:absolute;left:8px;top:10px;font-size:10px;font-weight:700;color:#22D3EE;z-index:2;pointer-events:none">
-              🎵 Audio: ${_studioBgmTrack !== 'none' ? `Original + ${esc(_studioBgmTrack)} (${Math.round(_studioBgmVolume * 100)}%)` : 'Original Stream Audio'}
+        <!-- Horizontally Scrollable Zoomable Timeline Canvas -->
+        <div id="studio_timeline_scroll" style="overflow-x:auto;overflow-y:visible;padding-bottom:4px">
+          <div id="studio_timeline_canvas" style="width:${canvasW}px;min-width:100%;position:relative">
+            <!-- Ruler Track (Synced to Pixel Zoom Scale!) -->
+            <div id="studio_ruler" style="position:relative;height:24px;width:${canvasW}px;background:#0F172A;border:1px solid rgba(255,255,255,0.08);border-radius:6px;cursor:pointer;overflow:hidden" onclick="studioSeekRuler(event)">
+              ${(() => {
+                const ticks = [];
+                for (let t = 0; t <= scaleDur; t += tickStep) {
+                  const leftPx = Math.round(t * pxPerSec);
+                  ticks.push(`
+                    <div style="position:absolute;left:${leftPx}px;top:0;bottom:0;display:flex;flex-direction:column;align-items:center;pointer-events:none">
+                      <span style="height:6px;width:1px;background:#64748B"></span>
+                      <span style="font-size:9px;font-family:monospace;color:#94A3B8;margin-top:2px">${t}s</span>
+                    </div>
+                  `);
+                }
+                return ticks.join("");
+              })()}
+            </div>
+
+            <!-- Relative Tracks Wrapper with Draggable Playhead Needle -->
+            <div id="studio_tracks_wrapper" style="position:relative;width:${canvasW}px;margin-top:4px;cursor:pointer;user-select:none" onclick="studioSeekRuler(event)">
+              <div id="studio_needle" style="position:absolute;left:${Math.round(_studioPlayhead * pxPerSec)}px;top:-8px;bottom:0;width:2px;background:#00F0FF;box-shadow:0 0 8px #00F0FF;z-index:50;pointer-events:none">
+                <div style="width:10px;height:10px;background:#00F0FF;transform:rotate(45deg);margin-left:-4px;margin-top:-5px;box-shadow:0 0 6px #00F0FF"></div>
+              </div>
+
+              <!-- Track 1: Main Video Segments Track (CapCut Interactive Blocks + Drag Trim Handles!) -->
+              <div class="studio-track-row" id="studio_track_video" style="height:56px;width:${canvasW}px;background:#0B1221;border:1px solid rgba(99,102,241,0.35);display:flex;align-items:stretch;gap:2px;padding:3px;border-radius:10px" title="Click any clip block to select; drag left/right white edges to trim">
+                ${tMap.map(({ idx, seg, dur: sd }) => {
+                  const wPx = Math.max(28, Math.round(sd * pxPerSec));
+                  const maxD = Number(seg.max_dur || _studioProj.duration || sd);
+                  const isSel = idx === _studioSelSegIdx;
+                  const isMain = seg.job_id === _studioProj.job_id && seg.clip_id === _studioProj.clip_id;
+                  return `
+                    <div data-seg-idx="${idx}" onclick="event.stopPropagation();studioSelectSegment(${idx})" style="position:relative;width:${wPx}px;flex:none;border-radius:8px;overflow:hidden;cursor:pointer;display:flex;align-items:center;gap:6px;padding:0 12px;background:${isMain ? 'linear-gradient(135deg, rgba(79,70,229,0.55), rgba(59,130,246,0.45))' : 'linear-gradient(135deg, rgba(16,185,129,0.45), rgba(6,182,212,0.45))'};border:2px solid ${isSel ? '#FFFFFF' : 'rgba(255,255,255,0.14)'};box-shadow:${isSel ? '0 0 0 2px #00F0FF, 0 4px 16px rgba(0,240,255,0.28)' : 'none'}">
+                      ${seg.cover_url ? `<img src="${esc(seg.cover_url)}" alt="" style="width:26px;height:40px;object-fit:cover;border-radius:4px;flex:none;pointer-events:none;border:1px solid rgba(255,255,255,0.2)">` : ""}
+                      <div style="min-width:0;flex:1;pointer-events:none">
+                        <div style="font-size:10.5px;font-weight:800;color:#FFFFFF;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">#${idx + 1} ${esc(seg.title || "Clip")}</div>
+                        <div class="seg-range-lbl" style="font-size:9.5px;font-family:monospace;color:#E2E8F0;opacity:0.9">${Number(seg.start).toFixed(1)}s–${Number(seg.end).toFixed(1)}s · <b>${sd.toFixed(1)}s</b> <span style="opacity:0.7">/ ${maxD.toFixed(0)}s max</span></div>
+                      </div>
+                      <!-- Draggable Left & Right CapCut Trim Handles -->
+                      <div onpointerdown="studioStartTrimDrag(event, ${idx}, 'start')" title="Drag to trim Start" style="position:absolute;left:0;top:0;bottom:0;width:9px;cursor:ew-resize;background:${isSel ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.22)'};display:flex;align-items:center;justify-content:center">
+                        <span style="width:2px;height:18px;background:#0F172A;border-radius:2px"></span>
+                      </div>
+                      <div onpointerdown="studioStartTrimDrag(event, ${idx}, 'end')" title="Drag to trim End" style="position:absolute;right:0;top:0;bottom:0;width:9px;cursor:ew-resize;background:${isSel ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.22)'};display:flex;align-items:center;justify-content:center">
+                        <span style="width:2px;height:18px;background:#0F172A;border-radius:2px"></span>
+                      </div>
+                    </div>
+                  `;
+                }).join("")}
+                ${_studioSegments.length === 1 && selAvailRoom > 0.3 ? `
+                  <div style="width:${Math.max(40, Math.round(selAvailRoom * pxPerSec))}px;flex:none;border:1px dashed rgba(56,189,248,0.4);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:9.5px;color:#38BDF8;font-family:monospace;pointer-events:none;background:rgba(56,189,248,0.04)" title="Drag right white handle outward to restore up to +${selAvailRoom.toFixed(1)}s">
+                    +${selAvailRoom.toFixed(1)}s room
+                  </div>
+                ` : ""}
+              </div>
+
+              <!-- Track 2: Subtitle Words -->
+              <div class="studio-track-row" id="studio_track_subtitles" style="width:${canvasW}px" title="Subtitles Track">
+                <div style="position:absolute;left:8px;top:10px;font-size:10px;font-weight:700;color:#818CF8;z-index:2;pointer-events:none">
+                  💬 Subtitles (Auto-synced to cuts)
+                </div>
+              </div>
+
+              <!-- Track 3: Audio / BGM -->
+              <div class="studio-track-row" id="studio_track_audio" style="width:${canvasW}px;background:rgba(8,145,178,0.18);border-color:rgba(6,182,212,0.28)" title="Audio Track">
+                <div style="position:absolute;left:8px;top:10px;font-size:10px;font-weight:700;color:#22D3EE;z-index:2;pointer-events:none">
+                  🎵 Audio: ${_studioBgmTrack !== 'none' ? `Original + ${esc(_studioBgmTrack)} (${Math.round(_studioBgmVolume * 100)}%)` : 'Original Stream Audio'}
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -4851,7 +4903,10 @@ function renderStudioWorkspace() {
       const tc = $("#studio_time_display");
       if (tc) tc.innerText = `${fmt(globalCur)}.${Math.floor((globalCur % 1) * 10)} / ${fmt(mapNow.totalDur)}`;
       const needle = $("#studio_needle");
-      if (needle) needle.style.left = `${(globalCur / mapNow.totalDur) * 100}%`;
+      if (needle) {
+        const { pxPerSec: livePx } = _studioScaleInfo(mapNow.totalDur);
+        needle.style.left = `${Math.round(globalCur * livePx)}px`;
+      }
 
       if (!vid.paused && localCur >= Number(m.seg.end) - 0.08) {
         const nextM = mapNow.items[_studioPlayingSegIdx + 1];
@@ -5214,9 +5269,9 @@ function _studioSeekGlobal(globalSec, autoPlay) {
     applyTime();
   }
 
-  const pct = (g / totalDur) * 100;
-  const ph = $("#studio_playhead");
-  if (ph) ph.style.left = `${pct}%`;
+  const { pxPerSec } = _studioScaleInfo(totalDur);
+  const ph = $("#studio_needle");
+  if (ph) ph.style.left = `${Math.round(g * pxPerSec)}px`;
   const td = $("#studio_time_display");
   if (td) td.innerText = `${fmt(g)}.${Math.floor((g % 1) * 10)} / ${fmt(totalDur)}`;
 }
@@ -5248,10 +5303,10 @@ function studioSeekRuler(e) {
   const wrapper = $("#studio_tracks_wrapper");
   if (!wrapper || !_studioProj) return;
   const { totalDur } = _studioTimelineMap();
+  const { pxPerSec } = _studioScaleInfo(totalDur);
   const rect = wrapper.getBoundingClientRect();
   const x = Math.max(0, Math.min(rect.width, e.clientX - rect.left));
-  const pct = x / Math.max(1, rect.width);
-  _studioSeekGlobal(pct * totalDur, false);
+  _studioSeekGlobal(Math.min(totalDur, x / Math.max(1, pxPerSec)), false);
 }
 
 function studioSeekToWord(idx) {
@@ -5396,7 +5451,7 @@ window.studioStartTrimDrag = function(e, idx, edge) {
   if (!wrapper || !seg) return;
   _studioSelSegIdx = idx;
   const { totalDur } = _studioTimelineMap();
-  const rect = wrapper.getBoundingClientRect();
+  const { pxPerSec } = _studioScaleInfo(totalDur);
   const startX = e.clientX;
   const origStart = Number(seg.start || 0);
   const origEnd = Number(seg.end || 30);
@@ -5404,7 +5459,7 @@ window.studioStartTrimDrag = function(e, idx, edge) {
 
   const onMove = (ev) => {
     const dx = ev.clientX - startX;
-    const dSec = (dx / Math.max(100, rect.width)) * totalDur;
+    const dSec = dx / Math.max(4, pxPerSec);
     if (edge === "start") {
       seg.start = round2(Math.max(0, Math.min(origEnd - 0.5, origStart + dSec)));
     } else {
@@ -5415,8 +5470,14 @@ window.studioStartTrimDrag = function(e, idx, edge) {
       const { items: liveMap, totalDur: liveTotal } = _studioTimelineMap();
       const lm = liveMap[idx];
       if (lm) {
-        blk.style.left = `${(lm.outStart / liveTotal) * 100}%`;
-        blk.style.width = `${(lm.dur / liveTotal) * 100}%`;
+        blk.style.width = `${Math.max(28, Math.round(lm.dur * pxPerSec))}px`;
+        const lbl = blk.querySelector(".seg-range-lbl");
+        if (lbl) lbl.innerHTML = `${Number(seg.start).toFixed(1)}s–${Number(seg.end).toFixed(1)}s · <b>${lm.dur.toFixed(1)}s</b> <span style="opacity:0.7">/ ${maxDur.toFixed(0)}s max</span>`;
+        const totBadge = $("#studio_total_limit_badge");
+        if (totBadge) totBadge.innerText = `Total: ${liveTotal.toFixed(1)}s / 180s Shorts max`;
+        const selBadge = $("#studio_sel_limit_badge");
+        const avail = Math.max(0, round2(maxDur - Number(seg.end)));
+        if (selBadge) selBadge.innerHTML = `Selected <b style="color:#00F0FF">#${idx + 1}</b>: <b>${lm.dur.toFixed(1)}s</b> / ${maxDur.toFixed(1)}s max${avail > 0.2 ? ` <span style="color:#38BDF8">(+${avail.toFixed(1)}s)</span>` : ""}`;
       }
     }
   };

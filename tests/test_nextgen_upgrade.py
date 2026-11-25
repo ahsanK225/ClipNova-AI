@@ -312,6 +312,8 @@ try:
           and 'studioStartTrimDrag' in html
           and 'studioTrimSelectedToPlayhead' in html
           and 'studioAddClipToTimeline' in html
+          and 'studioSetZoom' in html
+          and 'id="studio_timeline_scroll"' in html
           and 'id="studio_media_bin"' in html)
 
 finally:
