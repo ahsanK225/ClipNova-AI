@@ -1584,6 +1584,8 @@ def get_studio_project(jid: str, cid: str):
                     "title": (oc.get("title") or oc.get("hook") or oc["id"]).replace("*", ""),
                     "duration": max(1.0, odur),
                     "score": oc.get("score", 0),
+                    "video_url": f"/media/{oj['id']}/{oc['file']}" if oc.get("file") else "",
+                    "cover_url": f"/media/{oj['id']}/{oc.get('cover') or oc['id'] + '.jpg'}",
                 })
     saved_segs = clip.get("segments")
     if not (isinstance(saved_segs, list) and saved_segs):
@@ -1594,6 +1596,9 @@ def get_studio_project(jid: str, cid: str):
             "title": (clip.get("title") or clip.get("hook") or "Main Cut").replace("*", ""),
             "start": 0.0,
             "end": round(max(1.0, dur), 2),
+            "max_dur": round(max(1.0, dur), 2),
+            "video_url": rel_path,
+            "cover_url": f"/media/{jid}/{clip.get('cover') or cid + '.jpg'}",
         }]
 
     return {

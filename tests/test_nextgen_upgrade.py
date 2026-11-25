@@ -306,12 +306,13 @@ try:
           and 'data-k="streamer_only_captions"' in html
           and 'data-f="streamer_only_captions"' in html)
 
-    # 8. Multi-segment Cut, Trim & Merge timeline support
-    check("Multi-Segment Cut & Merge Studio UI + job segments validation present",
+    # 8. CapCut-style Multi-segment Cut, Trim & Merge timeline support
+    check("CapCut-style Multi-Segment Cut & Merge Studio UI + job segments validation present",
           'studioSplitSegmentAtPlayhead' in html
-          and 'studioAddSelectedClip' in html
-          and 'id="studio_segments_list"' in html
-          and 'id="studio_add_clip_select"' in html)
+          and 'studioStartTrimDrag' in html
+          and 'studioTrimSelectedToPlayhead' in html
+          and 'studioAddClipToTimeline' in html
+          and 'id="studio_media_bin"' in html)
 
 finally:
     shutil.rmtree(os.environ["PEAKCUT_DATA"], ignore_errors=True)

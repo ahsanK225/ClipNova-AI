@@ -1,6 +1,28 @@
 ﻿# Changelog
 All notable project changes are documented here.
 
+## [2026-11-25] — YouTube Shorts Anti-Spam Burst Guard, Safety Sanitizer & `#Shorts` Deduplication
+
+### Added
+- **YouTube Anti-Spam Burst & Daily Cap Guard (`studio/posting.py`)**:
+  - Added `YT_MIN_IMMEDIATE_GAP_SEC` (45 minutes) and `_yt_needs_spacing()` guard in `posting.enqueue()`.
+  - Prevents accidental multi-video burst uploads on the same YouTube channel (within 45 min or exceeding 3 Shorts/day) from triggering YouTube's 0-view spam suppression; automatically spaces extra uploads to the next safe calendar slot with a clear creator log notice.
+- **YouTube Shorts Safety Sanitizer (`studio/posting.py`)**:
+  - Added `sanitize_youtube_shorts_text()` applied to YouTube Shorts `title`, `description`, and `pinned_comment` at upload time to soften demonetization/suppression trigger words (e.g. `strippers` -> `club scene`, profanity) that freeze Shorts feed reach.
+- **Automated Test Suite (`tests/test_youtube_views_guard.py`)**:
+  - Added 3 unit tests covering `sanitize_youtube_shorts_text()`, `_yt_needs_spacing()` (45m cooldown + 3/day cap), and `#Shorts` deduplication in `_post()`.
+
+### Fixed
+- **Duplicate `#Shorts` Hashtag Removal (`studio/posting.py`)**:
+  - Updated `_caption()` and `_post()` so `#Shorts` and existing hashtags are never appended twice in YouTube video descriptions.
+
+### Tests and Verification
+- `uv --directory PeakCut run python -m unittest tests/test_youtube_views_guard.py` -> 3/3 passed.
+- `uv --directory PeakCut run python tests/test_hashtags.py` -> ALL PASSED.
+- `uv --directory PeakCut run python -m tests.test_post_delete_and_views` -> 4/4 passed.
+- `uv --directory PeakCut run python -m tests.test_analytics_calendar` -> 6/6 passed.
+
+
 ## [2026-11-25] — Multi-Segment Cut, Trim & Clip Merge Studio
 ### Added
 - **Multi-Segment FFmpeg Concatenation & Caption Remapping (`studio/render.py`, `studio/jobs.py`)**: Extended `_render_in()` and `render_clip()` with `segments` support (`concat=n=N:v=1:a=1`, automatic resolution mismatch scaling/padding, and word-timestamp remapping across cut/merged segments); added `segments` validation and cross-clip source/caption resolution in `jobs.edit_clip()` & `jobs.render_one()`.
