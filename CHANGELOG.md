@@ -6,12 +6,13 @@ All notable project changes are documented here.
 - **Executive Hero Header & 4-Card Live KPI Telemetry Strip**: Redesigned the USA Publishing Calendar (`PeakCut/web/index.html`) with live countdown formatting (`_calFormatRel`), 4 KPI telemetry cards (`Next Publish Window`, segmented `Today's Daily Cap` bar, `48h Channel Velocity`, and `Paired Community +30m`), and an accessible `role="tablist"` view switcher with cached instant switching (`_calCache`).
 - **Dual-Layer Animated 24h Velocity Curve**: Upgraded the velocity chart (`_calBuildSmoothAreaSvg`, `.cal-velocity-stage`) with an SVG Bezier area/stroke overlay (`calSvgDraw`), staggered vertical bar entrance (`calBarRise`), dynamic `🔥` Surge Peak markers, emerald `⚡` Upload Prime (`-1.5h`) markers, dashed current-hour `NOW` beacon, and dual-timezone (`PKT` + `EST`) hover tooltips.
 - **7-Day Week Grid Matrix (`week` Tab)**: Added a dedicated `📆 Week Grid` calendar matrix rendering a clean 7-column horizontal week (`repeat(7, minmax(0, 1fr))` on desktop) with quick `+Add` slot buttons and direct clip links for scheduled items.
+- **Interactive Schedule Slot Video Preview (`#cal_picker_dlg`)**: Upgraded `openCalendarSlotPicker` in `PeakCut/web/index.html` into a responsive two-pane Studio (`.cal-picker-split`) featuring a sticky live 9:16 `<video id="cal_picker_video">` player (`controls`, `playsinline`, `preload="metadata"`, explicit `252x448` bounds), thumbnail & `▶ Preview` triggers on every clip card (`selectCalendarPickerClip`), opening-hook & score display, direct `Schedule This Video to Slot X` / `Open Full Clip Editor` buttons, accurate backend `cl.scheduled` slot-match detection, and clean playback pause/teardown on dialog `close`.
 - **Timeline Rail, Motion Pause Control & Light/Dark Theme Tokens**: Upgraded `Timeline` into a left-rail day tracker (`cal-timeline-rail`), switched slot cards to semantic `<article class="cal-slot-card">` with slot-colored accent bars, hero PKT clocks, dynamic US audience windows (`_calAudienceWindow`), CSS `--cal-*` theme tokens for Light & Dark modes, `@media (prefers-reduced-motion: no-preference)` gating, and a `⏸ Calm` / `▶ Motion` animation pause toggle (`cal_toggle_motion`).
 ### Tests and Verification
-- Executed `tests.test_usa_publishing_calendar` & `tests.test_analytics_calendar`: 14/14 tests passed.
+- Executed `tests.test_usa_publishing_calendar` & `tests.test_analytics_calendar`: 14/14 tests passed in `2.853s`.
 - Executed `tests/test_nextgen_upgrade.py`: 21 checks passed (`node --check` exit 0).
-- Executed `tests/test_facecam.py`: 32/32 checks passed (isolated run after concurrent load).
-- Executed full `tests/run.py` master suite and live browser visual verification (`http://localhost:8765/app/creators/nickeh30/calendar`, `final_step_29.png`) without stopping active live recording.
+- Executed full `tests/run.py` master suite: `All tests passed.` across all 35 suites (`32/32` facecam checks).
+- Verified live `#cal_picker_dlg` preview playback (`/media/.../clip002.mp4` HTTP 206) and Escape close cleanup on `http://localhost:8765/app/creators/nickeh30/calendar` without stopping active live recording.
 ### Documentation
 - Updated `CHANGELOG.md` and synchronized to `PeakCut/CHANGELOG.md`.
 
