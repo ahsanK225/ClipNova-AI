@@ -1,6 +1,15 @@
 ﻿# Changelog
 All notable project changes are documented here.
 
+## [2026-11-25] — Clip Card Layout, Unclipped 2-Row Footer & Newest-First Chronology
+### Changed
+- **Clip Cards & Grid (`PeakCut/web/index.html`)**: Widened `.grid` minimum track (`228px`), redesigned `.clip-foot` into a 2-row unclipped footer (`clip-foot-tools` + full-width `Post / Schedule` CTA), stripped raw `*` asterisks from `.hook` display, and added `.clip-meta-row` showing clip index (`#20`..`#1`), `✨ NEW` badge (for recent/latest clips), and exact relative + clock timestamp (`_clipAgeLabel`).
+- **Consistent Newest-First Ordering**: Added `_sortClipsNewestFirst(j, list)` used by both `liveHtml()` and `jobHtml()` so stopping a live stream keeps the newest clip first and the oldest clip last.
+### Tests and Verification
+- Verified `tests/test_nextgen_upgrade.py` (`22 checks passed`, `node --check` exit 0), full `tests/run.py` (`All tests passed.`), and live browser screenshot of clip cards (`http://localhost:8765/app/creators/nickeh30/clips`).
+### Documentation
+- Updated `CHANGELOG.md` and synchronized to `PeakCut/CHANGELOG.md`.
+
 ## [2026-11-25] — Live Recording Monitor Card (.livecard) Broadcast Redesign
 ### Changed
 - **Live Recording Control Deck (`PeakCut/web/index.html`)**: Redesigned `.livecard` and `liveHtml()` into a broadcast-grade monitor with a top Red-to-Cyan accent hairline, 6 structured KPI telemetry tiles (`Recorded`, `Buffer`, `Check Pace`, `AI Calls`, `Clips Made`, `Active Model`), live dB & `msg/s` pill readouts on `68px` gradient spectrum meters (`🎙️ Loudness` / `💬 Chat / sec`), and a taller (`142px`) 2-line readable `Latest AI Decisions` feed using Light/Dark theme tokens.
