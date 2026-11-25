@@ -1,6 +1,15 @@
 ﻿# Changelog
 All notable project changes are documented here.
 
+## [2026-11-25] — Streamer-Only Captions (Skip In-Game NPC Dialogue)
+### Added
+- **Facecam Mouth-Activity Speech Filter (`studio/facecam.py`, `studio/render.py`)**: Added `facecam.detect_speech_windows()` (10 fps `24x18` lower-face mouth ROI motion detector using `ffmpeg` + `numpy` with `±0.35s` padding and static-avatar/full-bleed safety fallbacks) and `render.filter_streamer_words()`, wired into `render_clip()` when `streamer_only_captions=True`.
+- **Creator, Job, Live & Clip Editor Settings (`studio/creators.py`, `studio/jobs.py`, `studio/live.py`, `web/index.html`)**: Added `streamer_only_captions` option across Creator Setup (`🎙️ Streamer-Only Captions` toggle) and Clip Editor `#clipdlg` (`🎙️ Streamer-only` toggle + `clipPayload()`), plus unit tests in `tests/test_nextgen_upgrade.py`.
+### Tests and Verification
+- Executed `tests/test_nextgen_upgrade.py` (22 checks passed, `node --check` exit 0) and full `tests/run.py` master suite (`All tests passed.`).
+### Documentation
+- Updated `CHANGELOG.md` and synchronized to `PeakCut/CHANGELOG.md`.
+
 ## [2026-11-25] — Pro Publishing Calendar Redesign, SVG Velocity Curve & 7-Day Week Grid
 ### Added
 - **Executive Hero Header & 4-Card Live KPI Telemetry Strip**: Redesigned the USA Publishing Calendar (`PeakCut/web/index.html`) with live countdown formatting (`_calFormatRel`), 4 KPI telemetry cards (`Next Publish Window`, segmented `Today's Daily Cap` bar, `48h Channel Velocity`, and `Paired Community +30m`), and an accessible `role="tablist"` view switcher with cached instant switching (`_calCache`).

@@ -113,7 +113,7 @@ on_clip_ready: list = []   # callbacks (job, clip), run once when a clip first f
 DEFAULTS = {"max_clips": 6, "min_len": 15, "max_len": 60, "style": "bounce", "layout": "split_half", "quality": 1080,
             "range_start": None, "range_end": None, "captions": True, "facecam_pos": "top-right",
             "audio_delay": 0.0, "facecam_delay": 0.0, "hook_style": "neon", "outro_cta": True, "outro_text": "",
-            "hook_text": "", "description_text": "", "trim_silence": False, "lang": "en"}
+            "hook_text": "", "description_text": "", "trim_silence": False, "streamer_only_captions": False, "lang": "en"}
 
 
 LIMITS = {"max_clips": (1, 20), "min_len": (5, 120), "max_len": (10, 180), "quality": (360, 1080)}
@@ -128,7 +128,7 @@ def clean_options(options) -> dict:
                 raise ValueError("Captions must be on or off.")
             out[k] = v
             continue
-        if k in ("outro_cta", "trim_silence"):
+        if k in ("outro_cta", "trim_silence", "streamer_only_captions"):
             out[k] = bool(v)
             continue
         if k in ("hook_text", "description_text"):     # kept even when empty: it clears the creator's own text for this video
@@ -358,7 +358,7 @@ def create(source: dict, options: dict, enqueue=True, creator=None, kind="video"
     c = creators.get(creator) if creator else None
     if c:
         d = creators.root(c["id"]) / ("live" if kind == "live" else "videos") / jid
-        base = {**DEFAULTS, **{k: c[k] for k in ("max_clips", "min_len", "max_len", "style", "layout", "captions", "quality",
+        base = {**DEFAULTS, **{k: c[k] for k in ("max_clips", "min_len", "max_len", "style", "layout", "captions", "streamer_only_captions", "quality",
                                                  "audio_delay", "facecam_delay", "facecam_pos", "hook_style", "outro_cta", "outro_text", "lang") if k in c},
                 "hook_text": creators.clean_hook(c.get("hook_text")),
                 "description_text": creators.clean_description(c.get("description_text"))}
@@ -472,6 +472,8 @@ def request_render(jid, cid, changes: dict):
         new["hashtags"] = clean_hashtags(changes["hashtags"])
     if "outro_cta" in changes:
         new["outro_cta"] = bool(changes["outro_cta"])
+    if "streamer_only_captions" in changes:
+        new["streamer_only_captions"] = bool(changes["streamer_only_captions"])
     if "quality" in changes:
         try:
             q = int(float(changes["quality"]))
@@ -731,7 +733,7 @@ def save_post_text(job, clip, changes: dict):
             text["seo_tags"] = [str(t).strip() for t in st if str(t).strip()][:30]
         if text["seo_tags"] != (clip.get("seo_tags") or []):
             edited.add("seo_tags")
-    for b in ("captions", "outro_cta"):
+    for b in ("captions", "outro_cta", "streamer_only_captions"):
         if b in changes:
             text[b] = bool(changes[b])
     if "bgm_volume" in changes:
@@ -919,6 +921,7 @@ def render_one(job, clip, words):
         clip.setdefault("hook_style", o.get("hook_style") or cr.get("hook_style") or "neon")
         clip.setdefault("outro_cta", o.get("outro_cta", cr.get("outro_cta", True)))
         clip.setdefault("outro_text", o.get("outro_text") or cr.get("outro_text"))
+        clip.setdefault("streamer_only_captions", bool(o.get("streamer_only_captions") if o.get("streamer_only_captions") is not None else cr.get("streamer_only_captions", False)))
         if (clip.get("version", 0) == 0 and not clip.get("manual_words")
                 and (clip.get("trim_silence") or o.get("trim_silence") or cr.get("trim_silence"))):
             ns, ne = trim_dead_air(words or [], clip["start"], clip["end"], min_len=min(12.0, float(o.get("min_len") or 12.0)))

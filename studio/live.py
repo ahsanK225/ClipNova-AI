@@ -1015,6 +1015,7 @@ class Session:
         hook_style = self.settings.get("hook_style") or self.job.get("options", {}).get("hook_style") or "neon"
         outro_cta = self.settings.get("outro_cta", self.job.get("options", {}).get("outro_cta", True))
         outro_text = self.settings.get("outro_text") or self.job.get("options", {}).get("outro_text")
+        streamer_only = bool(self.settings.get("streamer_only_captions", self.job.get("options", {}).get("streamer_only_captions", False)))
         # Respect creator setting first, then fallback to job options
         caps = self.settings.get("captions")
         if caps is None:
@@ -1026,7 +1027,8 @@ class Session:
                  captions=bool(caps),
                  status="queued", version=0, made_at=time.time(),
                  facecam_pos=facecam_pos, facecam_delay=facecam_delay, audio_delay=audio_delay,
-                 hook_style=hook_style, outro_cta=outro_cta, outro_text=outro_text)
+                 hook_style=hook_style, outro_cta=outro_cta, outro_text=outro_text,
+                 streamer_only_captions=streamer_only)
         if cl_opt:
             c["custom_layout"] = cl_opt
         if self.settings.get("active_preset"):
@@ -1396,7 +1398,7 @@ def start_session(creator: dict, url=None) -> dict:
     if lang != fetch_model.DEFAULT and not transcribe.REMOTE and not fetch_model.ready(lang):
         raise ValueError(f"This creator speaks {fetch_model.label(lang)}, and its speech model isn't on this computer "
                          "yet. Add it in Settings → Speech models (an admin can do this), then start recording again.")
-    job_opts = {k: creator[k] for k in ("style", "layout", "captions", "quality", "audio_delay", "facecam_delay",
+    job_opts = {k: creator[k] for k in ("style", "layout", "captions", "streamer_only_captions", "quality", "audio_delay", "facecam_delay",
                                          "facecam_pos", "hook_style", "outro_cta", "outro_text", "custom_layout") if k in creator}
     job = jobs.create({"type": "live", "url": url, "name": f"{creator['name']} live"}, job_opts, enqueue=False,
                       creator=creator["id"], kind="live")

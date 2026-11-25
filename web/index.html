@@ -5474,6 +5474,7 @@ function drawCreatorForm() {
       </div></div>
     <div class="card"><h2>Clips</h2><p class="help">How this creator's clips look.</p>
       <div class="fields"><label class="sw span"><input type="checkbox" data-k="captions" data-caption-toggle ${c.captions === false ? "" : "checked"}>Generate captions</label>
+        <label class="sw span"><input type="checkbox" data-k="streamer_only_captions" ${c.streamer_only_captions ? "checked" : ""}><span>🎙️ Streamer-Only Captions<small>Only show captions when the streamer speaks on facecam — skips in-game NPC dialogue &amp; cutscenes.</small></span></label>
         <label class="sw span"><input type="checkbox" data-k="trim_silence" ${c.trim_silence ? "checked" : ""}><span>Trim dead-air silence<small>Automatically trim &gt;2s quiet openings or trailing pauses without shifting subtitle sync.</small></span></label>
         <label class="f">Caption style<select data-k="style" data-caption-style ${c.captions === false ? "disabled" : ""}>${opts(S.status.styles, c.style)}</select></label>
         <label class="f">Hook banner style<select data-k="hook_style">
@@ -6352,8 +6353,9 @@ function drawClipDlg(full) {
               </select></label>
               <label class="f">Caption style<select data-f="style" data-caption-style ${(c.captions === false || (!('captions' in c) && j.options?.captions === false)) ? "disabled" : ""}>${opts(S.status.styles, c.style)}</select></label>
             </div>
-            <div style="display:flex;align-items:center;gap:18px;margin-top:4px">
+            <div style="display:flex;align-items:center;gap:14px;margin-top:4px;flex-wrap:wrap">
               <label class="sw" style="margin:0;font-size:11px"><input type="checkbox" data-f="captions" data-caption-toggle ${(c.captions === false || (!('captions' in c) && j.options?.captions === false)) ? "" : "checked"}>Generate captions</label>
+              <label class="sw" style="margin:0;font-size:11px" title="Only show captions when streamer speaks on facecam (skip in-game NPC dialogue)"><input type="checkbox" data-f="streamer_only_captions" ${(c.streamer_only_captions ?? j.options?.streamer_only_captions) ? "checked" : ""}>🎙️ Streamer-only</label>
               <label class="sw" style="margin:0;font-size:11px"><input type="checkbox" data-f="outro_cta" ${c.outro_cta === false ? "" : "checked"}>End support badge (Outro)</label>
             </div>
             <details id="dlg_caption_words_box" style="margin-top:10px;padding:8px 10px;background:rgba(15,23,42,0.55);border:1px solid var(--line);border-radius:8px" ontoggle="if(this.open) loadClipWordsEditor()">
@@ -6762,6 +6764,7 @@ function postText() {   // the post text and SEO as it is in the clip editor rig
     hook: v("hook") || "",
     hook_style: v("hook_style") || "viral_yellow",
     captions: v("captions") ?? true,
+    streamer_only_captions: v("streamer_only_captions") ?? false,
     style: v("style") || "bounce",
     outro_cta: v("outro_cta") ?? true,
     bgm_track: $("#dlg_bgm_track")?.value || "none",

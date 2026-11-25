@@ -396,6 +396,23 @@ def _outro_events(dur: float, outro_text: str = "", y: int = 1500) -> list:
     return ev
 
 
+def filter_streamer_words(words: list, speech_windows: list[tuple[float, float]] | None) -> list:
+    """Keep only caption words whose midpoint falls inside active streamer speech windows."""
+    if not words or speech_windows is None:
+        return words
+    out = []
+    for w in words:
+        try:
+            ws = float(w.get("s", 0.0))
+            we = float(w.get("e", ws))
+        except (TypeError, ValueError):
+            continue
+        mid = (ws + we) * 0.5
+        if any(a <= mid <= b for a, b in speech_windows):
+            out.append(w)
+    return out
+
+
 def build_ass(words, start, end, hook, style_name, highlight, hook_y, cap_y, hook_style=None, outro_cta=True, outro_text=None, hook_w=None, hook_font_size=None, hook_x=None, teaser_dur=0.0) -> str:
     st = STYLES.get(style_name, STYLES["bounce"])
     cfg = HOOK_STYLES.get(hook_style or "")
@@ -873,7 +890,12 @@ def render_clip(src: Path, out_dir: Path, name: str, clip: dict, words: list, sr
         else:
             teaser_start = max(start, end - teaser_dur)
 
-    ass = build_ass(words if clip.get("captions", True) else [], start, end, clip.get("hook", ""), clip.get("style", "bounce"),
+    active_words = words if clip.get("captions", True) else []
+    if active_words and clip.get("streamer_only_captions"):
+        speech_win = facecam.detect_speech_windows(src, start, end, face, src_w, src_h)
+        active_words = filter_streamer_words(active_words, speech_win)
+
+    ass = build_ass(active_words, start, end, clip.get("hook", ""), clip.get("style", "bounce"),
                     clip.get("highlight_words", []), hook_y, cap_y, hook_style,
                     outro_cta=clip.get("outro_cta", True), outro_text=clip.get("outro_text"),
                     hook_w=hook_w, hook_font_size=hook_fs, hook_x=hook_x, teaser_dur=teaser_dur)

@@ -33,7 +33,7 @@ DEFAULTS = {"name": "", "channel": "", "style": "bounce", "layout": "split_half"
             "facecam_pos": "top-right", "facecam_delay": 0.0, "audio_delay": 0.0, "hook_style": "neon", "outro_cta": True, "outro_text": "",
             "custom_layout": {"enabled": False, "mode": "split", "facecam": [0, 0, 480, 360], "gameplay": [0, 0, 1920, 1080], "split_ratio": 0.35, "pip_pos": "top-right", "pip_size": 380, "divider": True},
             "custom_presets": {},
-            "post_cleanup": "ask", "trim_silence": False, "lang": "en"}
+            "post_cleanup": "ask", "trim_silence": False, "streamer_only_captions": False, "lang": "en"}
 PLATFORMS = ("youtube", "twitch", "kick")
 
 
@@ -100,7 +100,7 @@ def _clean(data: dict) -> dict:
         if k in NUMERIC:
             lo, hi = NUMERIC[k]
             v = max(lo, min(hi, int(float(v))))
-        elif k in ("auto_watch", "autopost", "ai_only_on_spike", "trim_silence"):
+        elif k in ("auto_watch", "autopost", "ai_only_on_spike", "trim_silence", "streamer_only_captions"):
             v = bool(v)
         elif k == "channels":
             v = {p: str(u).strip()[:300] for p, u in (v.items() if isinstance(v, dict) else []) if p in PLATFORMS and str(u).strip()}

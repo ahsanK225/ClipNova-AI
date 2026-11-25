@@ -448,3 +448,78 @@ def is_fullscreen_cam(path: str | Path, start: float, end: float,
     border_jump = max(edge_jumps) if edge_jumps else gx
     # Only switch to fullscreen crop when corner box has flat empty background + no overlay border while center is active
     return box_std < 6.5 and border_jump < (0.9 * gx) and center_std > max(18.0, box_std * 2.5)
+
+
+def detect_speech_windows(path: str | Path, start: float, end: float,
+                          face: list | tuple | None, src_w: int, src_h: int) -> list[tuple[float, float]] | None:
+    """Detect absolute [t0, t1] windows when the streamer is actively speaking inside the facecam box.
+
+    Samples the lower-center mouth/jaw sub-region of the webcam at 10 fps using ffmpeg + numpy.
+    Returns None when no reliable facecam signal is available (so callers safely keep all captions).
+    """
+    if not face or len(face) != 4 or src_w <= 0 or src_h <= 0 or end <= start:
+        return None
+    p = Path(path)
+    if not p.is_file():
+        return None
+    fx, fy, fw, fh = [int(round(float(v))) for v in face]
+    if fw < 24 or fh < 24:
+        return None
+    # Focus on lower-center mouth/jaw zone inside facecam box
+    mx = max(0, min(src_w - 16, fx + int(round(fw * 0.20))))
+    my = max(0, min(src_h - 16, fy + int(round(fh * 0.50))))
+    mw = max(16, min(src_w - mx, int(round(fw * 0.60))))
+    mh = max(16, min(src_h - my, int(round(fh * 0.38))))
+    dur = max(0.5, float(end) - float(start))
+    fps = 10
+    rw, rh = 24, 18
+    try:
+        proc = subprocess.run(
+            ["ffmpeg", "-v", "error", "-ss", f"{max(0.0, float(start)):.2f}", "-t", f"{dur:.2f}",
+             "-i", str(p), "-vf", f"crop={mw}:{mh}:{mx}:{my},scale={rw}:{rh},fps={fps},format=gray",
+             "-f", "rawvideo", "-"],
+            capture_output=True, timeout=30)
+        raw = proc.stdout or b""
+    except Exception:
+        return None
+    frame_bytes = rw * rh
+    n_frames = len(raw) // frame_bytes
+    if n_frames < 8:
+        return None
+    arr = np.frombuffer(raw[:n_frames * frame_bytes], dtype=np.uint8).reshape(n_frames, rh, rw).astype(np.float32)
+    diff = np.mean(np.abs(arr[1:] - arr[:-1]), axis=(1, 2))
+    # Smooth over ~0.5s (5 frames) to capture syllable bursts cleanly
+    kernel = np.ones(5, dtype=np.float32) / 5.0
+    smooth = np.convolve(diff, kernel, mode="same")
+    noise_floor = float(np.percentile(smooth, 20))
+    peak_motion = float(np.percentile(smooth, 95))
+    # Safety guards: frozen/PNG avatar OR game HUD bleed constantly moving inside box -> keep all captions
+    if (peak_motion - noise_floor) < 0.75 or noise_floor > 14.0:
+        return None
+    thresh = noise_floor + max(0.85, (peak_motion - noise_floor) * 0.24)
+    active = smooth >= thresh
+    ratio = float(np.mean(active))
+    if ratio < 0.03 or ratio > 0.94:
+        return None
+    windows: list[tuple[float, float]] = []
+    in_seg = False
+    seg_s = 0.0
+    for idx, flag in enumerate(active):
+        t_abs = float(start) + (idx / fps)
+        if flag and not in_seg:
+            in_seg = True
+            seg_s = max(float(start), t_abs - 0.35)
+        elif not flag and in_seg:
+            in_seg = False
+            seg_e = min(float(end), t_abs + 0.35)
+            if windows and seg_s - windows[-1][1] <= 0.55:
+                windows[-1] = (windows[-1][0], max(windows[-1][1], seg_e))
+            else:
+                windows.append((round(seg_s, 2), round(seg_e, 2)))
+    if in_seg:
+        seg_e = float(end)
+        if windows and seg_s - windows[-1][1] <= 0.55:
+            windows[-1] = (windows[-1][0], max(windows[-1][1], seg_e))
+        else:
+            windows.append((round(seg_s, 2), round(seg_e, 2)))
+    return windows or None

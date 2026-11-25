@@ -288,6 +288,24 @@ try:
           and "crop=1080:1920" in fg_full and "overlay=" not in fg_full
           and "vstack" not in fg_nocam_split and "crop=1080:1920" in fg_nocam_split)
 
+    # 7. Streamer-Only Captions word filtering & safe fallback
+    from studio import facecam as facecam_mod
+    sample_words = [
+        {"w": "Bro", "s": 1.0, "e": 1.3},
+        {"w": "look!", "s": 1.4, "e": 1.7},
+        {"w": "NPC", "s": 4.2, "e": 4.6},
+        {"w": "line", "s": 4.7, "e": 5.1},
+        {"w": "crazy!", "s": 8.2, "e": 8.6},
+    ]
+    kept = render_mod.filter_streamer_words(sample_words, [(0.8, 2.0), (8.0, 9.0)])
+    kept_none = render_mod.filter_streamer_words(sample_words, None)
+    check("Streamer-Only Captions keeps streamer words, drops NPC dialogue & falls back safely",
+          [w["w"] for w in kept] == ["Bro", "look!", "crazy!"]
+          and len(kept_none) == len(sample_words)
+          and facecam_mod.detect_speech_windows("missing.mp4", 0.0, 5.0, None, 1920, 1080) is None
+          and 'data-k="streamer_only_captions"' in html
+          and 'data-f="streamer_only_captions"' in html)
+
 finally:
     shutil.rmtree(os.environ["PEAKCUT_DATA"], ignore_errors=True)
 
