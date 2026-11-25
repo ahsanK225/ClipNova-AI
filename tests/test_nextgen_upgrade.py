@@ -310,6 +310,8 @@ try:
     check("CapCut-style Multi-Segment Cut & Merge Studio UI + job segments validation present",
           'studioSplitSegmentAtPlayhead' in html
           and 'studioStartTrimDrag' in html
+          and 'studioStartSegDrag' in html
+          and 'studioStartRulerScrub' in html
           and 'studioTrimSelectedToPlayhead' in html
           and 'studioAddClipToTimeline' in html
           and 'studioSetZoom' in html
