@@ -539,6 +539,27 @@ def request_render(jid, cid, changes: dict):
                 new["segments"] = cleaned_segs
         elif raw_segs is None or raw_segs == []:
             new.pop("segments", None)
+    if "vfx_cues" in changes and isinstance(changes["vfx_cues"], list):
+        cleaned_vfx = []
+        for vc in changes["vfx_cues"][:30]:
+            if isinstance(vc, dict) and vc.get("type"):
+                try:
+                    t = max(0.0, round(float(vc.get("time", 0.0)), 3))
+                    cleaned_vfx.append({"id": str(vc.get("id") or f"vfx_{len(cleaned_vfx)+1}")[:40], "type": str(vc["type"])[:32], "time": t})
+                except (ValueError, TypeError):
+                    pass
+        new["vfx_cues"] = cleaned_vfx
+    if "sfx_cues" in changes and isinstance(changes["sfx_cues"], list):
+        cleaned_sfx = []
+        for sc in changes["sfx_cues"][:30]:
+            if isinstance(sc, dict) and sc.get("track_id"):
+                try:
+                    t = max(0.0, round(float(sc.get("time", 0.0)), 3))
+                    vol = max(0.1, min(1.5, round(float(sc.get("volume", 0.95)), 2)))
+                    cleaned_sfx.append({"id": str(sc.get("id") or f"sfx_{len(cleaned_sfx)+1}")[:40], "track_id": str(sc["track_id"])[:50], "time": t, "volume": vol})
+                except (ValueError, TypeError):
+                    pass
+        new["sfx_cues"] = cleaned_sfx
     if "teaser_enabled" in changes:
         new["teaser_enabled"] = bool(changes["teaser_enabled"])
     if "teaser_dur" in changes:

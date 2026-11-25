@@ -1555,10 +1555,14 @@ def get_studio_project(jid: str, cid: str):
     ]
     
     vfx_presets = [
-        {"id": "flash", "name": "💥 Flash White Climax", "desc": "Bright white flash impact on drop/reveal"},
-        {"id": "shake", "name": "⚡ Screen Shake", "desc": "Rapid 12px camera rumble on punchline"},
-        {"id": "glitch", "name": "📺 Glitch RGB", "desc": "Chromatic aberration & horizontal noise shift"},
-        {"id": "zoom_punch", "name": "🎯 Zoom Punch", "desc": "Instant 1.25x zoom-in punch on face/reaction"}
+        {"id": "flash", "name": "💥 Flash White", "cat": "Impact", "desc": "Bright white flash impact on drop/reveal"},
+        {"id": "shake", "name": "⚡ Screen Shake", "cat": "Motion", "desc": "Rapid camera earthquake rumble on punchline"},
+        {"id": "glitch", "name": "📺 Glitch RGB", "cat": "Meme", "desc": "Chromatic aberration & RGB noise shift"},
+        {"id": "zoom_punch", "name": "🎯 Zoom Punch", "cat": "Motion", "desc": "Instant 1.28x zoom-in punch on reaction"},
+        {"id": "wasted_bw", "name": "🖤 Wasted B&W", "cat": "Meme", "desc": "Dramatic GTA grayscale freeze vibe for L moments"},
+        {"id": "rage_red", "name": "🔴 Red Rage", "cat": "Meme", "desc": "Intense red anger/alarm tint pulse"},
+        {"id": "slow_zoom", "name": "🌀 Slow Zoom In", "cat": "Motion", "desc": "Creeping cinematic tension zoom"},
+        {"id": "strobe", "name": "✨ Strobe Beat", "cat": "Impact", "desc": "Rapid club/phonk beat flash"}
     ]
     
     stickers = [
@@ -1611,6 +1615,8 @@ def get_studio_project(jid: str, cid: str):
         "duration": max(1.0, round(dur, 2)),
         "aspect_ratio": "9:16",
         "segments": saved_segs,
+        "vfx_cues": clip.get("vfx_cues") or [],
+        "sfx_cues": clip.get("sfx_cues") or [],
         "creator_clips": creator_clips[:40],
         "tracks": {
             "subtitles": subtitles,
@@ -1642,7 +1648,7 @@ def studio_export_clip(jid: str, cid: str, body: dict = Body(default={})):
     job, clip = _clip_or_404(jid, cid)
     
     changes = {}
-    for fld in ("hook", "title", "description", "layout", "facecam_pos", "bgm_track", "bgm_volume", "bgm_offset", "video_filter", "speed", "style", "segments"):
+    for fld in ("hook", "title", "description", "layout", "facecam_pos", "bgm_track", "bgm_volume", "bgm_offset", "video_filter", "speed", "style", "segments", "vfx_cues", "sfx_cues"):
         if fld in body:
             changes[fld] = body[fld]
     if "words" in body and isinstance(body["words"], list):

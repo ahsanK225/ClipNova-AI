@@ -316,6 +316,16 @@ try:
           and 'id="studio_timeline_scroll"' in html
           and 'id="studio_media_bin"' in html)
 
+    # 9. CapCut-style VFX & Meme SFX Soundboard + FFmpeg mixing
+    vfx_fc = render_mod._vfx_ffmpeg_chain([{"type": "flash", "time": 2.0}, {"type": "wasted_bw", "time": 5.0}])
+    check("CapCut-style VFX & Meme SFX Soundboard + FFmpeg cues work end-to-end",
+          "between(t,2.00,2.22)" in vfx_fc
+          and "hue=s=0:enable='between(t,5.00,6.40)'" in vfx_fc
+          and 'id="studio_track_vfx"' in html
+          and 'id="studio_vfx_grid"' in html
+          and 'id="studio_meme_sfx_grid"' in html
+          and 'studioAddSfxCue' in html)
+
 finally:
     shutil.rmtree(os.environ["PEAKCUT_DATA"], ignore_errors=True)
 

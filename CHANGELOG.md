@@ -1,6 +1,16 @@
 ﻿# Changelog
 All notable project changes are documented here.
 
+## [2026-11-25] — CapCut-Style VFX Effects Grid, Meme Soundboard & FFmpeg Cue Mixing
+
+### Added
+- **CapCut-Style VFX & Meme SFX Pipeline (`PeakCut/studio/server.py`, `PeakCut/studio/jobs.py`, `PeakCut/studio/render.py`, `PeakCut/web/index.html`)**:
+  - Expanded `available_vfx` to 8 categorized effects (`flash`, `shake`, `glitch`, `zoom_punch`, `wasted_bw`, `rage_red`, `slow_zoom`, `strobe`) in a 2-column CapCut effects grid (`#studio_vfx_grid`) with live `▶ Test` and `➕ Add` at playhead.
+  - Added a dedicated **Meme Soundboard (`#studio_meme_sfx_grid`)** inside the Audio tab for timed meme SFX drops (`vine_boom`, `bruh_sound`, `metal_pipe`, `airhorn_blast`, and custom uploads) with instant `🔊 Play` audition and `➕ Drop @ Playhead`, plus BGM preview.
+  - Added a dedicated **`⚡ Effects & 💥 Meme SFX` timeline track (`#studio_track_vfx`)** displaying placed effect and SFX pills at exact pixel coordinates, synchronized live during playback (`vid.ontimeupdate`).
+  - Added `_vfx_ffmpeg_chain()` and `_mix_audio_inputs()` in `studio/render.py` plus `vfx_cues` / `sfx_cues` validation and persistence in `studio/jobs.py` & `studio/server.py` so all placed VFX and Meme SFX render into exported MP4s.
+- **Tests (`PeakCut/tests/test_nextgen_upgrade.py`)**: Added check #9 verifying `_vfx_ffmpeg_chain()` and CapCut VFX/Meme SFX UI elements.
+
 ## [2026-11-25] — CapCut-Style Visual Timeline Editor in Web Video Studio
 
 ### Changed

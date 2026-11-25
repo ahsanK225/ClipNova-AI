@@ -952,9 +952,82 @@ def render_clip(src: Path, out_dir: Path, name: str, clip: dict, words: list, sr
                           teaser_start=teaser_start, bgm_track=bgm_track, bgm_volume=bgm_volume,
                           bgm_offset=bgm_offset, video_filter=video_filter,
                           segments=segs if (isinstance(segs, list) and len(segs) >= 1) else None,
+                          vfx_cues=clip.get("vfx_cues"), sfx_cues=clip.get("sfx_cues"),
                           target_w=src_w, target_h=src_h)
     finally:
         shutil.rmtree(work, ignore_errors=True)
+
+
+def _vfx_ffmpeg_chain(vfx_cues) -> str:
+    """Build timed FFmpeg video filter expressions for placed VFX cues."""
+    if not isinstance(vfx_cues, list) or not vfx_cues:
+        return ""
+    parts = []
+    for vc in vfx_cues[:20]:
+        if not isinstance(vc, dict):
+            continue
+        vt = str(vc.get("type") or "")
+        try:
+            t0 = max(0.0, float(vc.get("time", 0.0)))
+        except (ValueError, TypeError):
+            continue
+        if vt == "flash":
+            parts.append(f"eq=brightness=0.55:enable='between(t,{t0:.2f},{t0+0.22:.2f})'")
+        elif vt == "wasted_bw":
+            parts.append(f"hue=s=0:enable='between(t,{t0:.2f},{t0+1.40:.2f})'")
+        elif vt == "rage_red":
+            parts.append(f"colorchannelmixer=rr=1.55:gg=0.62:bb=0.62:enable='between(t,{t0:.2f},{t0+0.80:.2f})'")
+        elif vt in ("glitch", "strobe"):
+            parts.append(f"negate=enable='between(t,{t0:.2f},{t0+0.16:.2f})'")
+        elif vt in ("shake", "zoom_punch", "slow_zoom"):
+            dur_fx = 1.0 if vt == "slow_zoom" else 0.40
+            parts.append(f"eq=contrast=1.24:saturation=1.28:enable='between(t,{t0:.2f},{t0+dur_fx:.2f})'")
+    return ("," + ",".join(parts)) if parts else ""
+
+
+def _mix_audio_inputs(seek_args: list, base_a_label: str, next_idx: int, bgm_path, bgm_vol_f: float,
+                          bgm_offset_f: float, sfx_cues, af_chain: str) -> tuple[str, bool]:
+    """Append BGM + timed Meme SFX FFmpeg inputs and return (filter_graph_suffix, used_filter_complex_audio)."""
+    from . import audio as _audio_mod
+    mix_labels = []
+    parts = []
+    idx = next_idx
+
+    if bgm_path:
+        if bgm_offset_f > 0.001:
+            seek_args += ["-ss", f"{bgm_offset_f:.3f}", "-stream_loop", "-1", "-i", str(bgm_path)]
+        else:
+            seek_args += ["-stream_loop", "-1", "-i", str(bgm_path)]
+        parts.append(f"[{idx}:a]asetpts=PTS-STARTPTS,volume={bgm_vol_f:.2f}[bgma]")
+        mix_labels.append("[bgma]")
+        idx += 1
+
+    if isinstance(sfx_cues, list):
+        for sc in sfx_cues[:15]:
+            if not isinstance(sc, dict) or not sc.get("track_id"):
+                continue
+            try:
+                sp = _audio_mod.get_track_path(str(sc["track_id"]))
+                if not sp or not sp.is_file():
+                    continue
+                t0 = max(0.0, float(sc.get("time", 0.0)))
+                vol = max(0.1, min(1.5, float(sc.get("volume", 0.95))))
+                ms = int(round(t0 * 1000))
+                seek_args += ["-i", str(sp)]
+                lbl = f"sfx{idx}"
+                parts.append(f"[{idx}:a]asetpts=PTS-STARTPTS,adelay={ms}|{ms},volume={vol:.2f}[{lbl}]")
+                mix_labels.append(f"[{lbl}]")
+                idx += 1
+            except Exception:
+                continue
+
+    if not mix_labels:
+        return f";[{base_a_label}]{af_chain}[a]", False
+
+    all_in = f"[{base_a_label}]" + "".join(mix_labels)
+    n_in = 1 + len(mix_labels)
+    prefix = ";".join(parts)
+    return f";{prefix};{all_in}amix=inputs={n_in}:duration=first:dropout_transition=2:normalize=0[a_mix];[a_mix]{af_chain}[a]", True
 
 
 def _render_in(work: Path, src: Path, out_dir: Path, name: str, start, end, layout, fg_h, ass: str, face=None,
@@ -962,7 +1035,7 @@ def _render_in(work: Path, src: Path, out_dir: Path, name: str, start, end, layo
                facecam_offset_y=0, game_offset_x=0, zoom=1.0, custom_layout=None,
                teaser_enabled=False, teaser_dur=0.0, teaser_start=None,
                bgm_track=None, bgm_volume=0.18, bgm_offset=0.0, video_filter=None,
-               segments=None, target_w=1920, target_h=1080) -> dict:
+               segments=None, vfx_cues=None, sfx_cues=None, target_w=1920, target_h=1080) -> dict:
     global _qsv_ok
     (work / f"{name}.ass").write_text(ass, encoding="utf-8")
     (work / "f").mkdir()
@@ -1001,7 +1074,7 @@ def _render_in(work: Path, src: Path, out_dir: Path, name: str, start, end, layo
             af_filters.append("asetpts=PTS-STARTPTS")
     af_filters.append("loudnorm=I=-14:TP=-1.5:LRA=11")
     af_chain = ",".join(af_filters)
-    vf_extra = f",{VIDEO_FILTERS[video_filter]}" if (video_filter and video_filter in VIDEO_FILTERS) else ""
+    vf_extra = (f",{VIDEO_FILTERS[video_filter]}" if (video_filter and video_filter in VIDEO_FILTERS) else "") + _vfx_ffmpeg_chain(vfx_cues)
 
     total_out_dur = dur
     if segments and len(segments) >= 1:
@@ -1024,15 +1097,7 @@ def _render_in(work: Path, src: Path, out_dir: Path, name: str, start, end, layo
             concat_inputs.append(f"[sv{s_idx}][sa{s_idx}]")
         n_seg = len(segments)
         concat_fc = "".join(concat_parts) + "".join(concat_inputs) + f"concat=n={n_seg}:v=1:a=1[v_raw][a_raw];"
-
-        if bgm_path:
-            if bgm_offset_f > 0.001:
-                seek_args += ["-ss", f"{bgm_offset_f:.3f}", "-stream_loop", "-1", "-i", str(bgm_path)]
-            else:
-                seek_args += ["-stream_loop", "-1", "-i", str(bgm_path)]
-            audio_filter = f";[{n_seg}:a]asetpts=PTS-STARTPTS,volume={bgm_vol_f:.2f}[bgma];[a_raw][bgma]amix=inputs=2:duration=first:dropout_transition=2[a_mix];[a_mix]{af_chain}[a]"
-        else:
-            audio_filter = f";[a_raw]{af_chain}[a]"
+        audio_filter, _ = _mix_audio_inputs(seek_args, "a_raw", n_seg, bgm_path, bgm_vol_f, bgm_offset_f, sfx_cues, af_chain)
 
         fc = concat_fc + _filter(layout, fg_h, face, facecam_pos=facecam_pos, facecam_delay=facecam_delay,
                      facecam_offset_y=facecam_offset_y, game_offset_x=game_offset_x, zoom=zoom,
@@ -1050,15 +1115,7 @@ def _render_in(work: Path, src: Path, out_dir: Path, name: str, start, end, layo
             "-ss", f"{start:.3f}", "-i", str(Path(src).resolve()), "-t", f"{dur:.3f}",
         ]
         concat_fc = f"[0:v]setpts=PTS-STARTPTS,fps={config.OUT_FPS}[tv];[0:a:0]asetpts=PTS-STARTPTS[ta];[1:v]setpts=PTS-STARTPTS,fps={config.OUT_FPS}[mv];[1:a:0]asetpts=PTS-STARTPTS[ma];[tv][ta][mv][ma]concat=n=2:v=1:a=1[v_raw][a_raw];"
-        
-        if bgm_path:
-            if bgm_offset_f > 0.001:
-                seek_args += ["-ss", f"{bgm_offset_f:.3f}", "-stream_loop", "-1", "-i", str(bgm_path)]
-            else:
-                seek_args += ["-stream_loop", "-1", "-i", str(bgm_path)]
-            audio_filter = f";[2:a]asetpts=PTS-STARTPTS,volume={bgm_vol_f:.2f}[bgma];[a_raw][bgma]amix=inputs=2:duration=first:dropout_transition=2[a_mix];[a_mix]{af_chain}[a]"
-        else:
-            audio_filter = f";[a_raw]{af_chain}[a]"
+        audio_filter, _ = _mix_audio_inputs(seek_args, "a_raw", 2, bgm_path, bgm_vol_f, bgm_offset_f, sfx_cues, af_chain)
 
         fc = concat_fc + _filter(layout, fg_h, face, facecam_pos=facecam_pos, facecam_delay=facecam_delay,
                      facecam_offset_y=facecam_offset_y, game_offset_x=game_offset_x, zoom=zoom,
@@ -1070,14 +1127,11 @@ def _render_in(work: Path, src: Path, out_dir: Path, name: str, start, end, layo
                 "-c:a", "aac", "-b:a", "160k", "-ar", "48000"]
     else:
         seek_args = ["-ss", f"{start:.3f}", "-i", str(Path(src).resolve()), "-t", f"{dur:.3f}"]
-        if bgm_path:
-            if bgm_offset_f > 0.001:
-                seek_args += ["-ss", f"{bgm_offset_f:.3f}", "-stream_loop", "-1", "-i", str(bgm_path)]
-            else:
-                seek_args += ["-stream_loop", "-1", "-i", str(bgm_path)]
+        audio_filter, has_mix = _mix_audio_inputs(seek_args, "0:a:0", 1, bgm_path, bgm_vol_f, bgm_offset_f, sfx_cues, af_chain)
+        if has_mix:
             fc = _filter(layout, fg_h, face, facecam_pos=facecam_pos, facecam_delay=facecam_delay,
                          facecam_offset_y=facecam_offset_y, game_offset_x=game_offset_x, zoom=zoom,
-                         custom_layout=custom_layout) + f"[v0]ass={name}.ass:fontsdir='{FONTS_DIR}'{vf_extra}[v];[1:a]asetpts=PTS-STARTPTS,volume={bgm_vol_f:.2f}[bgma];[0:a:0][bgma]amix=inputs=2:duration=first:dropout_transition=2[a_mix];[a_mix]{af_chain}[a]"
+                         custom_layout=custom_layout) + f"[v0]ass={name}.ass:fontsdir='{FONTS_DIR}'{vf_extra}[v]{audio_filter}"
             base = ["ffmpeg", "-y", "-v", "error"] + seek_args + [
                     "-filter_complex", fc, "-map", "[v]", "-map", "[a]",
                     "-avoid_negative_ts", "make_zero",

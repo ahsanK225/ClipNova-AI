@@ -4456,6 +4456,8 @@ let _studioLayout = "split";
 let _studioWords = [];
 let _studioDrawerTab = "cut";
 let _studioVfxCues = [];
+let _studioSfxCues = [];
+let _studioFiredCues = new Set();
 let _studioCuts = [];
 let _studioSegments = [];
 let _studioSelSegIdx = 0;
@@ -4586,7 +4588,9 @@ async function drawVideoStudioTab() {
   _studioBgmOffset = project.tracks?.audio?.offset ?? 0.0;
   _studioLayout = project.tracks?.facecam?.layout || "split";
   _studioWords = (project.tracks?.subtitles || []).map(w => ({ ...w }));
-  _studioVfxCues = [];
+  _studioVfxCues = (project.vfx_cues || []).map((v, i) => ({ id: v.id || `vfx_${i + 1}`, type: v.type, time: Number(v.time || 0) }));
+  _studioSfxCues = (project.sfx_cues || []).map((s, i) => ({ id: s.id || `sfx_${i + 1}`, track_id: s.track_id, time: Number(s.time || 0), volume: Number(s.volume ?? 0.95) }));
+  _studioFiredCues = new Set();
   _studioCuts = [];
   _studioSegments = (project.segments && project.segments.length)
     ? project.segments.map((s, idx) => ({
@@ -4864,7 +4868,36 @@ function renderStudioWorkspace() {
                 ` : ""}
               </div>
 
-              <!-- Track 2: Subtitle Words -->
+              <!-- Track 2: Effects & Meme SFX Cues (CapCut Style!) -->
+              <div class="studio-track-row" id="studio_track_vfx" style="height:34px;width:${canvasW}px;background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.28);position:relative;border-radius:8px" title="Placed VFX &amp; Meme SFX cues">
+                <div style="position:absolute;left:8px;top:9px;font-size:10px;font-weight:700;color:#FBBF24;z-index:1;pointer-events:none;opacity:${(_studioVfxCues.length || _studioSfxCues.length) ? '0.35' : '0.9'}">
+                  ⚡ Effects &amp; 💥 Meme SFX (${_studioVfxCues.length + _studioSfxCues.length} placed)
+                </div>
+                ${_studioVfxCues.map((vc, i) => {
+                  const leftPx = Math.max(2, Math.round(Number(vc.time || 0) * pxPerSec));
+                  const vMeta = (_studioProj.available_vfx || []).find(x => x.id === vc.type);
+                  return `
+                    <div onclick="event.stopPropagation();_studioSeekGlobal(${Number(vc.time || 0)}, false)" style="position:absolute;left:${leftPx}px;top:4px;bottom:4px;z-index:5;background:linear-gradient(135deg,#F59E0B,#D97706);color:#020617;border-radius:6px;padding:0 7px;display:inline-flex;align-items:center;gap:5px;font-size:10px;font-weight:800;cursor:pointer;box-shadow:0 2px 8px rgba(245,158,11,0.35);white-space:nowrap" title="${esc(vMeta?.name || vc.type)} @ ${Number(vc.time || 0).toFixed(1)}s">
+                      <span>${esc(vMeta?.name || vc.type)}</span>
+                      <span style="opacity:0.75;font-family:monospace">${Number(vc.time || 0).toFixed(1)}s</span>
+                      <button type="button" onclick="event.stopPropagation();studioRemoveVfxCue(${i})" style="background:none;border:none;color:#020617;font-weight:900;cursor:pointer;padding:0 2px;font-size:11px" title="Remove effect">×</button>
+                    </div>
+                  `;
+                }).join("")}
+                ${_studioSfxCues.map((sc, i) => {
+                  const leftPx = Math.max(2, Math.round(Number(sc.time || 0) * pxPerSec));
+                  const sMeta = (_studioProj.available_sounds || []).find(x => x.id === sc.track_id);
+                  return `
+                    <div onclick="event.stopPropagation();_studioSeekGlobal(${Number(sc.time || 0)}, false)" style="position:absolute;left:${leftPx}px;top:4px;bottom:4px;z-index:6;background:linear-gradient(135deg,#EC4899,#8B5CF6);color:#FFFFFF;border-radius:6px;padding:0 7px;display:inline-flex;align-items:center;gap:5px;font-size:10px;font-weight:800;cursor:pointer;box-shadow:0 2px 8px rgba(236,72,153,0.35);white-space:nowrap" title="${esc(sMeta?.title || sc.track_id)} @ ${Number(sc.time || 0).toFixed(1)}s">
+                      <span>${esc(sMeta?.emoji || "🔊")} ${esc(sMeta?.title || sc.track_id)}</span>
+                      <span style="opacity:0.8;font-family:monospace">${Number(sc.time || 0).toFixed(1)}s</span>
+                      <button type="button" onclick="event.stopPropagation();studioRemoveSfxCue(${i})" style="background:none;border:none;color:#FFFFFF;font-weight:900;cursor:pointer;padding:0 2px;font-size:11px" title="Remove SFX">×</button>
+                    </div>
+                  `;
+                }).join("")}
+              </div>
+
+              <!-- Track 3: Subtitle Words -->
               <div class="studio-track-row" id="studio_track_subtitles" style="width:${canvasW}px" title="Subtitles Track">
                 <div style="position:absolute;left:8px;top:10px;font-size:10px;font-weight:700;color:#818CF8;z-index:2;pointer-events:none">
                   💬 Subtitles (Auto-synced to cuts)
@@ -4921,6 +4954,23 @@ function renderStudioWorkspace() {
       if (overlay) {
         const activeW = _studioWords.find(w => localCur >= w.start && localCur <= w.end);
         overlay.innerText = activeW ? activeW.text : "";
+      }
+
+      if (!vid.paused) {
+        for (const vc of _studioVfxCues) {
+          const key = `v:${vc.id || vc.type}:${vc.time}`;
+          if (!_studioFiredCues.has(key) && globalCur >= vc.time - 0.05 && globalCur <= vc.time + 0.35) {
+            _studioFiredCues.add(key);
+            studioTriggerVfx(vc.type);
+          }
+        }
+        for (const sc of _studioSfxCues) {
+          const key = `s:${sc.id || sc.track_id}:${sc.time}`;
+          if (!_studioFiredCues.has(key) && globalCur >= sc.time - 0.05 && globalCur <= sc.time + 0.35) {
+            _studioFiredCues.add(key);
+            studioPlaySfx(sc.track_id, sc.volume ?? 0.95);
+          }
+        }
       }
     };
 
@@ -5009,68 +5059,105 @@ function renderStudioDrawerContent() {
   if (_studioDrawerTab === "vfx") {
     const vfxPresets = _studioProj.available_vfx || [];
     return `
-      <div>
-        <h4 style="margin:0 0 8px;font-size:14px;color:#F8FAFC">Viral VFX Overlays</h4>
-        <p style="margin:0 0 12px;font-size:12px;color:#94A3B8">
-          High-impact visual effects for punchlines, climax drops, and reaction shocks.
-        </p>
-        <div style="display:grid;grid-template-columns:1fr;gap:10px">
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+          <div>
+            <h4 style="margin:0;font-size:14px;color:#F8FAFC">⚡ CapCut-Style Effects &amp; VFX</h4>
+            <p style="margin:2px 0 0;font-size:11.5px;color:#94A3B8">Playhead par effects drop karein — live preview aur final MP4 export dono mein render honge.</p>
+          </div>
+          <span class="pill" style="font-size:11px;padding:3px 10px;border-radius:999px;background:rgba(245,158,11,0.16);color:#FBBF24;border:1px solid rgba(245,158,11,0.35);font-weight:800">
+            ⚡ ${_studioVfxCues.length} placed
+          </span>
+        </div>
+        <div id="studio_vfx_grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(225px,1fr));gap:8px;max-height:245px;overflow-y:auto;padding-right:2px">
           ${vfxPresets.map(v => `
-            <div style="background:#1E293B;border:1px solid #334155;border-radius:10px;padding:10px 14px;display:flex;align-items:center;justify-content:space-between">
-              <div>
-                <b style="font-size:13px;color:#F8FAFC">${esc(v.name)}</b>
-                <div style="font-size:11px;color:#94A3B8;margin-top:2px">${esc(v.desc)}</div>
+            <div style="background:#131B2E;border:1px solid #1E293B;border-radius:10px;padding:10px 11px;display:flex;flex-direction:column;gap:7px">
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:6px">
+                <b style="font-size:12.5px;color:#F8FAFC">${esc(v.name)}</b>
+                ${v.cat ? `<span style="font-size:9.5px;font-weight:800;padding:1px 6px;border-radius:999px;background:rgba(99,102,241,0.2);color:#A5B4FC">${esc(v.cat)}</span>` : ""}
               </div>
-              <div style="display:flex;gap:6px">
-                <button type="button" class="btn sm" onclick="studioTriggerVfx('${v.id}')" style="background:#0F172A;border:1px solid #334155;font-size:11px">
-                  ⚡ Test Now
+              <div style="font-size:10.5px;color:#94A3B8;line-height:1.35">${esc(v.desc)}</div>
+              <div style="display:flex;gap:6px;margin-top:auto">
+                <button type="button" class="btn sm" onclick="studioTriggerVfx('${v.id}')" style="background:#0F172A;border:1px solid #334155;font-size:10.5px;flex:1">
+                  ▶ Test
                 </button>
-                <button type="button" class="btn sm primary" onclick="studioAddVfxMarker('${v.id}')" style="font-size:11px;background:#F59E0B;border:none;color:#020617;font-weight:700">
-                  ➕ Add at Playhead
+                <button type="button" class="btn sm primary" onclick="studioAddVfxMarker('${v.id}')" style="font-size:10.5px;background:linear-gradient(135deg,#F59E0B,#D97706);border:none;color:#020617;font-weight:800;flex:1.2">
+                  ➕ Add @ ${_studioPlayhead.toFixed(1)}s
                 </button>
               </div>
             </div>
           `).join("")}
         </div>
+        ${_studioVfxCues.length ? `
+          <div style="background:#0F172A;border:1px solid #1E293B;border-radius:10px;padding:8px 10px;display:flex;flex-wrap:wrap;gap:6px;align-items:center">
+            <span style="font-size:10.5px;font-weight:800;color:#FBBF24">Placed:</span>
+            ${_studioVfxCues.map((vc, i) => `
+              <span style="display:inline-flex;align-items:center;gap:5px;font-size:10.5px;padding:2px 8px;border-radius:999px;background:rgba(245,158,11,0.14);border:1px solid rgba(245,158,11,0.35);color:#FDE68A">
+                <span style="cursor:pointer" onclick="_studioSeekGlobal(${Number(vc.time || 0)}, false)">${esc(vc.type)} @ ${Number(vc.time || 0).toFixed(1)}s</span>
+                <button type="button" onclick="studioRemoveVfxCue(${i})" style="background:none;border:none;color:#FCA5A5;cursor:pointer;padding:0;font-weight:900">×</button>
+              </span>
+            `).join("")}
+          </div>
+        ` : ""}
       </div>
     `;
   }
 
   if (_studioDrawerTab === "audio") {
     const sounds = _studioProj.available_sounds || [];
+    const sfxList = sounds.filter(s => s.category === "meme" || s.category === "custom");
+    const bgmList = sounds.filter(s => s.category !== "meme");
     return `
-      <div>
-        <h4 style="margin:0 0 8px;font-size:14px;color:#F8FAFC">Background Music &amp; Audio Mix</h4>
-        <p style="margin:0 0 12px;font-size:12px;color:#94A3B8">
-          Select viral phonk, meme sound, or background lo-fi. Adjust volume and start offset drop.
-        </p>
-        <label class="f" style="margin-bottom:12px">
-          <span>Track Selection</span>
-          <select id="studio_bgm_track_select" onchange="studioChangeBgmTrack(this.value)">
-            ${sounds.map(s => `
-              <option value="${esc(s.id)}" ${_studioBgmTrack === s.id ? 'selected' : ''}>${esc(s.name)} [${esc(s.category)}]</option>
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px">
+          <div>
+            <h4 style="margin:0;font-size:14px;color:#F8FAFC">💥 Meme Soundboard &amp; 🎵 BGM</h4>
+            <p style="margin:2px 0 0;font-size:11.5px;color:#94A3B8">Playhead par viral meme sounds (Vine Boom, Bruh, Metal Pipe, Airhorn) drop karein ya BGM lagayein.</p>
+          </div>
+          <span class="pill" style="font-size:11px;padding:3px 10px;border-radius:999px;background:rgba(236,72,153,0.16);color:#F472B6;border:1px solid rgba(236,72,153,0.35);font-weight:800">
+            🔊 ${_studioSfxCues.length} SFX placed
+          </span>
+        </div>
+
+        <div id="studio_meme_sfx_grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(215px,1fr));gap:8px;max-height:175px;overflow-y:auto;padding-right:2px">
+          ${sfxList.map(s => `
+            <div style="background:#131B2E;border:1px solid #1E293B;border-radius:10px;padding:8px 10px;display:flex;flex-direction:column;gap:6px">
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:6px">
+                <b style="font-size:12px;color:#F8FAFC;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(s.emoji || "🔊")} ${esc(s.title || s.name || s.id)}</b>
+                ${s.duration ? `<span style="font-size:9.5px;font-family:monospace;color:#94A3B8">${Number(s.duration).toFixed(1)}s</span>` : ""}
+              </div>
+              <div style="display:flex;gap:6px">
+                <button type="button" class="btn sm" onclick="studioPlaySfx('${esc(s.id)}', 0.95)" style="background:#0F172A;border:1px solid #334155;font-size:10.5px;flex:0.8">
+                  🔊 Play
+                </button>
+                <button type="button" class="btn sm primary" onclick="studioAddSfxCue('${esc(s.id)}')" style="font-size:10.5px;background:linear-gradient(135deg,#EC4899,#8B5CF6);border:none;color:#FFF;font-weight:800;flex:1.4">
+                  ➕ Drop @ ${_studioPlayhead.toFixed(1)}s
+                </button>
+              </div>
+            </div>
+          `).join("")}
+        </div>
+
+        <div style="background:#0F172A;border:1px solid #1E293B;border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:10px">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
+            <b style="font-size:12px;color:#22D3EE">🎵 Background Music (BGM)</b>
+            ${_studioBgmTrack && _studioBgmTrack !== "none" ? `<button type="button" class="btn sm ghost" onclick="studioPlaySfx('${esc(_studioBgmTrack)}', _studioBgmVolume)" style="font-size:10.5px;padding:2px 8px">🔊 Preview BGM</button>` : ""}
+          </div>
+          <select id="studio_bgm_track_select" onchange="studioChangeBgmTrack(this.value)" style="font-size:12px;padding:6px 8px;border-radius:8px">
+            ${bgmList.map(s => `
+              <option value="${esc(s.id)}" ${_studioBgmTrack === s.id ? 'selected' : ''}>${esc(s.emoji || "")} ${esc(s.title || s.name || s.id)} [${esc(s.category)}]</option>
             `).join("")}
           </select>
-        </label>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">
-          <div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
             <label class="f" style="margin:0">
-              <span>Volume: <b id="studio_vol_val">${Math.round(_studioBgmVolume * 100)}%</b></span>
+              <span>BGM Volume: <b id="studio_vol_val">${Math.round(_studioBgmVolume * 100)}%</b></span>
               <input type="range" min="0" max="1" step="0.05" value="${_studioBgmVolume}" oninput="studioChangeBgmVolume(this.value)">
             </label>
-          </div>
-          <div>
             <label class="f" style="margin:0">
-              <span>Start Drop Offset: <b id="studio_offset_val">${_studioBgmOffset}s</b></span>
+              <span>Drop Offset: <b id="studio_offset_val">${_studioBgmOffset}s</b></span>
               <input type="range" min="0" max="60" step="0.5" value="${_studioBgmOffset}" oninput="studioChangeBgmOffset(this.value)">
             </label>
           </div>
-        </div>
-        <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
-          <span style="font-size:11px;color:#94A3B8">Quick Drop Jumps:</span>
-          ${[0, 10, 15, 30].map(s => `
-            <button class="chip sm" onclick="studioChangeBgmOffset(${s})">${s === 15 ? '⚡ 0:15 Drop' : s + 's'}</button>
-          `).join("")}
         </div>
       </div>
     `;
@@ -5231,17 +5318,60 @@ function studioTriggerVfx(vfxId) {
       pBox.classList.add("studio-anim-zoom");
       setTimeout(() => pBox.classList.remove("studio-anim-zoom"), 400);
     }
+  } else if (vfxId === "wasted_bw" && vid) {
+    vid.style.filter = "grayscale(1) contrast(1.3)";
+    setTimeout(() => applyStudioFilterCss(_studioActiveFilter), 1200);
+  } else if (vfxId === "rage_red" && vid) {
+    vid.style.filter = "sepia(1) hue-rotate(-50deg) saturate(3.2) contrast(1.2)";
+    setTimeout(() => applyStudioFilterCss(_studioActiveFilter), 800);
+  } else if (vfxId === "slow_zoom" && vid) {
+    vid.style.transition = "transform 1.0s ease-out";
+    vid.style.transform = "scale(1.18)";
+    setTimeout(() => { vid.style.transform = ""; }, 1050);
+  } else if (vfxId === "strobe" && flash) {
+    let n = 0;
+    const iv = setInterval(() => {
+      flash.style.opacity = (n % 2 === 0) ? "0.7" : "0";
+      if (++n >= 6) { clearInterval(iv); flash.style.opacity = "0"; }
+    }, 65);
   }
 }
 
 function studioAddVfxMarker(vfxId) {
-  const vid = $("#studio_video_el");
-  const t = vid ? vid.currentTime : 0;
-  _studioVfxCues.push({ time: t, type: vfxId });
+  const t = round2(_studioPlayhead || 0);
+  _studioVfxCues.push({ id: `vfx_${Date.now()}`, type: vfxId, time: t });
   studioTriggerVfx(vfxId);
   renderStudioWorkspace();
-  toast(`Added VFX marker at ${t.toFixed(1)}s`, "ok", 2500);
+  toast(`⚡ Added ${vfxId} effect at ${t.toFixed(1)}s`, "ok", 2500);
 }
+
+window.studioRemoveVfxCue = function(idx) {
+  _studioVfxCues.splice(idx, 1);
+  renderStudioWorkspace();
+};
+
+window.studioPlaySfx = function(trackId, vol = 0.95) {
+  if (!trackId || trackId === "none") return;
+  try {
+    if (_studioAudioAudition) { _studioAudioAudition.pause(); }
+    _studioAudioAudition = new Audio(`/api/audio/track/${encodeURIComponent(trackId)}`);
+    _studioAudioAudition.volume = Math.max(0.1, Math.min(1.0, Number(vol) || 0.95));
+    _studioAudioAudition.play().catch(() => {});
+  } catch {}
+};
+
+window.studioAddSfxCue = function(trackId) {
+  const t = round2(_studioPlayhead || 0);
+  _studioSfxCues.push({ id: `sfx_${Date.now()}`, track_id: trackId, time: t, volume: 0.95 });
+  studioPlaySfx(trackId, 0.95);
+  renderStudioWorkspace();
+  toast(`💥 Dropped ${trackId} at ${t.toFixed(1)}s`, "ok", 2500);
+};
+
+window.studioRemoveSfxCue = function(idx) {
+  _studioSfxCues.splice(idx, 1);
+  renderStudioWorkspace();
+};
 
 function _studioSeekGlobal(globalSec, autoPlay) {
   const vid = $("#studio_video_el");
@@ -5249,6 +5379,7 @@ function _studioSeekGlobal(globalSec, autoPlay) {
   const { items: tMap, totalDur } = _studioTimelineMap();
   const g = Math.max(0, Math.min(totalDur, Number(globalSec) || 0));
   _studioPlayhead = g;
+  _studioFiredCues = new Set();
   const item = tMap.find(m => g >= m.outStart && g <= m.outEnd + 0.01) || tMap[tMap.length - 1];
   if (!item) return;
   _studioPlayingSegIdx = item.idx;
@@ -5557,6 +5688,8 @@ async function saveStudioExport(scheduleNow) {
     layout: _studioLayout,
     words: _studioWords.map(w => ({ w: w.text, s: w.start, e: w.end })),
     segments: _studioSegments.map(s => ({ id: s.id, job_id: s.job_id, clip_id: s.clip_id, title: s.title, start: Number(s.start), end: Number(s.end) })),
+    vfx_cues: _studioVfxCues,
+    sfx_cues: _studioSfxCues,
     schedule_now: scheduleNow
   };
 
