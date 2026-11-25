@@ -103,7 +103,7 @@ def get_creator_calendar(cid: str):
                 p["clip_status"] = clip.get("status") or "done"
 
     primary_acc = c["accounts"][0] if c.get("accounts") else None
-    upcoming_slots = calendar.assign_slots_to_videos(primary_acc, scheduled_posts + all_mine, count=9, creator_id=cid)
+    upcoming_slots = calendar.assign_slots_to_videos(primary_acc, scheduled_posts + all_mine, count=21, creator_id=cid)
     analytics_profile = analytics.get_analytics_profile(cid)
 
     return {
