@@ -972,221 +972,492 @@ dialog[open]{animation:fadein .16s ease}
 .cls-safezone-band { position: absolute; pointer-events: none; z-index: 12; border: 1px dashed rgba(239,68,68,0.75); background: rgba(239,68,68,0.12); font-size: 8px; font-weight: 800; color: #FCA5A5; display: flex; align-items: center; justify-content: center; letter-spacing: 0.3px; }
 
 /* ==========================================================================
-   MODERN USA CONTENT CALENDAR & TIMELINE THEME (Cyber-Glass / Smooth Animations)
+   MODERN USA CONTENT CALENDAR & TIMELINE THEME (Pro SaaS Glass + Smooth Motion)
    ========================================================================== */
+:root {
+  --cal-surface: radial-gradient(125% 120% at 0% 0%, rgba(30, 41, 59, 0.56) 0%, rgba(13, 19, 34, 0.94) 55%, rgba(8, 12, 24, 0.99) 100%);
+  --cal-card-bg: rgba(17, 24, 39, 0.72);
+  --cal-card-hover: rgba(24, 34, 54, 0.92);
+  --cal-card-filled: linear-gradient(145deg, rgba(16, 26, 46, 0.92), rgba(22, 34, 62, 0.95));
+  --cal-panel-bg: linear-gradient(145deg, rgba(15, 23, 42, 0.88), rgba(24, 34, 54, 0.72));
+  --cal-chart-bg: rgba(7, 11, 20, 0.72);
+  --cal-border: rgba(255, 255, 255, 0.085);
+  --cal-border-strong: rgba(255, 255, 255, 0.16);
+  --cal-heading: #F8FAFC;
+  --cal-text: #CBD5E1;
+  --cal-muted: #94A3B8;
+  --cal-dim: #64748B;
+  --cal-tab-shell: rgba(6, 10, 20, 0.55);
+  --cal-bar-idle: rgba(56, 189, 248, 0.32);
+  --cal-tooltip-bg: #0B1221;
+  --cal-shadow: 0 22px 54px -14px rgba(0, 0, 0, 0.68), inset 0 1px 0 rgba(255, 255, 255, 0.09);
+}
+@media (prefers-color-scheme: light) {
+  :root {
+    --cal-surface: linear-gradient(160deg, #FFFFFF 0%, #F8FAFC 55%, #EFF6FF 100%);
+    --cal-card-bg: rgba(255, 255, 255, 0.9);
+    --cal-card-hover: #FFFFFF;
+    --cal-card-filled: linear-gradient(145deg, #FFFFFF, #F0F9FF);
+    --cal-panel-bg: linear-gradient(145deg, #F8FAFC, #F1F5F9);
+    --cal-chart-bg: #FFFFFF;
+    --cal-border: rgba(15, 23, 42, 0.1);
+    --cal-border-strong: rgba(15, 23, 42, 0.18);
+    --cal-heading: #0F172A;
+    --cal-text: #334155;
+    --cal-muted: #475569;
+    --cal-dim: #64748B;
+    --cal-tab-shell: rgba(226, 232, 240, 0.72);
+    --cal-bar-idle: rgba(14, 165, 233, 0.28);
+    --cal-tooltip-bg: #0F172A;
+    --cal-shadow: 0 18px 40px -14px rgba(15, 23, 42, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  }
+}
+:root:has(> head > meta[name="color-scheme"][content="light"]) {
+  --cal-surface: linear-gradient(160deg, #FFFFFF 0%, #F8FAFC 55%, #EFF6FF 100%);
+  --cal-card-bg: rgba(255, 255, 255, 0.9);
+  --cal-card-hover: #FFFFFF;
+  --cal-card-filled: linear-gradient(145deg, #FFFFFF, #F0F9FF);
+  --cal-panel-bg: linear-gradient(145deg, #F8FAFC, #F1F5F9);
+  --cal-chart-bg: #FFFFFF;
+  --cal-border: rgba(15, 23, 42, 0.1);
+  --cal-border-strong: rgba(15, 23, 42, 0.18);
+  --cal-heading: #0F172A;
+  --cal-text: #334155;
+  --cal-muted: #475569;
+  --cal-dim: #64748B;
+  --cal-tab-shell: rgba(226, 232, 240, 0.72);
+  --cal-bar-idle: rgba(14, 165, 233, 0.28);
+  --cal-tooltip-bg: #0F172A;
+  --cal-shadow: 0 18px 40px -14px rgba(15, 23, 42, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+:root:has(> head > meta[name="color-scheme"][content="dark"]) {
+  --cal-surface: radial-gradient(125% 120% at 0% 0%, rgba(30, 41, 59, 0.56) 0%, rgba(13, 19, 34, 0.94) 55%, rgba(8, 12, 24, 0.99) 100%);
+  --cal-card-bg: rgba(17, 24, 39, 0.72);
+  --cal-card-hover: rgba(24, 34, 54, 0.92);
+  --cal-card-filled: linear-gradient(145deg, rgba(16, 26, 46, 0.92), rgba(22, 34, 62, 0.95));
+  --cal-panel-bg: linear-gradient(145deg, rgba(15, 23, 42, 0.88), rgba(24, 34, 54, 0.72));
+  --cal-chart-bg: rgba(7, 11, 20, 0.72);
+  --cal-border: rgba(255, 255, 255, 0.085);
+  --cal-border-strong: rgba(255, 255, 255, 0.16);
+  --cal-heading: #F8FAFC;
+  --cal-text: #CBD5E1;
+  --cal-muted: #94A3B8;
+  --cal-dim: #64748B;
+  --cal-tab-shell: rgba(6, 10, 20, 0.55);
+  --cal-bar-idle: rgba(56, 189, 248, 0.32);
+  --cal-tooltip-bg: #0B1221;
+  --cal-shadow: 0 22px 54px -14px rgba(0, 0, 0, 0.68), inset 0 1px 0 rgba(255, 255, 255, 0.09);
+}
 .cal-root-card {
   position: relative;
-  background: radial-gradient(120% 120% at 0% 0%, rgba(30, 41, 59, 0.45) 0%, rgba(15, 23, 42, 0.9) 55%, rgba(10, 15, 30, 0.98) 100%);
-  border: 1px solid rgba(255, 255, 255, 0.09);
-  border-radius: 16px;
+  background: var(--cal-surface);
+  border: 1px solid var(--cal-border);
+  border-radius: 20px;
   padding: 22px 24px;
-  box-shadow: 0 20px 48px -12px rgba(0, 0, 0, 0.65), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  box-shadow: var(--cal-shadow);
   overflow: hidden;
-  backdrop-filter: blur(20px);
+  backdrop-filter: blur(22px);
   margin-bottom: 20px;
 }
 .cal-root-card::before {
   content: "";
   position: absolute;
   top: 0; left: 0; right: 0; height: 2px;
-  background: linear-gradient(90deg, transparent, rgba(0, 240, 255, 0.6), rgba(168, 85, 247, 0.6), transparent);
+  background: linear-gradient(90deg, transparent 0%, rgba(0, 240, 255, 0.75) 28%, rgba(168, 85, 247, 0.75) 58%, rgba(16, 185, 129, 0.7) 82%, transparent 100%);
+}
+.cal-ambient-orb {
+  position: absolute;
+  top: -90px;
+  right: -60px;
+  width: 280px;
+  height: 280px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(0, 240, 255, 0.12) 0%, rgba(99, 102, 241, 0.06) 45%, transparent 72%);
+  pointer-events: none;
 }
 @keyframes calPulse {
-  0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
-  70% { transform: scale(1.08); box-shadow: 0 0 0 7px rgba(16, 185, 129, 0); }
-  100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+  0%, 100% { transform: scale(0.92); opacity: 0.85; }
+  50% { transform: scale(1.16); opacity: 1; }
+}
+@keyframes calFadeInUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes calBarRise {
+  from { opacity: 0.25; transform: scaleY(0.14); }
+  to { opacity: 1; transform: scaleY(1); }
+}
+@keyframes calSvgDraw {
+  from { stroke-dashoffset: 1200; opacity: 0.2; }
+  to { stroke-dashoffset: 0; opacity: 1; }
+}
+@keyframes calFlowArrow {
+  0%, 100% { opacity: 0.38; transform: translateX(0); }
+  50% { opacity: 1; transform: translateX(3px); color: var(--accent); }
 }
 .cal-radar-pill {
   display: inline-flex;
   align-items: center;
   gap: 6px;
   background: rgba(16, 185, 129, 0.12);
-  border: 1px solid rgba(16, 185, 129, 0.35);
-  border-radius: 20px;
-  padding: 3px 10px;
+  border: 1px solid rgba(16, 185, 129, 0.34);
+  border-radius: 999px;
+  padding: 4px 11px;
   font-size: 10px;
   font-weight: 800;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.55px;
   text-transform: uppercase;
-  color: #34D399;
+  color: #10B981;
 }
 .cal-live-dot {
   width: 7px; height: 7px; border-radius: 50%;
   background: #10B981; display: inline-block;
-  animation: calPulse 2s infinite ease-in-out;
+  box-shadow: 0 0 8px rgba(16, 185, 129, 0.75);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .cal-root-card:not(.cal-paused) .cal-live-dot {
+    animation: calPulse 2.4s infinite ease-in-out;
+  }
+  .cal-root-card:not(.cal-paused) .cal-flow-arrow {
+    animation: calFlowArrow 2.2s infinite ease-in-out;
+  }
+  .cal-anim-fadein {
+    animation: calFadeInUp 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+  .cal-stagger-card {
+    animation: calFadeInUp 0.34s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+    animation-delay: calc(var(--stagger, 0) * 45ms);
+  }
+  .cal-velocity-bar {
+    animation: calBarRise 0.5s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+    animation-delay: calc(var(--h-idx, 0) * 16ms);
+  }
+  .cal-velocity-line {
+    stroke-dasharray: 1200;
+    animation: calSvgDraw 0.9s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+}
+.cal-tablist {
+  display: inline-flex;
+  align-items: center;
+  background: var(--cal-tab-shell);
+  padding: 4px;
+  border-radius: 14px;
+  border: 1px solid var(--cal-border);
+  gap: 4px;
+  overflow-x: auto;
+  max-width: 100%;
 }
 .cal-tab-btn {
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  color: #94A3B8;
-  padding: 6px 14px;
-  border-radius: 20px;
-  font-size: 11px;
+  position: relative;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--cal-muted);
+  padding: 7px 14px;
+  border-radius: 10px;
+  font-size: 11.5px;
   font-weight: 700;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  white-space: nowrap;
+  flex: none;
+  transition: color 0.18s ease, background-color 0.18s ease, border-color 0.18s ease, transform 0.18s cubic-bezier(0.16, 1, 0.3, 1);
 }
 .cal-tab-btn:hover {
-  background: rgba(255, 255, 255, 0.08);
-  color: #F8FAFC;
-  border-color: rgba(255, 255, 255, 0.18);
-  transform: translateY(-1px);
+  background: rgba(99, 102, 241, 0.1);
+  color: var(--cal-heading);
 }
+.cal-tab-btn[aria-selected="true"],
 .cal-tab-btn.active {
-  background: linear-gradient(135deg, rgba(0, 240, 255, 0.2), rgba(99, 102, 241, 0.28));
-  border-color: rgba(0, 240, 255, 0.55);
-  color: #00F0FF;
-  box-shadow: 0 4px 14px rgba(0, 240, 255, 0.18);
+  background: linear-gradient(135deg, rgba(0, 240, 255, 0.16), rgba(99, 102, 241, 0.24));
+  border-color: rgba(0, 240, 255, 0.42);
+  color: var(--cal-heading);
+  box-shadow: 0 4px 14px rgba(0, 240, 255, 0.14);
 }
-.cal-quota-segment {
+.cal-tab-btn[aria-selected="true"]::after,
+.cal-tab-btn.active::after {
+  content: "";
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 1px;
+  border-block-end: 2px solid var(--accent);
+  border-radius: 2px;
+}
+.cal-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.cal-kpi-card {
+  background: var(--cal-card-bg);
+  border: 1px solid var(--cal-border);
+  border-radius: 13px;
+  padding: 11px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.2s ease, box-shadow 0.2s ease;
+}
+.cal-kpi-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(0, 240, 255, 0.32);
+  box-shadow: 0 10px 24px -10px rgba(0, 0, 0, 0.35);
+}
+.cal-kpi-label {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: var(--cal-dim);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+.cal-kpi-value {
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--cal-heading);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+}
+.cal-kpi-sub {
+  font-size: 11px;
+  color: var(--cal-muted);
   display: flex;
   align-items: center;
   gap: 6px;
-  background: rgba(15, 23, 42, 0.65);
-  border: 1px solid rgba(255, 255, 255, 0.07);
-  padding: 4px 10px;
-  border-radius: 10px;
-  font-size: 11px;
-  color: #94A3B8;
-  transition: all 0.2s ease;
 }
-.cal-quota-segment.filled {
-  border-color: rgba(16, 185, 129, 0.45);
-  background: rgba(16, 185, 129, 0.12);
-  color: #34D399;
+.cal-quota-bar {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+  margin-top: 4px;
+}
+.cal-quota-pip {
+  height: 5px;
+  border-radius: 999px;
+  background: var(--cal-border-strong);
+  overflow: hidden;
+  transition: background 0.25s ease, box-shadow 0.25s ease;
+}
+.cal-quota-pip.filled {
+  background: linear-gradient(90deg, #00F0FF, #10B981);
+  box-shadow: 0 0 8px rgba(16, 185, 129, 0.5);
 }
 .cal-day-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
   margin-bottom: 12px;
-  padding-bottom: 6px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--cal-border);
 }
 .cal-day-badge {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 4px 12px;
-  border-radius: 8px;
+  gap: 7px;
+  padding: 5px 12px;
+  border-radius: 9px;
   font-size: 11px;
   font-weight: 800;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.45px;
   text-transform: uppercase;
 }
 .cal-day-badge.today {
-  background: linear-gradient(135deg, rgba(0, 240, 255, 0.18), rgba(99, 102, 241, 0.2));
-  border: 1px solid rgba(0, 240, 255, 0.4);
-  color: #00F0FF;
+  background: linear-gradient(135deg, rgba(0, 240, 255, 0.16), rgba(99, 102, 241, 0.22));
+  border: 1px solid rgba(0, 240, 255, 0.42);
+  color: var(--accent);
   box-shadow: 0 0 16px rgba(0, 240, 255, 0.12);
 }
 .cal-day-badge.future {
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  color: #CBD5E1;
+  background: var(--cal-card-bg);
+  border: 1px solid var(--cal-border);
+  color: var(--cal-text);
+}
+.cal-timeline-rail {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding-left: 20px;
+}
+.cal-timeline-rail::before {
+  content: "";
+  position: absolute;
+  left: 6px;
+  top: 14px;
+  bottom: 14px;
+  width: 2px;
+  background: linear-gradient(180deg, rgba(0, 240, 255, 0.65), rgba(99, 102, 241, 0.45), rgba(148, 163, 184, 0.15));
+  border-radius: 2px;
+}
+.cal-timeline-day {
+  position: relative;
+}
+.cal-timeline-node {
+  position: absolute;
+  left: -20px;
+  top: 7px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--bg);
+  border: 2.5px solid var(--cal-border-strong);
+  z-index: 2;
+}
+.cal-timeline-node.today {
+  border-color: #00F0FF;
+  background: #00F0FF;
+  box-shadow: 0 0 12px rgba(0, 240, 255, 0.65);
 }
 .cal-slot-card {
   position: relative;
-  background: rgba(17, 24, 39, 0.65);
-  border: 1px solid rgba(255, 255, 255, 0.07);
-  border-radius: 14px;
-  padding: 14px 16px;
+  background: var(--cal-card-bg);
+  border: 1px solid var(--cal-border);
+  border-radius: 15px;
+  padding: 15px 16px;
   display: flex;
   flex-direction: column;
   gap: 10px;
-  transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.22s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.22s cubic-bezier(0.16, 1, 0.3, 1), background 0.22s ease;
-  backdrop-filter: blur(8px);
+  backdrop-filter: blur(10px);
+  overflow: hidden;
+  transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.22s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.22s ease, background 0.22s ease;
 }
+.cal-slot-card::before {
+  content: "";
+  position: absolute;
+  left: 0; top: 10px; bottom: 10px;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--slot-accent, var(--accent));
+  opacity: 0.78;
+}
+.cal-slot-card.slot-1 { --slot-accent: #00F0FF; }
+.cal-slot-card.slot-2 { --slot-accent: #A855F7; }
+.cal-slot-card.slot-3 { --slot-accent: #F59E0B; }
 .cal-slot-card:hover {
   transform: translateY(-3px);
-  border-color: rgba(0, 240, 255, 0.45);
-  box-shadow: 0 16px 36px -8px rgba(0, 0, 0, 0.6), 0 0 20px rgba(0, 240, 255, 0.12);
-  background: rgba(22, 31, 48, 0.85);
+  border-color: rgba(0, 240, 255, 0.42);
+  box-shadow: 0 16px 36px -10px rgba(0, 0, 0, 0.45), 0 0 18px rgba(0, 240, 255, 0.1);
+  background: var(--cal-card-hover);
 }
 .cal-slot-card.has-video {
-  border-color: rgba(0, 240, 255, 0.28);
-  background: linear-gradient(135deg, rgba(15, 23, 42, 0.85), rgba(20, 30, 52, 0.92));
+  border-color: rgba(16, 185, 129, 0.34);
+  background: var(--cal-card-filled);
 }
 .cal-slot-badge {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  padding: 3px 8px;
-  border-radius: 6px;
+  padding: 3px 9px;
+  border-radius: 7px;
   font-size: 10px;
   font-weight: 800;
   letter-spacing: 0.5px;
   text-transform: uppercase;
 }
-.cal-slot-badge.slot1 { background: rgba(0, 240, 255, 0.12); color: #00F0FF; border: 1px solid rgba(0, 240, 255, 0.3); }
-.cal-slot-badge.slot2 { background: rgba(168, 85, 247, 0.12); color: #C084FC; border: 1px solid rgba(168, 85, 247, 0.3); }
-.cal-slot-badge.slot3 { background: rgba(245, 158, 11, 0.12); color: #FBBF24; border: 1px solid rgba(245, 158, 11, 0.3); }
-
+.cal-slot-badge.slot1 { background: rgba(0, 240, 255, 0.12); color: #06B6D4; border: 1px solid rgba(0, 240, 255, 0.32); }
+.cal-slot-badge.slot2 { background: rgba(168, 85, 247, 0.12); color: #A855F7; border: 1px solid rgba(168, 85, 247, 0.32); }
+.cal-slot-badge.slot3 { background: rgba(245, 158, 11, 0.12); color: #F59E0B; border: 1px solid rgba(245, 158, 11, 0.32); }
+.cal-hero-clock {
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: -0.4px;
+  color: var(--cal-heading);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+.cal-tz-chip-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.cal-tz-chip {
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: rgba(99, 102, 241, 0.1);
+  border: 1px solid rgba(99, 102, 241, 0.24);
+  color: var(--cal-text);
+  font-variant-numeric: tabular-nums;
+}
 .cal-community-node {
   background: linear-gradient(135deg, rgba(168, 85, 247, 0.08), rgba(99, 102, 241, 0.12));
-  border: 1px solid rgba(168, 85, 247, 0.28);
-  border-radius: 8px;
-  padding: 6px 10px;
+  border: 1px dashed rgba(168, 85, 247, 0.34);
+  border-radius: 9px;
+  padding: 7px 10px;
   display: flex;
   align-items: center;
   gap: 8px;
   font-size: 11px;
-  color: #E9D5FF;
+  color: var(--cal-text);
 }
 .cal-flow-banner {
-  background: linear-gradient(135deg, rgba(15, 23, 42, 0.6) 0%, rgba(30, 41, 59, 0.4) 100%);
-  border: 1px solid rgba(255, 255, 255, 0.07);
+  background: var(--cal-panel-bg);
+  border: 1px solid var(--cal-border);
   border-radius: 12px;
-  padding: 14px 18px;
+  padding: 10px 14px;
   margin-bottom: 16px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   flex-wrap: wrap;
-  gap: 12px;
+  gap: 10px;
 }
 .cal-flow-step {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 7px;
   font-size: 11px;
-  font-weight: 600;
-  color: #CBD5E1;
+  font-weight: 700;
+  color: var(--cal-text);
+  background: var(--cal-card-bg);
+  border: 1px solid var(--cal-border);
+  padding: 4px 9px;
+  border-radius: 999px;
 }
 .cal-flow-arrow {
-  color: #64748B;
-  font-size: 14px;
-  animation: calFlowArrow 2s infinite ease-in-out;
-}
-@keyframes calFlowArrow {
-  0%, 100% { opacity: 0.3; transform: translateX(0); }
-  50% { opacity: 1; transform: translateX(3px); color: #00F0FF; }
-}
-@keyframes calFadeInUp {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-.cal-anim-fadein {
-  animation: calFadeInUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  color: var(--cal-dim);
+  font-size: 13px;
 }
 .cal-velocity-panel {
-  background: linear-gradient(135deg, rgba(17, 24, 39, 0.85), rgba(30, 41, 59, 0.65));
-  border: 1px solid rgba(0, 240, 255, 0.25);
-  border-radius: 14px;
-  padding: 14px 18px;
+  background: var(--cal-panel-bg);
+  border: 1px solid rgba(0, 240, 255, 0.24);
+  border-radius: 15px;
+  padding: 15px 18px;
   margin-bottom: 16px;
   backdrop-filter: blur(10px);
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+}
+.cal-velocity-stage {
+  position: relative;
+  height: 102px;
+  padding-top: 22px;
+  overflow: visible;
+}
+.cal-velocity-svg {
+  position: absolute;
+  inset: 22px 0 0 0;
+  width: 100%;
+  height: calc(100% - 22px);
+  pointer-events: none;
+  z-index: 1;
 }
 .cal-velocity-chart {
+  position: relative;
+  z-index: 2;
   display: flex;
   align-items: flex-end;
   gap: 4px;
-  height: 60px;
-  padding-top: 8px;
+  height: 100%;
   overflow: visible;
 }
 .cal-velocity-bar-col {
@@ -1198,7 +1469,7 @@ dialog[open]{animation:fadein .16s ease}
   height: 100%;
   position: relative;
   cursor: pointer;
-  transition: transform 0.15s ease;
+  transition: transform 0.16s cubic-bezier(0.16, 1, 0.3, 1);
 }
 .cal-velocity-bar-col:hover {
   transform: translateY(-2px);
@@ -1206,49 +1477,127 @@ dialog[open]{animation:fadein .16s ease}
 .cal-velocity-bar-col:hover .cal-bar-tooltip {
   opacity: 1;
   visibility: visible;
-  transform: translateX(-50%) translateY(-6px);
+  transform: translateX(-50%) translateY(-8px);
 }
 .cal-velocity-bar {
   width: 100%;
-  max-width: 18px;
-  border-radius: 4px 4px 2px 2px;
-  background: rgba(56, 189, 248, 0.35);
-  transition: all 0.2s ease;
+  max-width: 20px;
+  border-radius: 5px 5px 2px 2px;
+  background: var(--cal-bar-idle);
+  transform-origin: bottom;
+  transition: filter 0.18s ease, background 0.18s ease, box-shadow 0.18s ease;
+}
+.cal-velocity-bar-col:hover .cal-velocity-bar {
+  filter: brightness(1.3);
 }
 .cal-velocity-bar.peak {
-  background: linear-gradient(180deg, #00F0FF 0%, #8B5CF6 100%);
-  box-shadow: 0 0 12px rgba(0, 240, 255, 0.6);
+  background: linear-gradient(180deg, #00F0FF 0%, #7C3AED 100%);
+  box-shadow: 0 0 14px rgba(0, 240, 255, 0.48);
+}
+.cal-velocity-bar.prime-win {
+  background: linear-gradient(180deg, rgba(16, 185, 129, 0.85), rgba(14, 165, 233, 0.45));
+  box-shadow: 0 0 8px rgba(16, 185, 129, 0.35);
+}
+.cal-velocity-pip {
+  font-size: 9px;
+  line-height: 1;
+  margin-bottom: 3px;
+  user-select: none;
+}
+.cal-now-marker {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: repeating-linear-gradient(180deg, #10B981 0 3px, transparent 3px 6px);
+  opacity: 0.7;
+  pointer-events: none;
 }
 .cal-bar-tooltip {
   position: absolute;
   bottom: 100%;
   left: 50%;
   transform: translateX(-50%) translateY(0);
-  background: #0F172A;
-  border: 1px solid rgba(0, 240, 255, 0.4);
+  background: var(--cal-tooltip-bg);
+  border: 1px solid rgba(0, 240, 255, 0.45);
   color: #F8FAFC;
-  padding: 4px 8px;
-  border-radius: 6px;
-  font-size: 10px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-size: 10.5px;
+  line-height: 1.4;
   white-space: nowrap;
   pointer-events: none;
   opacity: 0;
   visibility: hidden;
-  transition: all 0.15s ease;
-  z-index: 20;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+  transition: opacity 0.15s ease, transform 0.15s ease, visibility 0.15s ease;
+  z-index: 30;
+  box-shadow: 0 10px 26px rgba(0,0,0,0.55);
 }
 .cal-priming-badge {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  padding: 2px 8px;
+  padding: 3px 8px;
   border-radius: 6px;
   font-size: 10px;
   font-weight: 700;
   background: rgba(16, 185, 129, 0.12);
-  color: #34D399;
+  color: #10B981;
   border: 1px solid rgba(16, 185, 129, 0.28);
+}
+.cal-week-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 8px;
+}
+@media (min-width: 1100px) {
+  .cal-week-grid {
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+  }
+}
+.cal-week-cell {
+  background: var(--cal-card-bg);
+  border: 1px solid var(--cal-border);
+  border-radius: 13px;
+  padding: 10px 9px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  min-height: 196px;
+  min-width: 0;
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.2s ease, box-shadow 0.2s ease;
+}
+.cal-week-cell.is-today {
+  border-color: rgba(0, 240, 255, 0.45);
+  box-shadow: inset 0 2px 0 #00F0FF, 0 10px 24px -10px rgba(0, 240, 255, 0.18);
+}
+.cal-week-cell:hover {
+  transform: translateY(-2px);
+  border-color: rgba(99, 102, 241, 0.4);
+}
+.cal-week-mini-slot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--cal-border);
+  background: var(--cal-panel-bg);
+  font-size: 10.5px;
+  color: var(--cal-text);
+  cursor: pointer;
+  width: 100%;
+  text-align: left;
+  transition: border-color 0.15s ease, background 0.15s ease, transform 0.15s ease;
+}
+.cal-week-mini-slot:hover {
+  border-color: rgba(0, 240, 255, 0.45);
+  transform: translateX(2px);
+}
+.cal-week-mini-slot.filled {
+  border-color: rgba(16, 185, 129, 0.4);
+  background: rgba(16, 185, 129, 0.1);
 }
 .sync-icon {
   display: inline-block;
@@ -3368,19 +3717,90 @@ async function updateAnalyticsGap(cid, val) {
   }
 }
 
-async function renderCreatorCalendarCard(c, targetEl, isCompact = false) {
-  if (!targetEl || !c) return;
-  targetEl.innerHTML = `<div class="cal-root-card" style="padding:16px 20px">
-    <div style="display:flex;align-items:center;gap:10px;color:var(--text-dim);font-size:13px">
-      <span class="spin" style="font-size:18px">⏳</span> Loading USA publishing calendar for ${esc(c.name)}…
-    </div>
-  </div>`;
+function _calFormatRel(ts) {
+  if (!ts) return "";
+  const diffSec = Math.round(ts - Date.now() / 1000);
+  if (diffSec <= 60 && diffSec >= -120) return "Live now";
+  if (diffSec < 0) {
+    const minsAgo = Math.abs(Math.round(diffSec / 60));
+    return minsAgo < 60 ? `${minsAgo}m ago` : `${Math.round(minsAgo / 60)}h ago`;
+  }
+  const mins = Math.round(diffSec / 60);
+  if (mins < 60) return `In ${mins}m`;
+  const hrs = Math.floor(mins / 60);
+  const remM = mins % 60;
+  if (hrs < 24) return `In ${hrs}h ${remM}m`;
+  const days = Math.floor(hrs / 24);
+  return `In ${days}d ${hrs % 24}h`;
+}
 
-  let calData = null;
-  try {
-    calData = await api(`/api/creators/${c.id}/calendar`);
-  } catch (err) {
-    console.warn("Failed to load creator calendar endpoint:", err);
+function _calAudienceWindow(usEastStr, slotNum) {
+  const m = String(usEastStr || "").match(/^(\d{1,2}):\d{2}\s*(AM|PM)/i);
+  if (m) {
+    let h = parseInt(m[1], 10) % 12;
+    if (m[2].toUpperCase() === "PM") h += 12;
+    if (h >= 5 && h < 11) return "☀️ Early Bird USA";
+    if (h >= 11 && h < 16) return "🔥 Midday Surge USA";
+    if (h >= 16 && h < 22) return "🌙 Prime Evening USA";
+    return "🦉 Late Night USA";
+  }
+  return slotNum === 1 ? "☀️ Morning USA" : slotNum === 2 ? "🔥 Afternoon Peak" : "🌙 Prime Evening";
+}
+
+function _calBuildSmoothAreaSvg(velocity, maxV) {
+  if (!velocity || velocity.length < 2) return "";
+  const W = 1000, H = 100;
+  const pts = velocity.map((v, idx) => {
+    const x = (idx / (velocity.length - 1)) * W;
+    const norm = Math.max(0.08, Math.min(1, v / maxV));
+    const y = H - norm * (H - 14) - 4;
+    return [x, y];
+  });
+  let d = `M ${pts[0][0].toFixed(1)},${pts[0][1].toFixed(1)}`;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const [x0, y0] = pts[i];
+    const [x1, y1] = pts[i + 1];
+    const cx = ((x0 + x1) / 2).toFixed(1);
+    d += ` C ${cx},${y0.toFixed(1)} ${cx},${y1.toFixed(1)} ${x1.toFixed(1)},${y1.toFixed(1)}`;
+  }
+  const area = `${d} L ${W},${H} L 0,${H} Z`;
+  return `
+    <svg class="cal-velocity-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">
+      <defs>
+        <linearGradient id="calAreaGrad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#00F0FF" stop-opacity="0.28"/>
+          <stop offset="55%" stop-color="#6366F1" stop-opacity="0.12"/>
+          <stop offset="100%" stop-color="#6366F1" stop-opacity="0"/>
+        </linearGradient>
+        <linearGradient id="calStrokeGrad" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stop-color="#38BDF8"/>
+          <stop offset="50%" stop-color="#00F0FF"/>
+          <stop offset="100%" stop-color="#A855F7"/>
+        </linearGradient>
+      </defs>
+      <path d="${area}" fill="url(#calAreaGrad)"/>
+      <path class="cal-velocity-line" d="${d}" fill="none" stroke="url(#calStrokeGrad)" stroke-width="2.4" stroke-linecap="round"/>
+    </svg>
+  `;
+}
+
+async function renderCreatorCalendarCard(c, targetEl, isCompact = false, useCache = false) {
+  if (!targetEl || !c) return;
+  window._calCache = window._calCache || {};
+  let calData = (useCache && window._calCache[c.id]) ? window._calCache[c.id] : null;
+
+  if (!calData) {
+    targetEl.innerHTML = `<div class="cal-root-card" style="padding:18px 22px">
+      <div style="display:flex;align-items:center;gap:10px;color:var(--cal-muted);font-size:13px">
+        <span class="spin" style="font-size:18px">⏳</span> Loading USA publishing calendar for ${esc(c.name)}…
+      </div>
+    </div>`;
+    try {
+      calData = await api(`/api/creators/${c.id}/calendar`);
+      window._calCache[c.id] = calData;
+    } catch (err) {
+      console.warn("Failed to load creator calendar endpoint:", err);
+    }
   }
 
   const vPosts = (calData?.scheduled || []).filter(p => p.kind !== "community" && !p.is_community);
@@ -3391,9 +3811,12 @@ async function renderCreatorCalendarCard(c, targetEl, isCompact = false) {
   const detectedPeaks = analytics?.detected_peaks_pkt || [18, 0, 6];
   const primedSlots = analytics?.primed_slots_pkt || calData?.preferred_times_pkt || ["06:00 PM", "12:00 AM", "06:00 AM"];
   const currentMode = analytics?.mode || "analytics";
-  const primingOffset = analytics?.priming_offset_hours || 1.5;
+  const primingOffset = Number(analytics?.priming_offset_hours ?? 1.5);
   const minGap = analytics?.min_gap_hours || calData?.min_gap_hours || 5.0;
   const total48hViews = analytics?.total_tracked_views_48h || 49596;
+  const primedHoursSet = new Set(detectedPeaks.map(p => (Math.round(p - primingOffset) + 24) % 24));
+  const nowHourPkt = new Date().getHours();
+  const isPausedMotion = !!window._calMotionPaused;
 
   // Determine today's scheduled count
   const todayStr = new Date().toLocaleDateString("en-CA");
@@ -3403,9 +3826,10 @@ async function renderCreatorCalendarCard(c, targetEl, isCompact = false) {
     return new Date(t * 1000).toLocaleDateString("en-CA") === todayStr;
   });
   const todayCount = todayVPosts.length;
-  const slotsLeftToday = Math.max(0, 3 - todayCount);
+  const nextSlot = slots[0] || null;
+  const nextSlotTs = nextSlot ? (nextSlot.video_ts || nextSlot.video_timestamp) : null;
 
-  // Active view tab mode: "timeline" | "slots" | "queue"
+  // Active view tab mode: "timeline" | "week" | "slots" | "queue"
   const viewMode = window._calViewMode || "timeline";
 
   // Group slots by cycle_date
@@ -3415,453 +3839,475 @@ async function renderCreatorCalendarCard(c, targetEl, isCompact = false) {
     if (!groupedDays[d]) groupedDays[d] = [];
     groupedDays[d].push(sl);
   });
+  const dayKeys = Object.keys(groupedDays).slice(0, isCompact ? 2 : 4);
 
-  const dayKeys = Object.keys(groupedDays).slice(0, isCompact ? 2 : 3);
+  // Build 7-day rolling Week Matrix days
+  const weekDays = [];
+  for (let offset = 0; offset < 7; offset++) {
+    const d = new Date();
+    d.setDate(d.getDate() + offset);
+    const key = d.toLocaleDateString("en-CA");
+    weekDays.push({
+      key,
+      isToday: offset === 0,
+      weekday: d.toLocaleDateString([], { weekday: "short" }),
+      dateNum: d.toLocaleDateString([], { month: "short", day: "numeric" }),
+      slots: groupedDays[key] || [],
+    });
+  }
 
-  // Generate 24-hour velocity histogram bars
+  // Generate 24-hour velocity spectrum bars + smooth SVG area overlay
   const maxV = Math.max(100, ...velocity);
+  const velocitySvgHtml = _calBuildSmoothAreaSvg(velocity, maxV);
   const velocityBarsHtml = velocity.length ? velocity.map((v, h) => {
     const isPeak = detectedPeaks.includes(h);
-    const heightPct = Math.max(12, Math.min(100, Math.round((v / maxV) * 100)));
-    const ampm = h < 12 ? 'AM' : 'PM';
+    const isPrimeWin = !isPeak && primedHoursSet.has(h);
+    const isNow = h === nowHourPkt;
+    const heightPct = Math.max(12, Math.min(92, Math.round((v / maxV) * 88)));
+    const ampm = h < 12 ? "AM" : "PM";
     const displayH = (h % 12) || 12;
     const timeLabel = `${displayH}:00 ${ampm} PKT`;
+    const nyHour = (h - 10 + 24) % 24;
+    const nyLabel = `${(nyHour % 12) || 12}:00 ${nyHour < 12 ? "AM" : "PM"} EST`;
     return `
-      <div class="cal-velocity-bar-col" title="${timeLabel}: ~${v.toLocaleString()} views/hr ${isPeak ? '(🔥 Detected Peak)' : ''}">
+      <div class="cal-velocity-bar-col" style="--h-idx:${h}" title="${timeLabel} (${nyLabel}): ~${v.toLocaleString()} views/hr">
+        ${isNow ? `<div class="cal-now-marker" title="Current PKT Hour"></div>` : ""}
         <div class="cal-bar-tooltip">
-          <b>${timeLabel}</b><br>
-          ⚡ ~${v.toLocaleString()} views/hr
-          ${isPeak ? '<br><span style="color:#00F0FF;font-weight:700">🔥 Detected Peak</span>' : ''}
+          <div style="font-weight:800;color:#F8FAFC">${timeLabel} <span style="color:#94A3B8;font-weight:600">· ${nyLabel}</span></div>
+          <div>⚡ ~${v.toLocaleString()} views/hr</div>
+          ${isPeak ? '<div style="color:#00F0FF;font-weight:800">🔥 Detected Surge Peak</div>' : ""}
+          ${isPrimeWin ? '<div style="color:#34D399;font-weight:800">⚡ Optimal Upload Prime Window</div>' : ""}
+          ${isNow ? '<div style="color:#10B981;font-weight:700">● Current Hour</div>' : ""}
         </div>
-        <div class="cal-velocity-bar ${isPeak ? 'peak' : ''}" style="height:${heightPct}%"></div>
+        ${isPeak ? `<span class="cal-velocity-pip" style="color:#00F0FF">🔥</span>` : isPrimeWin ? `<span class="cal-velocity-pip" style="color:#10B981">⚡</span>` : ""}
+        <div class="cal-velocity-bar ${isPeak ? "peak" : isPrimeWin ? "prime-win" : ""}" style="height:${heightPct}%"></div>
       </div>
     `;
-  }).join('') : '';
+  }).join("") : "";
+
+  const formatSlotCard = (sl, idx, showDateBadge = false) => {
+    const slotTimestamp = sl.video_ts || sl.video_timestamp;
+    const matchedVideo = vPosts.find(p => {
+      const t = p.scheduled_at || p.due_at;
+      if (!t || !slotTimestamp) return false;
+      return Math.abs(t - slotTimestamp) < 5400;
+    });
+    const commPost = matchedVideo
+      ? commPosts.find(cp => cp.video_post_id === matchedVideo.id || cp.clip === matchedVideo.clip)
+      : null;
+    const commTime = commPost
+      ? new Date((commPost.scheduled_at || commPost.due_at) * 1000).toLocaleString([], { hour: "2-digit", minute: "2-digit" })
+      : sl.community_time_pkt;
+    const thumbUrl = matchedVideo?.job && matchedVideo?.cover
+      ? `/media/${matchedVideo.job}/${matchedVideo.cover}`
+      : "";
+    const audienceLabel = _calAudienceWindow(sl.video_us_east_str, sl.slot_num);
+    const relStr = _calFormatRel(slotTimestamp);
+
+    if (matchedVideo) {
+      return `
+        <article class="cal-slot-card slot-${sl.slot_num} has-video cal-stagger-card" style="--stagger:${idx}">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;flex-wrap:wrap">
+            <span class="cal-slot-badge slot${sl.slot_num}">
+              Slot ${sl.slot_num} ${showDateBadge ? `· ${esc(sl.cycle_date)}` : ""}
+            </span>
+            <span style="font-size:10px;font-weight:800;padding:2px 8px;border-radius:999px;background:rgba(16,185,129,0.14);color:#10B981;border:1px solid rgba(16,185,129,0.34)">
+              ✓ SCHEDULED
+            </span>
+          </div>
+
+          <div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px">
+            <div class="cal-hero-clock">${esc(sl.video_time_pkt)} <span style="font-size:11px;font-weight:700;color:var(--cal-muted)">PKT</span></div>
+            ${relStr ? `<span style="font-size:11px;font-weight:700;color:#10B981">${esc(relStr)}</span>` : ""}
+          </div>
+
+          ${sl.priming_note ? `<div class="cal-priming-badge">${esc(sl.priming_note)}</div>` : ""}
+
+          <div style="display:flex;gap:10px;align-items:center">
+            ${thumbUrl ? `
+              <div style="width:54px;height:54px;border-radius:10px;overflow:hidden;flex-shrink:0;background:#000;border:1px solid var(--cal-border-strong)">
+                <img src="${thumbUrl}" style="width:100%;height:100%;object-fit:cover" alt="">
+              </div>
+            ` : ""}
+            <div style="min-width:0;flex:1">
+              <div style="font-size:12.5px;font-weight:700;line-height:1.35;color:var(--cal-heading);overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical">
+                ${esc(matchedVideo.title || "Ready Clip")}
+              </div>
+              <div class="cal-tz-chip-row" style="margin-top:5px">
+                <span class="cal-tz-chip">NY ${esc(sl.video_us_east_str)}</span>
+                <span class="cal-tz-chip">LA ${esc(sl.video_us_west_str)}</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:6px;margin-top:5px;flex-wrap:wrap">
+                <span class="pill" style="font-size:10px;padding:1px 7px;border-radius:6px;background:rgba(56,189,248,0.14);color:#0EA5E9;border:1px solid rgba(56,189,248,0.3);font-weight:700">👁️ ${matchedVideo.views != null ? Number(matchedVideo.views).toLocaleString() + " views" : "0 views"}</span>
+                ${matchedVideo.remote_id ? `<span class="pill" style="font-size:10px;padding:1px 7px;border-radius:6px;background:rgba(16,185,129,0.14);color:#10B981;border:1px solid rgba(16,185,129,0.32);font-weight:700">✓ On YouTube</span>` : ""}
+              </div>
+            </div>
+          </div>
+
+          <div class="cal-community-node">
+            <span style="font-size:14px">📢</span>
+            <div style="flex:1;min-width:0">
+              <div style="font-weight:700;color:var(--cal-heading)">Community Post (+30m)</div>
+              <div style="font-size:10px;color:#A855F7;font-weight:600">${esc(commTime)} PKT · Auto-Publishes</div>
+            </div>
+            ${commPost ? `<button type="button" class="btn sm ghost" data-act="copy_post_comm" data-pid="${esc(commPost.id)}" style="padding:2px 8px;font-size:10px">📋 Copy</button>` : ""}
+          </div>
+
+          <div style="display:flex;gap:6px;margin-top:auto;padding-top:8px;border-top:1px solid var(--cal-border);align-items:center">
+            <button type="button" class="btn sm" data-act="openclip" data-j="${esc(matchedVideo.job)}" data-c="${esc(matchedVideo.clip)}" style="padding:4px 10px;font-size:11px;border-radius:8px">
+              ${ic("play")} View Clip
+            </button>
+            <span style="flex:1"></span>
+            ${matchedVideo.remote_id || matchedVideo.status === "posted" ? `
+              <button type="button" class="btn sm danger ghost" data-act="deletepost" data-pid="${esc(matchedVideo.id)}" data-title="${esc(matchedVideo.title || "this video")}" style="padding:4px 8px;font-size:11px" title="Permanently delete from YouTube and remove from schedule">
+                ${ic("trash")} Delete from YouTube
+              </button>
+            ` : `
+              <button type="button" class="btn sm danger ghost" data-act="cancelpost" data-pid="${esc(matchedVideo.id)}" style="padding:4px 8px;font-size:11px" title="Cancel this scheduled upload">
+                ${ic("x")} Cancel
+              </button>
+            `}
+          </div>
+        </article>
+      `;
+    }
+    return `
+      <article class="cal-slot-card slot-${sl.slot_num} cal-stagger-card" style="--stagger:${idx}">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:6px">
+          <span class="cal-slot-badge slot${sl.slot_num}">
+            Slot ${sl.slot_num} ${showDateBadge ? `· ${esc(sl.cycle_date)}` : ""}
+          </span>
+          <span style="font-size:10px;font-weight:800;color:#10B981;display:inline-flex;align-items:center;gap:4px">
+            <span style="width:6px;height:6px;border-radius:50%;background:#10B981"></span> OPEN
+          </span>
+        </div>
+
+        <div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px">
+          <div class="cal-hero-clock">${esc(sl.video_time_pkt)} <span style="font-size:11px;font-weight:700;color:var(--cal-muted)">PKT</span></div>
+          ${relStr ? `<span style="font-size:11px;font-weight:700;color:var(--accent)">${esc(relStr)}</span>` : ""}
+        </div>
+
+        ${sl.priming_note ? `<div class="cal-priming-badge">${esc(sl.priming_note)}</div>` : ""}
+
+        <div>
+          <div class="cal-tz-chip-row">
+            <span class="cal-tz-chip">NY ${esc(sl.video_us_east_str)}</span>
+            <span class="cal-tz-chip">LA ${esc(sl.video_us_west_str)}</span>
+          </div>
+          <div style="font-size:10.5px;color:var(--cal-muted);margin-top:5px">
+            ${audienceLabel} ${sl.peak_target_pkt ? `· 🎯 Surge: <b>${esc(sl.peak_target_pkt)}</b>` : ""}
+          </div>
+        </div>
+
+        <div class="cal-community-node" style="opacity:0.9">
+          <span style="font-size:13px">📢</span>
+          <span style="font-size:10.5px">Paired Community: <b>${esc(sl.community_time_pkt)} PKT (+30m)</b></span>
+        </div>
+
+        <button type="button" class="btn sm" onclick="openCalendarSlotPicker('${esc(c.id)}', ${slotTimestamp}, ${sl.slot_num}, '${esc(sl.video_time_pkt)}', '${esc(sl.video_us_east_str)} · ${esc(sl.video_us_west_str)}', '${esc(sl.cycle_date)}')" style="margin-top:auto;padding:7px 12px;font-size:11.5px;background:linear-gradient(135deg,rgba(0,240,255,0.14),rgba(99,102,241,0.22));border:1px solid rgba(0,240,255,0.34);color:var(--cal-heading);font-weight:700;border-radius:9px;justify-content:center;cursor:pointer;display:inline-flex;align-items:center;gap:6px">
+          <span>➕</span> Queue Clip to Slot
+        </button>
+      </article>
+    `;
+  };
 
   targetEl.innerHTML = `
-    <div class="cal-root-card cal-anim-fadein">
-      <!-- Header Row -->
-      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:16px;border-bottom:1px solid rgba(255,255,255,0.08);padding-bottom:14px">
+    <section class="cal-root-card cal-anim-fadein ${isPausedMotion ? "cal-paused" : ""}" aria-label="USA Publishing Calendar">
+      <div class="cal-ambient-orb" aria-hidden="true"></div>
+
+      <!-- Executive Header & Accessible Tab Switcher -->
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:14px;margin-bottom:16px;border-bottom:1px solid var(--cal-border);padding-bottom:14px">
         <div style="display:flex;align-items:center;gap:12px">
-          <div style="width:40px;height:40px;border-radius:12px;background:linear-gradient(135deg, rgba(0,240,255,0.22), rgba(99,102,241,0.28));border:1px solid rgba(0,240,255,0.4);display:flex;align-items:center;justify-content:center;font-size:20px;box-shadow:0 0 20px rgba(0,240,255,0.25)">
+          <div style="width:44px;height:44px;border-radius:13px;background:linear-gradient(135deg, rgba(0,240,255,0.22), rgba(99,102,241,0.32));border:1px solid rgba(0,240,255,0.42);display:flex;align-items:center;justify-content:center;font-size:21px;box-shadow:0 6px 20px rgba(0,240,255,0.18);flex-shrink:0">
             🗓️
           </div>
           <div>
             <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-              <h2 style="margin:0;font-size:16px;font-weight:800;color:#F8FAFC;letter-spacing:-0.2px">
+              <h2 style="margin:0;font-size:17px;font-weight:800;color:var(--cal-heading);letter-spacing:-0.3px">
                 USA Publishing Calendar · ${esc(c.name)}
               </h2>
               <span class="cal-radar-pill">
-                <span class="cal-live-dot"></span> ${currentMode === 'analytics' ? 'Auto Engine Active · YouTube Peak Velocity' : 'Auto Engine Active · USA Peaks'}
+                <span class="cal-live-dot"></span> ${currentMode === "analytics" ? "Auto Engine · Peak Velocity" : "Auto Engine · USA Peaks"}
               </span>
+              <button type="button" class="btn sm ghost" data-act="cal_toggle_motion" aria-label="${isPausedMotion ? "Resume calendar animations" : "Pause calendar animations"}" title="${isPausedMotion ? "Resume subtle animations" : "Pause subtle animations"}" style="padding:2px 8px;font-size:10px;border-radius:999px">
+                ${isPausedMotion ? "▶ Motion" : "⏸ Calm"}
+              </button>
             </div>
-            <p style="margin:3px 0 0 0;font-size:12px;color:#94A3B8;display:flex;align-items:center;gap:6px;flex-wrap:wrap">
-              <span>🇵🇰 Schedule: <b>${primedSlots.join(' · ')} PKT</b></span>
+            <p style="margin:4px 0 0 0;font-size:12px;color:var(--cal-muted);display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+              <span>🇵🇰 Daily Slots: <b style="color:var(--cal-heading)">${primedSlots.join(" · ")} PKT</b></span>
               <span style="opacity:0.4">•</span>
-              <span>Max <b>3 videos/day</b></span>
+              <span>Cadence: <b>Max 3/day · ${minGap}h gap</b></span>
               <span style="opacity:0.4">•</span>
-              <span>Gap: <b>${minGap}h</b></span>
-              <span style="opacity:0.4">•</span>
-              <span>Paired Community Posts <b>(+30m)</b></span>
+              <span>Community Auto-Post <b>(+30m)</b></span>
             </p>
           </div>
         </div>
 
-        <!-- Quota & Navigation Tabs -->
-        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-          <!-- Daily Quota Visual Gauge -->
-          <div class="cal-quota-segment ${todayCount >= 3 ? 'filled' : ''}" title="Strict 3 videos per day limit">
-            <span style="font-weight:700;color:${todayCount >= 3 ? '#34D399' : '#00F0FF'}">⚡ Today: ${todayCount}/3</span>
-            <div style="display:flex;gap:3px;align-items:center">
-              <span style="width:6px;height:6px;border-radius:50%;background:${todayCount >= 1 ? '#10B981' : 'rgba(255,255,255,0.2)'}"></span>
-              <span style="width:6px;height:6px;border-radius:50%;background:${todayCount >= 2 ? '#10B981' : 'rgba(255,255,255,0.2)'}"></span>
-              <span style="width:6px;height:6px;border-radius:50%;background:${todayCount >= 3 ? '#10B981' : 'rgba(255,255,255,0.2)'}"></span>
-            </div>
-          </div>
-
-          <!-- View Switcher -->
-          <div style="display:inline-flex;background:rgba(0,0,0,0.35);padding:3px;border-radius:24px;border:1px solid rgba(255,255,255,0.08);gap:4px">
-            <button type="button" class="cal-tab-btn ${viewMode === 'timeline' ? 'active' : ''}" data-act="cal_tab" data-tab="timeline">
-              📅 Timeline
-            </button>
-            <button type="button" class="cal-tab-btn ${viewMode === 'slots' ? 'active' : ''}" data-act="cal_tab" data-tab="slots">
-              ⚡ Slots (${slots.length})
-            </button>
-            <button type="button" class="cal-tab-btn ${viewMode === 'queue' ? 'active' : ''}" data-act="cal_tab" data-tab="queue">
-              🎬 Queue (${vPosts.length})
-            </button>
-          </div>
+        <div class="cal-tablist" role="tablist" aria-label="Calendar Views">
+          <button type="button" role="tab" aria-selected="${viewMode === "timeline"}" class="cal-tab-btn ${viewMode === "timeline" ? "active" : ""}" data-act="cal_tab" data-tab="timeline">
+            📅 Timeline
+          </button>
+          <button type="button" role="tab" aria-selected="${viewMode === "week"}" class="cal-tab-btn ${viewMode === "week" ? "active" : ""}" data-act="cal_tab" data-tab="week">
+            📆 Week Grid
+          </button>
+          <button type="button" role="tab" aria-selected="${viewMode === "slots"}" class="cal-tab-btn ${viewMode === "slots" ? "active" : ""}" data-act="cal_tab" data-tab="slots">
+            ⚡ Slots (${slots.length})
+          </button>
+          <button type="button" role="tab" aria-selected="${viewMode === "queue"}" class="cal-tab-btn ${viewMode === "queue" ? "active" : ""}" data-act="cal_tab" data-tab="queue">
+            🎬 Queue (${vPosts.length})
+          </button>
         </div>
       </div>
 
-      <!-- 📈 Channel 48-Hour Views Velocity & Algorithm Priming Panel -->
+      <!-- 4-Card Live Telemetry KPI Strip -->
+      <div class="cal-kpi-grid">
+        <div class="cal-kpi-card cal-stagger-card" style="--stagger:0">
+          <div class="cal-kpi-label"><span>⏳ Next Publish Window</span><span style="color:var(--accent)">PKT</span></div>
+          <div class="cal-kpi-value">${nextSlotTs ? esc(_calFormatRel(nextSlotTs)) : "Open"}</div>
+          <div class="cal-kpi-sub">${nextSlot ? `${esc(nextSlot.video_time_pkt)} PKT · NY ${esc(nextSlot.video_us_east_str)}` : "Ready for clips"}</div>
+        </div>
+        <div class="cal-kpi-card cal-stagger-card" style="--stagger:1">
+          <div class="cal-kpi-label"><span>⚡ Today's Daily Cap</span><span style="color:${todayCount >= 3 ? "#10B981" : "#38BDF8"}">${todayCount}/3</span></div>
+          <div class="cal-kpi-value">${todayCount} of 3 Filled</div>
+          <div class="cal-quota-bar" aria-label="Daily upload quota">
+            <span class="cal-quota-pip ${todayCount >= 1 ? "filled" : ""}"></span>
+            <span class="cal-quota-pip ${todayCount >= 2 ? "filled" : ""}"></span>
+            <span class="cal-quota-pip ${todayCount >= 3 ? "filled" : ""}"></span>
+          </div>
+        </div>
+        <div class="cal-kpi-card cal-stagger-card" style="--stagger:2">
+          <div class="cal-kpi-label"><span>🔥 48h Channel Velocity</span><span style="color:#A855F7">PRIME</span></div>
+          <div class="cal-kpi-value">~${Number(total48hViews).toLocaleString()} <span style="font-size:11px;font-weight:600;color:var(--cal-muted)">views</span></div>
+          <div class="cal-kpi-sub">Warmup <b>${primingOffset}h prior</b> · Min gap <b>${minGap}h</b></div>
+        </div>
+        <div class="cal-kpi-card cal-stagger-card" style="--stagger:3">
+          <div class="cal-kpi-label"><span>📢 Paired Community</span><span style="color:#C084FC">+30m</span></div>
+          <div class="cal-kpi-value">${commPosts.length} Paired</div>
+          <div class="cal-kpi-sub">Auto-links each Short at +30m</div>
+        </div>
+      </div>
+
+      <!-- Dual-Layer 48-Hour Views Velocity & Priming Visualizer -->
       <div class="cal-velocity-panel">
         <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:12px">
           <div style="display:flex;align-items:center;gap:10px">
-            <div style="font-size:20px;filter:drop-shadow(0 0 10px rgba(0,240,255,0.4))">📈</div>
+            <div style="width:34px;height:34px;border-radius:10px;background:rgba(0,240,255,0.12);border:1px solid rgba(0,240,255,0.28);display:flex;align-items:center;justify-content:center;font-size:18px">📈</div>
             <div>
               <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-                <span style="font-weight:800;color:#F8FAFC;font-size:13px">YouTube Channel 48-Hour Views Velocity & Priming Engine</span>
-                <span class="pill" style="font-size:10px;padding:2px 8px;border-radius:10px;background:${currentMode === 'analytics' ? 'rgba(16,185,129,0.15)' : 'rgba(0,240,255,0.15)'};color:${currentMode === 'analytics' ? '#34D399' : '#00F0FF'};border:1px solid ${currentMode === 'analytics' ? 'rgba(16,185,129,0.3)' : 'rgba(0,240,255,0.3)'};font-weight:700">
-                  ${currentMode === 'analytics' ? '⚡ Auto YouTube Peaks' : currentMode === 'custom' ? '⚙️ Custom Peaks' : '🇺🇸 USA Standard'}
+                <span style="font-weight:800;color:var(--cal-heading);font-size:13.5px">48-Hour Views Velocity &amp; Algorithm Priming Engine</span>
+                <span class="pill" style="font-size:10px;padding:2px 8px;border-radius:999px;background:${currentMode === "analytics" ? "rgba(16,185,129,0.14)" : "rgba(0,240,255,0.14)"};color:${currentMode === "analytics" ? "#10B981" : "var(--accent)"};border:1px solid ${currentMode === "analytics" ? "rgba(16,185,129,0.32)" : "rgba(0,240,255,0.32)"};font-weight:700">
+                  ${currentMode === "analytics" ? "⚡ Auto YouTube Peaks" : currentMode === "custom" ? "⚙️ Custom Peaks" : "🇺🇸 USA Standard"}
                 </span>
               </div>
-              <div style="font-size:11px;color:#94A3B8;margin-top:2px">
-                ${currentMode === 'analytics'
-                  ? `Audience surge peaks detected at <b>${detectedPeaks.map(p => (p % 12 || 12) + ':00 ' + (p < 12 ? 'AM' : 'PM') + ' PKT').join(' · ')}</b>. Videos scheduled <b>${primingOffset}h prior</b> so Shorts feed algorithm warms up before peak.`
-                  : currentMode === 'custom'
-                  ? `Manual peak hours set at <b>${detectedPeaks.map(p => (p % 12 || 12) + ':00 ' + (p < 12 ? 'AM' : 'PM') + ' PKT').join(' · ')}</b>.`
+              <div style="font-size:11px;color:var(--cal-muted);margin-top:2px">
+                ${currentMode === "analytics"
+                  ? `Audience surge peaks at <b>${detectedPeaks.map(p => (p % 12 || 12) + ":00 " + (p < 12 ? "AM" : "PM") + " PKT").join(" · ")}</b>. Uploads fire <b>${primingOffset}h prior</b> so Shorts feed warms up before peak.`
+                  : currentMode === "custom"
+                  ? `Manual peak hours set at <b>${detectedPeaks.map(p => (p % 12 || 12) + ":00 " + (p < 12 ? "AM" : "PM") + " PKT").join(" · ")}</b>.`
                   : `Default USA high-engagement peak slots active (6:00 PM · 12:00 AM · 6:00 AM PKT).`}
               </div>
             </div>
           </div>
 
-          <!-- Controls: Mode pills + Sync Button -->
-          <div style="display:flex;align-items:center;gap:6px">
-            <button type="button" class="btn sm ${currentMode === 'analytics' ? '' : 'ghost'}" onclick="setCalendarMode('${esc(c.id)}', 'analytics')" style="padding:3px 10px;font-size:11px;border-radius:8px;font-weight:700">
+          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+            <button type="button" class="btn sm ${currentMode === "analytics" ? "primary" : "ghost"}" onclick="setCalendarMode('${esc(c.id)}', 'analytics')" style="padding:4px 11px;font-size:11px;border-radius:8px;font-weight:700">
               ⚡ Auto (Analytics)
             </button>
-            <button type="button" class="btn sm ${currentMode === 'usa_default' ? '' : 'ghost'}" onclick="setCalendarMode('${esc(c.id)}', 'usa_default')" style="padding:3px 10px;font-size:11px;border-radius:8px">
+            <button type="button" class="btn sm ${currentMode === "usa_default" ? "primary" : "ghost"}" onclick="setCalendarMode('${esc(c.id)}', 'usa_default')" style="padding:4px 11px;font-size:11px;border-radius:8px;font-weight:600">
               🇺🇸 USA Standard
             </button>
-            <button type="button" class="btn sm ghost" onclick="syncChannelAnalytics('${esc(c.id)}', this)" style="padding:3px 10px;font-size:11px;border-radius:8px;border-color:rgba(0,240,255,0.3);color:#00F0FF" title="Poll latest YouTube view counts">
+            <button type="button" class="btn sm ghost" onclick="syncChannelAnalytics('${esc(c.id)}', this)" style="padding:4px 11px;font-size:11px;border-radius:8px;border-color:rgba(0,240,255,0.35);color:var(--accent)" title="Poll latest YouTube view counts">
               <span class="sync-icon">🔄</span> Sync Views
             </button>
           </div>
         </div>
 
-        <!-- 24-Hour Velocity Histogram -->
-        <div style="background:rgba(10,15,26,0.6);border:1px solid rgba(255,255,255,0.06);border-radius:10px;padding:12px 14px">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-            <span style="font-size:11px;font-weight:700;color:#CBD5E1">Hourly Viewer Velocity Distribution (PKT 24-Hour Clock):</span>
-            <span style="font-size:11px;color:#38BDF8;font-weight:700">48-Hour Velocity: ~${total48hViews.toLocaleString()} views · Gap: ${minGap}h</span>
+        <div style="background:var(--cal-chart-bg);border:1px solid var(--cal-border);border-radius:12px;padding:12px 14px">
+          <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:6px">
+            <span style="font-size:11px;font-weight:700;color:var(--cal-text)">24-Hour Viewer Velocity Curve &amp; Spectrum (PKT Clock)</span>
+            <div style="display:flex;align-items:center;gap:10px;font-size:10px;color:var(--cal-muted);font-weight:600">
+              <span>🔥 Surge Peak</span>
+              <span style="color:#10B981">⚡ Upload Prime (-${primingOffset}h)</span>
+              <span style="color:#10B981">│ Now (${(nowHourPkt % 12) || 12}${nowHourPkt < 12 ? "AM" : "PM"})</span>
+            </div>
           </div>
-          <div class="cal-velocity-chart">
-            ${velocityBarsHtml}
+          <div class="cal-velocity-stage">
+            ${velocitySvgHtml}
+            <div class="cal-velocity-chart">
+              ${velocityBarsHtml}
+            </div>
           </div>
-          <div style="display:flex;justify-content:space-between;font-size:9.5px;color:#64748B;margin-top:6px;padding:0 2px">
-            <span>12 AM</span>
-            <span>3 AM</span>
-            <span>6 AM</span>
-            <span>9 AM</span>
-            <span>12 PM</span>
-            <span>3 PM</span>
-            <span style="color:#00F0FF;font-weight:700">6 PM (Peak)</span>
-            <span>9 PM</span>
-            <span style="color:#A78BFA;font-weight:700">11 PM (Peak)</span>
+          <div style="display:grid;grid-template-columns:repeat(8, 1fr);font-size:9.5px;color:var(--cal-dim);margin-top:7px;text-align:center">
+            ${[0, 3, 6, 9, 12, 15, 18, 21].map(hr => {
+              const lbl = `${hr % 12 || 12} ${hr < 12 ? "AM" : "PM"}`;
+              const hasPeak = detectedPeaks.some(p => Math.abs(p - hr) <= 1);
+              return `<span style="${hasPeak ? "color:var(--accent);font-weight:800" : ""}">${lbl}${hasPeak ? " ★" : ""}</span>`;
+            }).join("")}
           </div>
         </div>
       </div>
 
-      <!-- Automated Publishing Flow Banner (when no queue or compact) -->
+      <!-- Compact Automation Pipeline Ribbon -->
       ${vPosts.length === 0 ? `
         <div class="cal-flow-banner">
-          <div style="display:flex;align-items:center;gap:12px">
-            <span style="font-size:22px;filter:drop-shadow(0 0 10px rgba(0,240,255,0.4))">🚀</span>
-            <div>
-              <div style="font-size:12px;font-weight:700;color:#F8FAFC">Automated USA Publishing Engine Ready</div>
-              <div style="font-size:11px;color:#94A3B8;margin-top:1px">Click <b>"Add to queue"</b> on any clip to assign it to the next optimal viewing slot!</div>
-            </div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <span style="font-size:18px">🚀</span>
+            <span style="font-size:11.5px;color:var(--cal-muted)"><b style="color:var(--cal-heading)">Engine Ready:</b> Click <b>"Queue Clip to Slot"</b> below or <b>"Add to queue"</b> on any exported Short.</span>
           </div>
-          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-            <div class="cal-flow-step"><span>✂️ Clip Video</span><span class="cal-flow-arrow">➔</span></div>
-            <div class="cal-flow-step"><span>📅 3/Day Limit</span><span class="cal-flow-arrow">➔</span></div>
-            <div class="cal-flow-step"><span>⚡ Channel Peaks</span><span class="cal-flow-arrow">➔</span></div>
-            <div class="cal-flow-step"><span>📢 Community (+30m)</span><span class="cal-flow-arrow">➔</span></div>
-            <div class="cal-flow-step"><span>🔄 Auto-Roll</span></div>
+          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+            <span class="cal-flow-step">✂️ Clip</span><span class="cal-flow-arrow">→</span>
+            <span class="cal-flow-step">⚡ -${primingOffset}h Prime</span><span class="cal-flow-arrow">→</span>
+            <span class="cal-flow-step">📅 3/Day Cap</span><span class="cal-flow-arrow">→</span>
+            <span class="cal-flow-step">📢 Post (+30m)</span>
           </div>
         </div>
-      ` : ''}
+      ` : ""}
 
-      <!-- VIEW 1: TIMELINE (DAY-BY-DAY COLUMNS) -->
-      ${viewMode === 'timeline' ? `
-        <div style="display:flex;flex-direction:column;gap:18px">
+      <!-- VIEW 1: TIMELINE -->
+      ${viewMode === "timeline" ? `
+        <div role="tabpanel" class="cal-timeline-rail">
           ${dayKeys.map(dateKey => {
             const daySlots = groupedDays[dateKey] || [];
             const isToday = dateKey === todayStr;
             const dObj = new Date(dateKey + "T12:00:00");
             const dayTitle = isToday
-              ? `⚡ Today · ${dObj.toLocaleDateString([], {weekday:"short", month:"short", day:"numeric"})}`
-              : `🗓️ ${dObj.toLocaleDateString([], {weekday:"long", month:"short", day:"numeric"})}`;
-
-            // Check how many videos in this specific day
+              ? `⚡ Today · ${dObj.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" })}`
+              : `🗓️ ${dObj.toLocaleDateString([], { weekday: "long", month: "short", day: "numeric" })}`;
             const dayVideos = vPosts.filter(p => {
               const t = p.scheduled_at || p.due_at;
-              if (!t) return false;
-              return new Date(t * 1000).toLocaleDateString("en-CA") === dateKey;
+              return t && new Date(t * 1000).toLocaleDateString("en-CA") === dateKey;
             });
 
             return `
-              <div>
+              <div class="cal-timeline-day">
+                <span class="cal-timeline-node ${isToday ? "today" : ""}" aria-hidden="true"></span>
                 <div class="cal-day-header">
-                  <div style="display:flex;align-items:center;gap:8px">
-                    <span class="cal-day-badge ${isToday ? 'today' : 'future'}">
-                      ${dayTitle}
-                    </span>
-                    <span style="font-size:11px;color:#94A3B8;font-weight:600">
-                      (${dayVideos.length}/3 slots claimed)
-                    </span>
+                  <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                    <span class="cal-day-badge ${isToday ? "today" : "future"}">${dayTitle}</span>
+                    <span style="font-size:11px;color:var(--cal-muted);font-weight:700">${dayVideos.length}/3 slots filled</span>
                   </div>
-                  <span style="font-size:11px;color:#64748B">
-                    ${isToday ? `${3 - dayVideos.length} slots remaining today` : 'Rolling Next-Day Buffer'}
+                  <span style="font-size:11px;color:var(--cal-dim);font-weight:600">
+                    ${isToday ? `${Math.max(0, 3 - dayVideos.length)} slots remaining today` : "Rolling Next-Day Buffer"}
                   </span>
                 </div>
-
                 <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(290px, 1fr));gap:12px">
-                  ${daySlots.map(sl => {
-                    const slotTimestamp = sl.video_ts || sl.video_timestamp;
-                    // Match video scheduled at or near this slot
-                    const matchedVideo = vPosts.find(p => {
-                      const t = p.scheduled_at || p.due_at;
-                      if (!t) return false;
-                      // Match within 90 minutes of video timestamp
-                      return Math.abs(t - slotTimestamp) < 5400;
-                    });
-
-                    const commPost = matchedVideo
-                      ? commPosts.find(cp => cp.video_post_id === matchedVideo.id || cp.clip === matchedVideo.clip)
-                      : null;
-                    const commTime = commPost
-                      ? new Date((commPost.scheduled_at || commPost.due_at) * 1000).toLocaleString([], {hour:"2-digit", minute:"2-digit"})
-                      : sl.community_time_pkt;
-
-                    const thumbUrl = matchedVideo?.job && matchedVideo?.cover
-                      ? `/media/${matchedVideo.job}/${matchedVideo.cover}`
-                      : "";
-
-                    const audienceLabel = sl.slot_num === 1 ? '🌅 Morning Drive' : sl.slot_num === 2 ? '☀️ Afternoon Peak' : '🌙 Prime Evening';
-
-                    if (matchedVideo) {
-                      return `
-                        <div class="cal-slot-card has-video">
-                          <div style="display:flex;align-items:center;justify-content:space-between;gap:6px">
-                            <span class="cal-slot-badge slot${sl.slot_num}">
-                              Slot ${sl.slot_num} · ${sl.video_time_pkt} PKT
-                            </span>
-                            <span class="badge" style="background:rgba(16,185,129,0.15);color:#34D399;border:1px solid rgba(16,185,129,0.3);font-size:10px;font-weight:800">
-                              🎬 SCHEDULED
-                            </span>
-                          </div>
-
-                          ${sl.priming_note ? `
-                            <div class="cal-priming-badge">
-                              ${esc(sl.priming_note)}
-                            </div>
-                          ` : ''}
-
-                          <div style="display:flex;gap:10px;align-items:center">
-                            ${thumbUrl ? `
-                              <div style="width:52px;height:52px;border-radius:8px;overflow:hidden;flex-shrink:0;background:#000;border:1px solid rgba(255,255,255,0.12)">
-                                <img src="${thumbUrl}" style="width:100%;height:100%;object-fit:cover" alt="">
-                              </div>
-                            ` : ''}
-                            <div style="min-width:0;flex:1">
-                              <div style="font-size:12px;font-weight:700;line-height:1.35;color:#F8FAFC;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical">
-                                ${esc(matchedVideo.title || 'Ready Clip')}
-                              </div>
-                              <div style="font-size:11px;color:#38BDF8;margin-top:2px;font-weight:600">
-                                🇺🇸 ${sl.video_us_east_str} · ${sl.video_us_west_str}
-                              </div>
-                              <div style="display:flex;align-items:center;gap:6px;margin-top:4px;flex-wrap:wrap">
-                                <span class="pill" style="font-size:10px;padding:1px 6px;border-radius:4px;background:rgba(56,189,248,0.15);color:#38BDF8;border:1px solid rgba(56,189,248,0.3);font-weight:700">👁️ ${matchedVideo.views != null ? Number(matchedVideo.views).toLocaleString() + ' views' : '0 views'}</span>
-                                ${matchedVideo.remote_id ? `<span class="pill" style="font-size:10px;padding:1px 6px;border-radius:4px;background:rgba(16,185,129,0.15);color:#10B981;border:1px solid rgba(16,185,129,0.3);font-weight:600">✓ On YouTube</span>` : ''}
-                              </div>
-                            </div>
-                          </div>
-
-                          <!-- Paired Community Post Node -->
-                          <div class="cal-community-node">
-                            <span style="font-size:14px">📢</span>
-                            <div style="flex:1;min-width:0">
-                              <div style="font-weight:700;color:#F3E8FF">Community Post (+30m)</div>
-                              <div style="font-size:10px;color:#D8B4FE">${commTime} PKT · Auto-Publishes</div>
-                            </div>
-                            ${commPost ? `
-                              <button type="button" class="btn sm ghost" data-act="copy_post_comm" data-pid="${esc(commPost.id)}" style="padding:2px 8px;font-size:10px;color:#F3E8FF">📋 Copy</button>
-                            ` : ''}
-                          </div>
-
-                          <!-- Actions Footer -->
-                          <div style="display:flex;gap:6px;margin-top:auto;padding-top:6px;border-top:1px solid rgba(255,255,255,0.06);align-items:center">
-                            <button class="btn sm" data-act="openclip" data-j="${esc(matchedVideo.job)}" data-c="${esc(matchedVideo.clip)}" style="padding:3px 10px;font-size:11px;border-radius:6px">
-                              ${ic("play")} View Clip
-                            </button>
-                            <span style="flex:1"></span>
-                            ${matchedVideo.remote_id || matchedVideo.status === 'posted' ? `
-                              <button class="btn sm danger ghost" data-act="deletepost" data-pid="${esc(matchedVideo.id)}" data-title="${esc(matchedVideo.title || 'this video')}" style="padding:3px 8px;font-size:11px" title="Permanently delete this video from YouTube and remove from schedule">
-                                ${ic("trash")} Delete from YouTube
-                              </button>
-                            ` : `
-                              <button class="btn sm danger ghost" data-act="cancelpost" data-pid="${esc(matchedVideo.id)}" style="padding:3px 8px;font-size:11px" title="Cancel this scheduled upload">
-                                ${ic("x")} Cancel
-                              </button>
-                            `}
-                          </div>
-                        </div>
-                      `;
-                    } else {
-                      return `
-                        <div class="cal-slot-card">
-                          <div style="display:flex;align-items:center;justify-content:space-between">
-                            <span class="cal-slot-badge slot${sl.slot_num}">
-                              Slot ${sl.slot_num} · ${sl.video_time_pkt} PKT
-                            </span>
-                            <span style="font-size:10px;font-weight:700;color:#10B981;display:flex;align-items:center;gap:4px">
-                              <span style="width:5px;height:5px;border-radius:50%;background:#10B981"></span> OPEN
-                            </span>
-                          </div>
-
-                          ${sl.priming_note ? `
-                            <div class="cal-priming-badge">
-                              ${esc(sl.priming_note)}
-                            </div>
-                          ` : ''}
-
-                          <div>
-                            <div style="font-size:12px;font-weight:700;color:#CBD5E1">
-                              🇺🇸 ${sl.video_us_east_str} · ${sl.video_us_west_str}
-                            </div>
-                            <div style="font-size:10px;color:#64748B;margin-top:2px">
-                              ${audienceLabel} ${sl.peak_target_pkt ? `· 🎯 Target Peak: <b>${sl.peak_target_pkt}</b>` : ''}
-                            </div>
-                          </div>
-
-                          <div class="cal-community-node" style="opacity:0.85">
-                            <span style="font-size:13px">📢</span>
-                            <span style="font-size:10px">Paired Post: <b>${sl.community_time_pkt} PKT (+30m)</b></span>
-                          </div>
-
-                          <button type="button" class="btn sm" onclick="openCalendarSlotPicker('${esc(c.id)}', ${slotTimestamp}, ${sl.slot_num}, '${esc(sl.video_time_pkt)}', '${esc(sl.video_us_east_str)} · ${esc(sl.video_us_west_str)}', '${esc(sl.cycle_date)}')" style="margin-top:auto;padding:6px 12px;font-size:11px;background:linear-gradient(135deg,rgba(0,240,255,0.15),rgba(99,102,241,0.2));border:1px solid rgba(0,240,255,0.3);color:#00F0FF;font-weight:700;border-radius:8px;justify-content:center;cursor:pointer;display:inline-flex;align-items:center;gap:6px">
-                            <span>➕</span> Queue Next Video
-                          </button>
-                        </div>
-                      `;
-                    }
-                  }).join('')}
+                  ${daySlots.map((sl, i) => formatSlotCard(sl, i, false)).join("")}
                 </div>
               </div>
             `;
-          }).join('')}
+          }).join("")}
         </div>
-      ` : ''}
+      ` : ""}
 
-      <!-- VIEW 2: ALL SEQUENTIAL SLOTS -->
-      ${viewMode === 'slots' ? `
-        <div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(280px, 1fr));gap:12px">
-          ${slots.map(sl => {
-            const audienceLabel = sl.slot_num === 1 ? '🌅 Morning Drive' : sl.slot_num === 2 ? '☀️ Afternoon Peak' : '🌙 Prime Evening';
-            return `
-              <div class="cal-slot-card">
-                <div style="display:flex;align-items:center;justify-content:space-between">
-                  <span class="cal-slot-badge slot${sl.slot_num}">
-                    Slot ${sl.slot_num} · ${sl.video_time_pkt} PKT
-                  </span>
-                  <span style="font-size:11px;font-weight:700;color:#94A3B8">
-                    ${sl.cycle_date}
-                  </span>
-                </div>
-                ${sl.priming_note ? `
-                  <div class="cal-priming-badge">
-                    ${esc(sl.priming_note)}
-                  </div>
-                ` : ''}
+      <!-- VIEW 2: 7-DAY WEEK CALENDAR GRID -->
+      ${viewMode === "week" ? `
+        <div role="tabpanel" class="cal-week-grid">
+          ${weekDays.map((wd, wIdx) => `
+            <div class="cal-week-cell ${wd.isToday ? "is-today" : ""} cal-stagger-card" style="--stagger:${wIdx}">
+              <div style="display:flex;align-items:center;justify-content:space-between;padding-bottom:6px;border-bottom:1px solid var(--cal-border)">
                 <div>
-                  <div style="font-size:12px;font-weight:700;color:#CBD5E1">
-                    🇺🇸 ${sl.video_us_east_str} · ${sl.video_us_west_str}
-                  </div>
-                  <div style="font-size:10px;color:#64748B;margin-top:2px">
-                    ${audienceLabel} ${sl.peak_target_pkt ? `· 🎯 Target Peak: <b>${sl.peak_target_pkt}</b>` : ''}
-                  </div>
+                  <div style="font-size:10px;font-weight:800;text-transform:uppercase;color:${wd.isToday ? "var(--accent)" : "var(--cal-dim)"}">${esc(wd.weekday)}${wd.isToday ? " · Today" : ""}</div>
+                  <div style="font-size:14px;font-weight:800;color:var(--cal-heading)">${esc(wd.dateNum)}</div>
                 </div>
-                <div class="cal-community-node">
-                  <span style="font-size:13px">📢</span>
-                  <span style="font-size:10px">Paired Community Post: <b>${sl.community_time_pkt} PKT (+30m)</b></span>
-                </div>
-                <button type="button" class="btn sm" onclick="openCalendarSlotPicker('${esc(c.id)}', ${sl.video_ts || sl.video_timestamp}, ${sl.slot_num}, '${esc(sl.video_time_pkt)}', '${esc(sl.video_us_east_str)} · ${esc(sl.video_us_west_str)}', '${esc(sl.cycle_date)}')" style="margin-top:auto;padding:5px 10px;font-size:11px;background:rgba(0,240,255,0.1);border:1px solid rgba(0,240,255,0.25);color:#00F0FF;border-radius:6px;justify-content:center;cursor:pointer;display:inline-flex;align-items:center;gap:4px">
-                  <span>➕</span> Assign Clip to Slot
-                </button>
+                <span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:999px;background:var(--cal-panel-bg);border:1px solid var(--cal-border);color:var(--cal-muted)">
+                  ${wd.slots.length || 3} slots
+                </span>
               </div>
-            `;
-          }).join('')}
-        </div>
-      ` : ''}
-
-      <!-- VIEW 3: QUEUED VIDEOS LIST -->
-      ${viewMode === 'queue' ? `
-        ${vPosts.length ? `
-          <div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(290px, 1fr));gap:12px">
-            ${vPosts.map((p, idx) => {
-              const due = p.scheduled_at || p.due_at;
-              const datePkt = due ? new Date(due * 1000).toLocaleString([], {weekday:"short", month:"short", day:"numeric", hour:"2-digit", minute:"2-digit"}) : "Scheduled";
-              const commPost = commPosts.find(cp => cp.video_post_id === p.id || cp.clip === p.clip);
-              const commTime = commPost ? new Date((commPost.scheduled_at || commPost.due_at) * 1000).toLocaleString([], {hour:"2-digit", minute:"2-digit"}) : "";
-              const thumbUrl = p.job && p.cover ? `/media/${p.job}/${p.cover}` : "";
-
-              return `
-                <div class="cal-slot-card has-video">
-                  <div style="display:flex;align-items:center;justify-content:space-between;gap:6px">
-                    <span class="badge" style="background:rgba(0,240,255,0.15);color:#00F0FF;border:1px solid rgba(0,240,255,0.3);font-size:10px;font-weight:800">
-                      #${idx + 1} · ⏱️ ${datePkt} PKT
-                    </span>
-                    <span style="font-size:10px;color:#94A3B8;font-weight:600">${esc(p.account_name || 'YouTube')}</span>
-                  </div>
-
-                  <div style="display:flex;gap:10px;align-items:center">
-                    ${thumbUrl ? `
-                      <div style="width:48px;height:48px;border-radius:8px;overflow:hidden;flex-shrink:0;background:#000;border:1px solid rgba(255,255,255,0.12)">
-                        <img src="${thumbUrl}" style="width:100%;height:100%;object-fit:cover" alt="">
-                      </div>
-                    ` : ''}
-                    <div style="min-width:0;flex:1">
-                      <div style="font-size:12px;font-weight:700;line-height:1.35;color:#F8FAFC;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical">
-                        ${esc(p.title || 'Clip')}
-                      </div>
-                      ${p.calendar_slot ? `
-                        <div style="font-size:10px;color:#38BDF8;margin-top:2px">
-                          🇺🇸 ${p.calendar_slot.video_us_east_str} · ${p.calendar_slot.video_us_west_str}
-                        </div>
-                      ` : ''}
-                      <div style="display:flex;align-items:center;gap:6px;margin-top:4px;flex-wrap:wrap">
-                        <span class="pill" style="font-size:10px;padding:1px 6px;border-radius:4px;background:rgba(56,189,248,0.15);color:#38BDF8;border:1px solid rgba(56,189,248,0.3);font-weight:700">👁️ ${p.views != null ? Number(p.views).toLocaleString() + ' views' : '0 views'}</span>
-                        ${p.remote_id ? `<span class="pill" style="font-size:10px;padding:1px 6px;border-radius:4px;background:rgba(16,185,129,0.15);color:#10B981;border:1px solid rgba(16,185,129,0.3);font-weight:600">✓ On YouTube</span>` : ''}
-                      </div>
-                    </div>
-                  </div>
-
-                  ${commPost ? `
-                    <div class="cal-community-node">
-                      <span>📢</span>
-                      <div style="flex:1"><b>Community Post:</b> ${commTime} (+30m)</div>
-                      <button type="button" class="btn sm ghost" data-act="copy_post_comm" data-pid="${esc(commPost.id)}" style="padding:1px 6px;font-size:10px;color:#F3E8FF">📋 Copy</button>
-                    </div>
-                  ` : ''}
-
-                  <div style="display:flex;gap:6px;margin-top:auto;padding-top:4px;border-top:1px solid rgba(255,255,255,0.06);align-items:center">
-                    <button class="btn sm" data-act="openclip" data-j="${esc(p.job)}" data-c="${esc(p.clip)}" style="padding:3px 10px;font-size:11px">
-                      ${ic("play")} View Clip
+              <div style="display:flex;flex-direction:column;gap:6px;flex:1">
+                ${(wd.slots.length ? wd.slots : []).map(sl => {
+                  const slotTs = sl.video_ts || sl.video_timestamp;
+                  const mv = vPosts.find(p => {
+                    const t = p.scheduled_at || p.due_at;
+                    return t && slotTs && Math.abs(t - slotTs) < 5400;
+                  });
+                  if (mv) {
+                    return `
+                      <button type="button" class="cal-week-mini-slot filled" data-act="openclip" data-j="${esc(mv.job)}" data-c="${esc(mv.clip)}">
+                        <span style="font-weight:800;color:#10B981;white-space:nowrap">${esc(sl.video_time_pkt)}</span>
+                        <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--cal-heading)">${esc(mv.title || "Scheduled Clip")}</span>
+                      </button>
+                    `;
+                  }
+                  return `
+                    <button type="button" class="cal-week-mini-slot" onclick="openCalendarSlotPicker('${esc(c.id)}', ${slotTs}, ${sl.slot_num}, '${esc(sl.video_time_pkt)}', '${esc(sl.video_us_east_str)} · ${esc(sl.video_us_west_str)}', '${esc(sl.cycle_date)}')" style="padding:5px 7px;font-size:10px">
+                      <span style="font-weight:700;color:var(--accent);white-space:nowrap">S${sl.slot_num} · ${esc(sl.video_time_pkt.replace(" AM", "a").replace(" PM", "p"))}</span>
+                      <span style="color:var(--cal-muted);font-weight:700">+Add</span>
                     </button>
-                    <span style="flex:1"></span>
-                    ${p.remote_id || p.status === 'posted' ? `
-                      <button class="btn sm danger ghost" data-act="deletepost" data-pid="${esc(p.id)}" data-title="${esc(p.title || 'this video')}" style="padding:3px 8px;font-size:11px" title="Permanently delete from YouTube and remove from schedule">
-                        ${ic("trash")} Delete from YouTube
-                      </button>
-                    ` : `
-                      <button class="btn sm danger ghost" data-act="cancelpost" data-pid="${esc(p.id)}" style="padding:3px 8px;font-size:11px" title="Cancel this scheduled upload">
-                        ${ic("x")} Cancel
-                      </button>
-                    `}
-                  </div>
-                </div>
-              `;
-            }).join('')}
-          </div>
-        ` : `
-          <div style="padding:24px 20px;text-align:center;color:#94A3B8;font-size:12px">
-            No videos currently queued for ${esc(c.name)}. When clips are ready, click "Add to queue" to automatically populate the calendar!
-          </div>
-        `}
-      ` : ''}
-    </div>
+                  `;
+                }).join("")}
+                ${!wd.slots.length ? `<div style="margin:auto;font-size:11px;color:var(--cal-muted);line-height:1.4;text-align:center;padding:12px 4px">Auto-opens as earlier slots fill</div>` : ""}
+              </div>
+            </div>
+          `).join("")}
+        </div>
+      ` : ""}
+
+      <!-- VIEW 3: ALL SEQUENTIAL SLOTS -->
+      ${viewMode === "slots" ? `
+        <div role="tabpanel" style="display:grid;grid-template-columns:repeat(auto-fill, minmax(290px, 1fr));gap:12px">
+          ${slots.map((sl, idx) => formatSlotCard(sl, idx, true)).join("")}
+        </div>
+      ` : ""}
+
+      <!-- VIEW 4: QUEUED VIDEOS LIST -->
+      ${viewMode === "queue" ? `
+        <div role="tabpanel">
+          ${vPosts.length ? `
+            <div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(290px, 1fr));gap:12px">
+              ${vPosts.map((p, idx) => {
+                const due = p.scheduled_at || p.due_at;
+                const datePkt = due ? new Date(due * 1000).toLocaleString([], { weekday: "short", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "Scheduled";
+                const commPost = commPosts.find(cp => cp.video_post_id === p.id || cp.clip === p.clip);
+                const commTime = commPost ? new Date((commPost.scheduled_at || commPost.due_at) * 1000).toLocaleString([], { hour: "2-digit", minute: "2-digit" }) : "";
+                const thumbUrl = p.job && p.cover ? `/media/${p.job}/${p.cover}` : "";
+                return `
+                  <article class="cal-slot-card slot-1 has-video cal-stagger-card" style="--stagger:${idx}">
+                    <div style="display:flex;align-items:center;justify-content:space-between;gap:6px">
+                      <span class="cal-slot-badge slot1">#${idx + 1} · ⏱️ ${esc(datePkt)} PKT</span>
+                      <span style="font-size:10px;color:var(--cal-muted);font-weight:700">${esc(p.account_name || "YouTube")}</span>
+                    </div>
+                    <div style="display:flex;gap:10px;align-items:center">
+                      ${thumbUrl ? `<div style="width:50px;height:50px;border-radius:9px;overflow:hidden;flex-shrink:0;background:#000;border:1px solid var(--cal-border-strong)"><img src="${thumbUrl}" style="width:100%;height:100%;object-fit:cover" alt=""></div>` : ""}
+                      <div style="min-width:0;flex:1">
+                        <div style="font-size:12.5px;font-weight:700;line-height:1.35;color:var(--cal-heading);overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical">${esc(p.title || "Clip")}</div>
+                        ${p.calendar_slot ? `<div class="cal-tz-chip-row" style="margin-top:4px"><span class="cal-tz-chip">NY ${esc(p.calendar_slot.video_us_east_str)}</span><span class="cal-tz-chip">LA ${esc(p.calendar_slot.video_us_west_str)}</span></div>` : ""}
+                        <div style="display:flex;align-items:center;gap:6px;margin-top:5px;flex-wrap:wrap">
+                          <span class="pill" style="font-size:10px;padding:1px 6px;border-radius:5px;background:rgba(56,189,248,0.14);color:#0EA5E9;border:1px solid rgba(56,189,248,0.3);font-weight:700">👁️ ${p.views != null ? Number(p.views).toLocaleString() + " views" : "0 views"}</span>
+                          ${p.remote_id ? `<span class="pill" style="font-size:10px;padding:1px 6px;border-radius:5px;background:rgba(16,185,129,0.14);color:#10B981;border:1px solid rgba(16,185,129,0.3);font-weight:700">✓ On YouTube</span>` : ""}
+                        </div>
+                      </div>
+                    </div>
+                    ${commPost ? `
+                      <div class="cal-community-node">
+                        <span>📢</span>
+                        <div style="flex:1"><b>Community Post:</b> ${esc(commTime)} (+30m)</div>
+                        <button type="button" class="btn sm ghost" data-act="copy_post_comm" data-pid="${esc(commPost.id)}" style="padding:2px 8px;font-size:10px">📋 Copy</button>
+                      </div>
+                    ` : ""}
+                    <div style="display:flex;gap:6px;margin-top:auto;padding-top:6px;border-top:1px solid var(--cal-border);align-items:center">
+                      <button type="button" class="btn sm" data-act="openclip" data-j="${esc(p.job)}" data-c="${esc(p.clip)}" style="padding:4px 10px;font-size:11px">${ic("play")} View Clip</button>
+                      <span style="flex:1"></span>
+                      ${p.remote_id || p.status === "posted" ? `
+                        <button type="button" class="btn sm danger ghost" data-act="deletepost" data-pid="${esc(p.id)}" data-title="${esc(p.title || "this video")}" style="padding:4px 8px;font-size:11px">${ic("trash")} Delete from YouTube</button>
+                      ` : `
+                        <button type="button" class="btn sm danger ghost" data-act="cancelpost" data-pid="${esc(p.id)}" style="padding:4px 8px;font-size:11px">${ic("x")} Cancel</button>
+                      `}
+                    </div>
+                  </article>
+                `;
+              }).join("")}
+            </div>
+          ` : `
+            <div style="padding:28px 20px;text-align:center;background:var(--cal-panel-bg);border:1px dashed var(--cal-border-strong);border-radius:14px">
+              <div style="font-size:28px;margin-bottom:6px">🎬</div>
+              <div style="font-size:13px;font-weight:800;color:var(--cal-heading)">Queue is Clear for ${esc(c.name)}</div>
+              <div style="font-size:11.5px;color:var(--cal-muted);margin:4px auto 12px;max-width:420px">Open any exported Short and click <b>"Add to queue"</b> or pick an empty time slot in Timeline / Week Grid to schedule automatically.</div>
+              <button type="button" class="btn sm primary" data-act="cal_goto_clips" style="padding:6px 14px;font-size:11.5px">✂️ Browse Exported Clips</button>
+            </div>
+          `}
+        </div>
+      ` : ""}
+    </section>
   `;
 }
 
@@ -8764,7 +9210,15 @@ document.addEventListener("click", async e => {
     if (a === "cal_tab") {
       window._calViewMode = d.tab || "timeline";
       const cr = creator();
-      if ($("#creator_calendar_view")) renderCreatorCalendarCard(cr, $("#creator_calendar_view"), false);
+      if ($("#creator_calendar_view")) renderCreatorCalendarCard(cr, $("#creator_calendar_view"), false, true);
+      return;
+    }
+    if (a === "cal_toggle_motion") {
+      window._calMotionPaused = !window._calMotionPaused;
+      const root = $("#creator_calendar_view .cal-root-card");
+      if (root) root.classList.toggle("cal-paused", window._calMotionPaused);
+      b.textContent = window._calMotionPaused ? "▶ Motion" : "⏸ Calm";
+      b.setAttribute("aria-label", window._calMotionPaused ? "Resume calendar animations" : "Pause calendar animations");
       return;
     }
     if (a === "cal_goto_clips") {
