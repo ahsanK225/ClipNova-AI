@@ -156,11 +156,9 @@ Integrated directly in `studio/brain.py` and `studio/posting.py`:
   - Allows creators to re-scan any clip's visual frame with AI via `POST /api/jobs/{jid}/clips/{cid}/ai_seo`.
   - Instantly populates and refreshes Hook, Title, Description, YouTube search tags, and Pinned comment in the editor dialog.
   - Re-burning the hook is executed seamlessly via "Save and re-make clip".
-- **Multi-Title AI Suggestions & Interactive Clickable Pills (`brain.py`, `server.py`, `web/index.html`)**:
-  - AI generates 4 distinct, high-CTR YouTube Shorts titles ending with `#Shorts` and fitting emojis via `generate_viral_titles()`.
-  - In `#clipdlg`, both `Title (with Viral Hashtags)` and `Shorts Title (High-CTR with #Shorts)` feature `#dlg_title_pills` and `#dlg_seo_title_pills` containers displaying clickable title suggestion pills (`💡 Title #1`, `💡 Title #2`, `💡 Title #3`, `💡 Title #4`).
-  - Added dedicated `✨ AI Title Ideas` button (`btn_ai_titles`) calling `/api/jobs/{jid}/clips/{cid}/titles` for on-demand title generation.
-  - Clicking any suggested pill updates both title inputs simultaneously and applies a glowing cyan accent border to the active pill across both containers.
+- **Multi-Title AI Suggestions, Clickable Pills & Live YouTube Intelligence (`brain.py`, `yt_intel.py`, `growth_routes.py`, `server.py`, `web/index.html`)**:
+  - AI generates 4 distinct, high-CTR YouTube Shorts titles ending with `#Shorts` via `generate_viral_titles()` and scores/ranks hooks & titles via `yt_intel.py` (21 proven hook formulas, weakest-link 5-property scoring, 40-char mobile / 60-char desktop truncation checks, and Title-vs-Hook click-surface anti-duplication linting).
+  - `#clipdlg` provides live stateless linting (`POST /api/yt/lint`), on-demand CTR scoring (`POST /api/jobs/{jid}/clips/{cid}/title-score`), transcript dead-air/retake audit (`GET /api/jobs/{jid}/clips/{cid}/edl`), validated compilation chapters (`POST /api/jobs/{jid}/stitch-best`), and YouTube Studio Audience Retention CSV drop-off analysis (`POST /api/analytics/retention`).
 - **5-Line Story "Khulasa"**: Contextual story summary of the specific comedic/action moment (actor, unexpected twist, escalation, streamer reaction, community question).
 - **High-CTR Title**: Curiosity-gap title capped with `#Shorts`.
 - **Top Discussion Pinned Comment**: Provocative prompt posted as top comment to drive algorithm engagement and comments.

@@ -67,11 +67,13 @@ F:\Games\GTA 6 CLIPPING\
 │   │   ├── render.py                       # FFmpeg 9:16 vertical render, AMD AMF/NVENC/QSV GPU + libx264 fallback, split layouts, dynamic full-cam crop, Bouncy/Hormozi/MrBeast subtitles & Hook styles
 │   │   ├── routes\                         # Modular FastAPI APIRouter submodules
 │   │   │   ├── __init__.py
-│   │   │   └── calendar_routes.py          # Extracted Calendar, Analytics Velocity & Community Post API routes
+│   │   │   ├── calendar_routes.py          # Extracted Calendar, Analytics Velocity & Community Post API routes
+│   │   │   └── growth_routes.py            # Growth & YouTube Intelligence routes (manual VOD clips, title CTR scorer, winner insights, compilation stitcher, retention CSV, EDL, chapters, outliers)
 │   │   ├── safe.py                         # User-safe error redaction & Windows-resilient atomic file persistence (.tmp + .bak auto-recovery)
 │   │   ├── server.py                       # FastAPI application, Gate, delta sync (/api/sync), static asset routes & mounted APIRouters
-│   │   └── storage.py                      # Local file, clip & recording management
-│   ├── tests\                              # Test suite (35 comprehensive suites in run.py + standalone suites)
+│   │   ├── storage.py                      # Local file, clip & recording management
+│   │   └── yt_intel.py                     # Zero-dependency YouTube intelligence engine (21 hook formulas, title/cover pairing linter, retention CSV analyzer, dead-air/retake EDL, validated chapters, outlier ranker)
+│   ├── tests\                              # Test suite (36 comprehensive suites in run.py + standalone suites)
 │   │   ├── run.py                          # Master test runner (automated verification across 35 suites)
 │   │   ├── test_phase1_upgrades.py         # Phase 1 tests: atomic .bak recovery, GPU AMF/CPU fallback, ASR cache reuse, route dedup & yt_tags
 │   │   ├── test_phase2_upgrades.py         # Phase 2 tests: caption word editor API, multi-frame live AI, Roman Urdu pack, full-cam check & UI filter bar

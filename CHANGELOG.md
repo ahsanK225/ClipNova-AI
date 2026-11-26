@@ -1,6 +1,35 @@
 ﻿# Changelog
 All notable project changes are documented here.
 
+## [2026-11-27] — YouTube Agent Intelligence Integration & Growth Router Mount
+
+### Added
+- **YouTube Intelligence Engine (`PeakCut/studio/yt_intel.py`)**:
+  - Zero-dependency pure-Python toolkit adapted from `youtube-agent-skill` (MIT) and calibrated for Gaming/Shorts + general YouTube workflows:
+  - **21 Hook Formulas + Hook Scorer**: `score_hook()`, `rank_hooks()`, `classify_hook_formula()`, `HOOK_FORMULAS` (scoring `SPECIFICITY`, `ADDRESS`, `STAKES`, `CURIOSITY`, `BREVITY` + weakest-link verdict and formula classification).
+  - **Title + Hook/Thumbnail Pairing Linter**: `lint_title_pairing()` checking desktop 60-char search cut, mobile 40-char feed preview, all-caps guard, vague words, and Title vs Hook cover duplication.
+  - **Dead-Air, Filler & Retake EDL Detector**: `analyze_transcript_edl()` identifying `DEAD` pauses, `FILLER` cues, and `REPEAT` sentence restarts.
+  - **Validated YouTube Chapters**: `generate_chapters()` & `build_compilation_chapters()` enforcing `0:00` start, `>=3` chapters, and `>=10s` per chapter.
+  - **Audience Retention CSV Analyzer & Outlier Finder**: `analyze_retention_csv()` (Hook Leak %, Drop-Off Cliffs paired with spoken transcript dialogue, Middle Slide) and `find_channel_outliers()`.
+- **New API Endpoints (`PeakCut/studio/routes/growth_routes.py`, `PeakCut/studio/server.py`)**:
+  - `POST /api/yt/lint` (instant stateless hook & title pairing score)
+  - `GET /api/jobs/{jid}/clips/{cid}/edl` (clip transcript dead-air/retake audit)
+  - `POST /api/jobs/{jid}/chapters` (validated YouTube chapters from job transcript)
+  - `POST /api/analytics/retention` (YouTube Studio retention CSV leak & cliff analyzer)
+  - `POST /api/analytics/outliers` (own-channel median viral outlier classifier)
+- **Frontend UI Enhancements (`PeakCut/web/index.html`)**:
+  - Live Hook quality/formula badge (`#dlg_hook_lint_badge`), live Title CTR + mobile 40-char + duplicate-hook linter (`#dlg_title_lint_badge`), `🎯 Score CTR` button, and `✂️ Dead-Air & Retakes Audit` inside `#clipdlg`.
+  - `🎬 Stitch Best` button in `.job-head` generating Best-of-Stream compilations with validated YouTube Chapters.
+  - `📉 Retention CSV` modal (`openRetentionAnalyzerModal`) in the Calendar/Velocity header.
+- **Test Suite (`PeakCut/tests/test_yt_intel.py`, `PeakCut/tests/run.py`)**:
+  - Added 36th test suite covering hook formula scoring, title/hook duplication linting, EDL gaps/repeats, chapter validation, retention CSV cliff matching, outlier ranking, and live route mounting.
+
+### Fixed
+- **Growth Router Mount (`PeakCut/studio/server.py`)**:
+  - Mounted `_growth_router` (`studio.routes.growth_routes.router`) on the FastAPI app so all Steps 3–8 growth endpoints (`/manual-clips`, `/cover`, `/title-score`, `/winner-insights`, `/stitch-best`, `/storage/*`, `/system/update`, `/yt/lint`, `/analytics/retention`, `/analytics/outliers`) serve cleanly instead of 404.
+- **AI Hook & Title Ranking (`PeakCut/studio/brain.py`, `PeakCut/studio/server.py`)**:
+  - Updated `generate_viral_hooks()`, `generate_final_cut_package()`, `clip_generate_hooks()`, and `clip_generate_titles()` to rank hooks/titles via `yt_intel` and avoid duplicating hook banner wording in the primary title.
+
 ## [2026-11-27] — Full-Project Audit & Reliability Fixes
 
 ### Fixed

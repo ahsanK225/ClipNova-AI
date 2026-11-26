@@ -13,7 +13,7 @@ from typing import List
 
 from fastapi import APIRouter, Body, HTTPException
 
-from .. import auth, config, creators, ctx, jobs, posting, safe
+from .. import auth, config, creators, ctx, jobs, posting, safe, yt_intel
 
 router = APIRouter()
 
@@ -184,32 +184,13 @@ def pick_clip_cover_frame(jid: str, cid: str, body: dict = Body(...)):
     return {"ok": True, "cover": clip["cover"], "version": clip["version"], "t": t_sec}
 
 
-def _score_title_ctr(title: str) -> dict:
-    t = title.strip()
-    score = 62
-    reasons = []
-    if 24 <= len(t) <= 62:
-        score += 12
-        reasons.append("Ideal Shorts length")
-    elif len(t) > 75:
-        score -= 8
-        reasons.append("Too long (may truncate)")
-    if "#Shorts" in t or "#shorts" in t:
-        score += 6
-        reasons.append("Has #Shorts tag")
-    power = ("insane", "crazy", "never", "secret", "actually", "caught", "wasted", "first", "impossible", "broken", "best", "worst", "leaked")
-    if any(w in t.lower() for w in power):
-        score += 10
-        reasons.append("High-curiosity power word")
-    if any(ch in t for ch in ("!", "?", "💀", "😂", "🤯", "🔥", "😱")):
-        score += 6
-        reasons.append("Emotional hook punctuation")
-    return {"title": t, "ctr_score": max(30, min(98, score)), "reason": " · ".join(reasons) or "Clean descriptive title"}
+def _score_title_ctr(title: str, thumb: str | None = None) -> dict:
+    return yt_intel.lint_title_pairing(title, thumb=thumb, is_shorts=True)
 
 
 @router.post("/api/jobs/{jid}/clips/{cid}/title-score")
 def score_clip_titles(jid: str, cid: str, body: dict = Body(default={})):
-    """Generate and CTR-score 3 viral Shorts title candidates for a clip."""
+    """Generate and CTR-score viral Shorts title candidates paired against the clip's hook banner."""
     if not jobs.list_jobs():
         jobs.load_user(ctx.uid())
     job = jobs.get(jid)
@@ -220,10 +201,11 @@ def score_clip_titles(jid: str, cid: str, body: dict = Body(default={})):
         raise HTTPException(404, "Clip not found")
 
     cur_title = str(body.get("title") or clip.get("title") or clip.get("hook") or "Insane GTA 6 Moment").strip()
+    cur_hook = str(body.get("hook") if "hook" in body else (clip.get("hook") or "")).strip()
     clean_base = re.sub(r"#Shorts", "", cur_title, flags=re.I).strip(" !.-")
-    cr_name = (creators.get(job.get("creator") or "") or {}).get("name") or ""
+    cr_name = (creators.get(job.get("creator") or "") or {}).get("name") or job.get("uploader") or ""
 
-    raw_candidates = [cur_title]
+    raw_candidates = [cur_title] + [str(t).strip() for t in (clip.get("titles") or []) if str(t).strip()]
     if clean_base:
         raw_candidates.append(f"Wait Until You See {clean_base}! 😱 #Shorts")
         if cr_name and cr_name.lower() not in clean_base.lower():
@@ -234,11 +216,12 @@ def score_clip_titles(jid: str, cid: str, body: dict = Body(default={})):
     seen = set()
     scored = []
     for cand in raw_candidates:
-        if cand not in seen:
+        if cand and cand not in seen:
             seen.add(cand)
-            scored.append(_score_title_ctr(cand))
+            scored.append(_score_title_ctr(cand, thumb=cur_hook))
     scored.sort(key=lambda x: -x["ctr_score"])
-    return {"ok": True, "candidates": scored}
+    hook_eval = yt_intel.score_hook(cur_hook, mode="shorts") if cur_hook else None
+    return {"ok": True, "candidates": scored[:6], "hook_score": hook_eval}
 
 
 # ---------------------------------------------------------------------------
@@ -324,6 +307,7 @@ def stitch_best_of_stream(jid: str, body: dict = Body(default={})):
 
     jdir = Path(job.get("dir", ""))
     segments = []
+    piece_meta = []
     total_dur = 0.0
     for clp in picked:
         c_src = jdir / "clips" / f"{clp['id']}.src.mp4"
@@ -335,11 +319,16 @@ def stitch_best_of_stream(jid: str, body: dict = Body(default={})):
             segments.append({"path": str(c_src), "start": 0.0, "end": piece_dur, "orig_start": s, "orig_end": s + piece_dur})
         else:
             segments.append({"start": s, "end": s + piece_dur, "orig_start": s, "orig_end": s + piece_dur})
+        piece_meta.append({"title": clp.get("title") or clp.get("hook") or "", "hook": clp.get("hook") or "", "dur": piece_dur})
         total_dur += piece_dur
 
+    chapters_info = yt_intel.build_compilation_chapters(piece_meta)
     cid = f"best_{int(time.time()) % 100000}"
     cr = creators.get(job.get("creator") or "") or {}
     base_opts = dict(job.get("options") or {})
+    comp_desc = f"Top {len(picked)} highlights from {job.get('title') or 'this stream'}!"
+    if chapters_info["text"]:
+        comp_desc += f"\n\nChapters:\n{chapters_info['text']}"
     comp_clip = {
         "id": cid,
         "start": float(picked[0].get("start") or 0.0),
@@ -348,6 +337,9 @@ def stitch_best_of_stream(jid: str, body: dict = Body(default={})):
         "segments": segments,
         "title": f"Top {len(picked)} Best Moments Compilation! 🔥 #Shorts",
         "hook": f"TOP {len(picked)} *BEST MOMENTS*! 🔥",
+        "description": comp_desc,
+        "chapters": chapters_info["chapters"],
+        "chapters_valid": chapters_info["valid"],
         "reason": f"Best-of-Stream compilation stitched from {len(picked)} top-scoring clips",
         "source": "compilation",
         "score": max(int(c.get("score") or 80) for c in picked),
@@ -372,7 +364,131 @@ def stitch_best_of_stream(jid: str, body: dict = Body(default={})):
             pass
 
     threading.Thread(target=ctx.bind(_run_stitch), daemon=True).start()
-    return {"ok": True, "clip_id": cid, "pieces": len(picked), "duration": round(total_dur, 1)}
+    return {
+        "ok": True,
+        "clip_id": cid,
+        "pieces": len(picked),
+        "duration": round(total_dur, 1),
+        "chapters": chapters_info["chapters"],
+        "chapters_valid": chapters_info["valid"],
+    }
+
+
+# ---------------------------------------------------------------------------
+# STEP 8: YOUTUBE AGENT INTELLIGENCE (HOOKS, LINT, EDL, RETENTION, OUTLIERS)
+# ---------------------------------------------------------------------------
+
+@router.post("/api/yt/lint")
+def lint_hook_and_title(body: dict = Body(default={})):
+    """Real-time stateless linter for hook quality + title/thumbnail pairing (zero AI tokens)."""
+    hook = str(body.get("hook") or "").strip()
+    title = str(body.get("title") or "").strip()
+    mode = str(body.get("mode") or "shorts").lower()
+    if mode not in ("shorts", "standard"):
+        mode = "shorts"
+    is_shorts = body.get("is_shorts", True) is not False
+    hook_eval = yt_intel.score_hook(hook, mode=mode) if hook else None
+    title_eval = yt_intel.lint_title_pairing(title, thumb=hook or None, is_shorts=bool(is_shorts)) if title else None
+    return {"ok": True, "hook": hook_eval, "title": title_eval}
+
+
+@router.get("/api/jobs/{jid}/clips/{cid}/edl")
+def get_clip_transcript_edl(jid: str, cid: str, floor: float = 0.45):
+    """Detect dead-air gaps, filler cues, and restarted takes inside a clip's transcript span."""
+    if not jobs.list_jobs():
+        jobs.load_user(ctx.uid())
+    job = jobs.get(jid)
+    if not job:
+        raise HTTPException(404, "Job not found")
+    clip = next((c for c in job.get("clips", []) if c.get("id") == cid), None)
+    if not clip:
+        raise HTTPException(404, "Clip not found")
+
+    words = clip.get("words") or job.get("words") or []
+    cues = yt_intel.words_to_cues(words)
+    # Clip-scoped words are usually relative or absolute; detect cleanly
+    s = float(clip.get("start") or 0.0)
+    e = float(clip.get("end") or (s + float(clip.get("dur") or 30.0)))
+    if clip.get("words"):
+        first_s = float(clip["words"][0].get("s") or clip["words"][0].get("start") or 0.0)
+        if first_s < max(0.0, s - 2.0):
+            edl = yt_intel.analyze_transcript_edl(cues, floor=max(0.2, min(2.0, float(floor))))
+        else:
+            edl = yt_intel.analyze_transcript_edl(cues, floor=max(0.2, min(2.0, float(floor))), span_start=s, span_end=e)
+    else:
+        edl = yt_intel.analyze_transcript_edl(cues, floor=max(0.2, min(2.0, float(floor))), span_start=s, span_end=e)
+    return {"ok": True, **edl}
+
+
+@router.post("/api/jobs/{jid}/chapters")
+def build_job_chapters(jid: str, body: dict = Body(default={})):
+    """Generate YouTube-rule-validated chapters from a job's spoken transcript."""
+    if not jobs.list_jobs():
+        jobs.load_user(ctx.uid())
+    job = jobs.get(jid)
+    if not job:
+        raise HTTPException(404, "Job not found")
+    target = max(3, min(15, int(body.get("target", 7) or 7)))
+    cues = yt_intel.words_to_cues(job.get("words") or [], max_gap=0.8, max_words=16)
+    res = yt_intel.generate_chapters(cues, target=target)
+    return {"ok": True, **res}
+
+
+@router.post("/api/analytics/retention")
+def analyze_youtube_retention(body: dict = Body(...)):
+    """Analyze a YouTube Studio Audience Retention CSV export and align cliffs with spoken transcript."""
+    _throttle("retention:" + ctx.uid(), 30, 60)
+    csv_text = str(body.get("csv_text") or "").strip()
+    if not csv_text:
+        raise HTTPException(400, "Paste or upload YouTube Studio Audience Retention CSV data")
+
+    jid = str(body.get("job_id") or "").strip()
+    cid = str(body.get("clip_id") or "").strip()
+    raw_tr = str(body.get("transcript") or "").strip()
+    dur = body.get("duration_sec")
+
+    cues = yt_intel.parse_transcript_cues(raw_tr) if raw_tr else None
+    if not cues and jid:
+        if not jobs.list_jobs():
+            jobs.load_user(ctx.uid())
+        job = jobs.get(jid)
+        if job:
+            all_words = job.get("words") or []
+            if cid:
+                clp = next((c for c in job.get("clips", []) if c.get("id") == cid), None)
+                if clp:
+                    s = float(clp.get("start") or 0.0)
+                    e = float(clp.get("end") or (s + float(clp.get("dur") or 30.0)))
+                    dur = dur or max(1.0, e - s)
+                    clp_words = clp.get("words") or [
+                        w for w in all_words if float(w.get("e") or w.get("end") or 0.0) >= s and float(w.get("s") or w.get("start") or 0.0) <= e
+                    ]
+                    raw_cues = yt_intel.words_to_cues(clp_words)
+                    if clp.get("words"):
+                        cues = raw_cues
+                    else:
+                        cues = [(max(0.0, cs - s), max(0.1, ce - s), txt) for cs, ce, txt in raw_cues]
+            if not cues and all_words:
+                cues = yt_intel.words_to_cues(all_words)
+                dur = dur or float(job.get("duration") or 0.0) or None
+
+    try:
+        report = yt_intel.analyze_retention_csv(csv_text, cues=cues, duration_sec=float(dur) if dur else None)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    return {"ok": True, "has_transcript": bool(cues), **report}
+
+
+@router.post("/api/analytics/outliers")
+def analyze_channel_outliers(body: dict = Body(...)):
+    """Rank competitor/niche videos by multiple over each channel's own median views."""
+    _throttle("outliers:" + ctx.uid(), 20, 60)
+    rows = body.get("videos") or []
+    if not isinstance(rows, list) or not rows:
+        raise HTTPException(400, "Provide a list of {channel, title, views} video objects")
+    min_mult = float(body.get("min_multiple", 2.0) or 2.0)
+    res = yt_intel.find_channel_outliers(rows, min_multiple=max(1.1, min(50.0, min_mult)))
+    return {"ok": True, **res}
 
 
 # ---------------------------------------------------------------------------

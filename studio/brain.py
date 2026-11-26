@@ -7,7 +7,7 @@ import time
 
 import numpy as np
 
-from . import ai, config, games, usage, roman, ohnepixel
+from . import ai, config, games, usage, roman, ohnepixel, yt_intel
 
 WINDOW_SEC, OVERLAP_SEC = 15 * 60, 60
 
@@ -1418,7 +1418,8 @@ CRITICAL GROUNDING & VIRALITY INSTRUCTIONS (LIKE CHATGPT / VIRAL EDITORS):
             if isinstance(out, dict) and "hooks" in out and isinstance(out["hooks"], list):
                 res = [_apply_yellow_punch(re.sub(r'["\\]', '', str(h)).strip()) for h in out["hooks"] if str(h).strip()]
                 if len(res) >= 3:
-                    return res[:count]
+                    ranked = yt_intel.rank_hooks(res, mode="shorts")
+                    return [r["hook"] for r in ranked][:count] if ranked else res[:count]
         except Exception as e:
             print(f"[brain] Multimodal hook vision notice: {e}", flush=True)
 
@@ -1431,9 +1432,9 @@ Game: {gname}
 Spoken in clip:
 {t_clean if t_clean else '(High action gameplay moment, minimal dialogue)'}
 
-Rules for high CTR hooks:
+Rules for high CTR hooks (use varied proven hook shapes: Stakes, Curiosity Question, Impossible Claim, Warning, Mistake, Superlative):
 1. Make them punchy, dramatic, hilarious, or curious (e.g. 'GTA 6 influencers are insane 😳', 'HE ACTUALLY PULLED THIS OFF?! 💀', 'OHNEPIXEL REGRETS THIS MOMENT 😭').
-2. Keep length between 3 and 7 words.
+2. Keep length between 3 and 7 words, naming the specific person/item/action. NEVER write generic clichés like 'WAIT TILL THE END'.
 3. Put a single fitting emoji at the end of each headline.
 4. Surround the single most important punch keyword with asterisks (e.g. 'GTA 6 *influencers* are insane 😳') so it gets highlighted in vibrant canary yellow on video.
 5. Return JSON with key 'hooks' containing exactly {count} distinct options."""
@@ -1443,19 +1444,22 @@ Rules for high CTR hooks:
         if isinstance(out, dict) and "hooks" in out and isinstance(out["hooks"], list):
             res = [re.sub(r'["\\]', '', str(h)).strip() for h in out["hooks"] if str(h).strip()]
             if res:
-                return res[:count]
+                ranked = yt_intel.rank_hooks(res, mode="shorts")
+                return [r["hook"] for r in ranked][:count] if ranked else res[:count]
     except Exception as e:
         print(f"[brain] AI hook generation notice: {e}", flush=True)
 
     streamer_name = uploader or "Streamer"
     game_tag = gname if gname != "Gaming" else "GTA 6"
-    return [
+    fallback_list = [
         f"{game_tag} *influencers* are insane 😳",
         f"HE DID *NOT* EXPECT THIS TO HAPPEN?! 💀",
         f"{streamer_name.upper()}'S *CRAZIEST* MOMENT EVER 😱",
         f"THIS WENT COMPLETELY *WRONG* 😭",
         f"NO WAY THIS ACTUALLY *WORKED* 🏆"
     ]
+    ranked = yt_intel.rank_hooks(fallback_list, mode="shorts")
+    return [r["hook"] for r in ranked][:count] if ranked else fallback_list[:count]
 
 
 # ---------------------------------------------------------------- live: two judges that never see each other's input
@@ -2038,6 +2042,11 @@ def generate_final_cut_package(
     hooks_list = [_apply_yellow_punch(roman.to_roman(_text(h, 90)).upper()) for h in (raw.get("hooks") or []) if str(h).strip()][:5]
     if clean_hook_txt and clean_hook_txt not in hooks_list:
         hooks_list.insert(0, clean_hook_txt)
+    ranked_hooks = yt_intel.rank_hooks(hooks_list, mode="shorts")
+    if ranked_hooks:
+        hooks_list = [r["hook"] for r in ranked_hooks]
+        if not clean_hook_txt:
+            clean_hook_txt = hooks_list[0]
 
     rec_title = roman.to_roman(_text(raw.get("title"), 95)) or f"{up_meta or 'Gaming'} Moment #Shorts"
     if "#shorts" not in rec_title.lower():
@@ -2052,6 +2061,15 @@ def generate_final_cut_package(
                 titles_list.append(tc)
     if rec_title not in titles_list:
         titles_list.insert(0, rec_title)
+    if titles_list:
+        linted = sorted(
+            (yt_intel.lint_title_pairing(t, thumb=clean_hook_txt, is_shorts=True) for t in titles_list),
+            key=lambda r: -r["ctr_score"],
+        )
+        titles_list = [r["title"] for r in linted]
+        # Prefer the highest-scoring non-duplicative title when AI title mirrored the hook verbatim
+        if linted and any(i["code"] == "duplicate" for i in yt_intel.lint_title_pairing(rec_title, thumb=clean_hook_txt).get("issues", [])):
+            rec_title = titles_list[0]
 
     clean_desc = roman.to_roman(_text(raw.get("description"), 600)) or f"Watch this moment from {title or 'the stream'}."
     clean_desc = re.sub(r"(?:\s+#\w+)+\s*$", "", clean_desc).strip()

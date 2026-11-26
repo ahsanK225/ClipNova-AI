@@ -3412,6 +3412,7 @@ function jobHtml(j, visibleClips, forceExpand) {
       </div>
       <div class="row" style="flex-wrap:nowrap;gap:6px;align-items:center">
         ${(j.source_path || j.source?.type === "file" || j.status === "done" || j.status === "error") ? `<button type="button" class="btn sm ghost" onclick="openVodClipper('${j.id}')" title="Cut your own custom manual clips from this video" style="font-size:11px;padding:4px 9px;border-radius:8px;border-color:rgba(56,189,248,0.45);color:#38BDF8;font-weight:700">✂️ Manual Cut</button>` : ""}
+        ${!busy && allClips.filter(c => c.status === "done" && !String(c.id || "").startsWith("best_")).length >= 2 ? `<button type="button" class="btn sm ghost" onclick="stitchJobBestClips('${j.id}', this)" title="Stitch top clips into a Best-of-Stream compilation with validated YouTube Chapters" style="font-size:11px;padding:4px 9px;border-radius:8px;border-color:rgba(168,85,247,0.45);color:#C084FC;font-weight:700">🎬 Stitch Best</button>` : ""}
         ${busy ? "" : `
           ${clips.length ? `<button type="button" class="btn sm" data-act="toggle_job_collapse" data-j="${j.id}" title="${isCollapsed ? 'Expand folder' : 'Fold folder'}" style="${isCollapsed ? 'background:linear-gradient(135deg,rgba(0,240,255,0.16),rgba(0,136,255,0.08));border:1px solid rgba(0,240,255,0.35);color:var(--accent,#00F0FF);font-weight:700' : 'background:var(--bg-2);border:1px solid var(--line)'};font-size:11px;display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:8px;cursor:pointer">
             <span>${isCollapsed ? '📁' : '📂'}</span>
@@ -4176,6 +4177,140 @@ async function syncChannelAnalytics(cid, btn) {
   }
 }
 
+window.stitchJobBestClips = async function(jid, btn) {
+  if (!jid) return;
+  const orig = btn ? btn.innerHTML : "";
+  if (btn) { btn.disabled = true; btn.innerHTML = "⏳ Stitching…"; }
+  try {
+    const res = await send(`/api/jobs/${encodeURIComponent(jid)}/stitch-best`, { count: 4 }, "POST");
+    if (res?.ok) {
+      const chCount = (res.chapters || []).length;
+      toast(`🎬 Best-of-Stream queued (${res.pieces} clips, ${res.duration}s${chCount ? `, ${chCount} YouTube chapters` : ""})!`, "ok", 5000);
+      if (typeof sync === "function") sync();
+    }
+  } catch (err) {
+    toast(`Stitch failed: ${err.message || err}`, "bad");
+  } finally {
+    if (btn) { btn.disabled = false; btn.innerHTML = orig; }
+  }
+};
+
+window.openRetentionAnalyzerModal = function() {
+  let dlg = $("#yt_retention_dlg");
+  if (!dlg) {
+    dlg = document.createElement("dialog");
+    dlg.id = "yt_retention_dlg";
+    dlg.style.cssText = "max-width:760px;width:94vw;max-height:90vh;background:#0F172A;color:#F8FAFC;border:1px solid rgba(0,240,255,0.32);border-radius:16px;padding:0;overflow:hidden;box-shadow:0 24px 60px rgba(0,0,0,0.75);display:flex;flex-direction:column";
+    document.body.appendChild(dlg);
+  }
+  const doneJobs = (S.jobs || []).filter(j => (j.clips || []).length > 0);
+  const jobOpts = `<option value="">-- Optional: Match against a PeakCut job transcript --</option>` +
+    doneJobs.map(j => `<option value="${esc(j.id)}">${esc(j.title || j.source?.name || j.id)} (${(j.clips || []).length} clips)</option>`).join("");
+
+  dlg.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 18px;border-bottom:1px solid rgba(255,255,255,0.08);background:#0B1120">
+      <div>
+        <div style="font-size:15px;font-weight:800;color:#00F0FF">📉 Audience Retention Drop-Off Analyzer</div>
+        <div style="font-size:11.5px;color:#94A3B8;margin-top:2px">YouTube Studio → Engagement → Download "Audience retention" CSV — find exact hook leaks &amp; spoken drop-off cliffs</div>
+      </div>
+      <button type="button" class="btn sm ghost" id="ret_close">✕ Close</button>
+    </div>
+    <div style="padding:14px 18px;display:flex;flex-direction:column;gap:10px;overflow-y:auto;flex:1">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <label style="font-size:11.5px;color:#94A3B8;display:flex;flex-direction:column;gap:4px">
+          Upload Retention CSV file
+          <input id="ret_csv_file" type="file" accept=".csv,.txt" style="font-size:11px;padding:6px;background:#020617;border:1px solid rgba(255,255,255,0.14);border-radius:8px;color:#E2E8F0">
+        </label>
+        <label style="font-size:11.5px;color:#94A3B8;display:flex;flex-direction:column;gap:4px">
+          Pair with Video Transcript (optional)
+          <select id="ret_job_sel" style="padding:7px 10px;border-radius:8px;border:1px solid rgba(255,255,255,0.14);background:#020617;color:#F8FAFC;font-size:11.5px">${jobOpts}</select>
+        </label>
+      </div>
+      <div id="ret_clip_wrap" style="display:none">
+        <label style="font-size:11.5px;color:#94A3B8;display:flex;flex-direction:column;gap:4px">
+          Specific Short / Clip (optional — narrows cliff timestamps &amp; dialogue)
+          <select id="ret_clip_sel" style="padding:7px 10px;border-radius:8px;border:1px solid rgba(255,255,255,0.14);background:#020617;color:#F8FAFC;font-size:11.5px"></select>
+        </label>
+      </div>
+      <label style="font-size:11.5px;color:#94A3B8;display:flex;flex-direction:column;gap:4px">
+        Or paste YouTube Studio retention CSV rows here
+        <textarea id="ret_csv_text" rows="5" placeholder="Position (%),Absolute audience retention (%)&#10;0,100&#10;5,82&#10;10,74..." style="padding:8px 10px;border-radius:8px;border:1px solid rgba(255,255,255,0.14);background:#020617;color:#F8FAFC;font-family:ui-monospace,monospace;font-size:11.5px"></textarea>
+      </label>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button type="button" class="btn sm primary" id="ret_run_btn" style="font-weight:800;padding:7px 14px">🔍 Analyze Retention Leaks</button>
+      </div>
+      <div id="ret_result_box"></div>
+    </div>`;
+
+  $("#ret_close").onclick = () => dlg.close();
+  $("#ret_csv_file").onchange = async (ev) => {
+    const f = ev.target.files?.[0];
+    if (!f) return;
+    $("#ret_csv_text").value = await f.text();
+  };
+  $("#ret_job_sel").onchange = (ev) => {
+    const j = (S.jobs || []).find(x => x.id === ev.target.value);
+    const wrap = $("#ret_clip_wrap");
+    const csel = $("#ret_clip_sel");
+    if (!j || !(j.clips || []).length) { wrap.style.display = "none"; csel.innerHTML = ""; return; }
+    wrap.style.display = "block";
+    csel.innerHTML = `<option value="">-- Full Source Video --</option>` +
+      j.clips.map(c => `<option value="${esc(c.id)}">${esc(c.title || c.hook || c.id)} (${Number(c.dur || ((c.end||0)-(c.start||0))).toFixed(0)}s)</option>`).join("");
+  };
+  $("#ret_run_btn").onclick = () => window.runRetentionCsvAnalysis();
+  dlg.showModal();
+};
+
+window.runRetentionCsvAnalysis = async function() {
+  const csvText = ($("#ret_csv_text")?.value || "").trim();
+  const box = $("#ret_result_box");
+  if (!csvText) return toast("Please upload or paste a retention CSV first", "bad");
+  if (box) box.innerHTML = `<div class="sub" style="font-size:12px">Analyzing retention curve…</div>`;
+  try {
+    const res = await send("/api/analytics/retention", {
+      csv_text: csvText,
+      job_id: $("#ret_job_sel")?.value || "",
+      clip_id: $("#ret_clip_sel")?.value || "",
+    }, "POST");
+    const vCol = res.hook_verdict === "healthy" ? "#10B981" : (res.hook_verdict === "leaking" ? "#F59E0B" : "#EF4444");
+    const cliffsHtml = (res.cliffs || []).length
+      ? res.cliffs.map(c => `
+          <div style="padding:7px 10px;border-radius:8px;background:#0B1120;border:1px solid rgba(239,68,68,0.28);display:flex;justify-content:space-between;gap:10px;align-items:flex-start;font-size:11.5px">
+            <div>
+              <b style="color:#FCA5A5">-${c.lost_pct}% drop at ${esc(c.at_label)}</b>
+              ${c.said ? `<div style="color:#CBD5E1;margin-top:2px">"${esc(c.said)}"</div>` : ""}
+            </div>
+          </div>`).join("")
+      : `<div style="font-size:11.5px;color:#94A3B8">No steep single-moment cliffs (&gt;0.8%) detected — drop is gradual slide.</div>`;
+    box.innerHTML = `
+      <div style="padding:12px;border-radius:12px;background:#020617;border:1px solid rgba(255,255,255,0.12);display:flex;flex-direction:column;gap:10px">
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
+          <div style="padding:8px 10px;border-radius:8px;background:#0B1120;border:1px solid rgba(255,255,255,0.08)">
+            <div style="font-size:10px;color:#94A3B8">HOOK LEAK</div>
+            <div style="font-size:16px;font-weight:800;color:${vCol}">${res.hook_leak_pct}% (${esc(res.hook_verdict.toUpperCase())})</div>
+          </div>
+          <div style="padding:8px 10px;border-radius:8px;background:#0B1120;border:1px solid rgba(255,255,255,0.08)">
+            <div style="font-size:10px;color:#94A3B8">RETENTION SPAN</div>
+            <div style="font-size:16px;font-weight:800;color:#F8FAFC">${res.start_pct}% → ${res.end_pct}%</div>
+          </div>
+          <div style="padding:8px 10px;border-radius:8px;background:#0B1120;border:1px solid rgba(255,255,255,0.08)">
+            <div style="font-size:10px;color:#94A3B8">MIDDLE SLIDE</div>
+            <div style="font-size:16px;font-weight:800;color:#38BDF8">${res.slide_per_unit}% / step</div>
+          </div>
+        </div>
+        <div>
+          <div style="font-size:11px;font-weight:700;color:#E2E8F0;margin-bottom:5px">⚠️ Viewer Drop-Off Cliffs</div>
+          <div style="display:flex;flex-direction:column;gap:6px">${cliffsHtml}</div>
+        </div>
+        <div style="padding:8px 10px;border-radius:8px;background:rgba(16,185,129,0.1);border:1px solid rgba(16,185,129,0.28);font-size:11.5px;color:#6EE7B7">
+          ${(res.recommendations || []).map(r => `<div>💡 ${esc(r)}</div>`).join("")}
+        </div>
+      </div>`;
+  } catch (err) {
+    if (box) box.innerHTML = `<div class="err" style="font-size:11.5px">${esc(err.message || err)}</div>`;
+  }
+};
+
 async function updateAnalyticsLeadTime(cid, val) {
   try {
     toast(`Updating priming lead time to ${val}h...`, "ok");
@@ -4674,6 +4809,9 @@ async function renderCreatorCalendarCard(c, targetEl, isCompact = false, useCach
             </button>
             <button type="button" class="btn sm ghost" onclick="syncChannelAnalytics('${esc(c.id)}', this)" style="padding:4px 11px;font-size:11px;border-radius:8px;border-color:rgba(0,240,255,0.35);color:var(--accent)" title="Poll latest YouTube view counts">
               <span class="sync-icon">🔄</span> Sync Views
+            </button>
+            <button type="button" class="btn sm ghost" onclick="openRetentionAnalyzerModal()" style="padding:4px 11px;font-size:11px;border-radius:8px;border-color:rgba(244,114,182,0.4);color:#F472B6" title="Analyze YouTube Studio Audience Retention CSV export to find exact drop-off timestamps &amp; spoken lines">
+              📉 Retention CSV
             </button>
           </div>
         </div>
@@ -7898,8 +8036,9 @@ function drawClipDlg(full) {
           </summary>
           <div style="margin-top:10px">
             <label class="f" style="margin-bottom:6px">
-              <input data-f="hook" value="${esc(c.hook)}" oninput="updateDlgLiveHookOverlay()" placeholder="e.g. WHAT IS THAT TATTOO 💀" style="font-weight:600">
+              <input data-f="hook" value="${esc(c.hook)}" oninput="updateDlgLiveHookOverlay(); if (typeof scheduleDlgYtLint === 'function') scheduleDlgYtLint();" placeholder="e.g. WHAT IS THAT TATTOO 💀" style="font-weight:600">
             </label>
+            <div id="dlg_hook_lint_badge" style="font-size:11px;margin:0 0 8px 0;color:var(--text-sub)"></div>
             <div id="dlg_hook_pills" style="display:flex;flex-wrap:wrap;gap:6px;margin:2px 0 10px 0">
               ${(() => {
                 const curH = (c.hook || "").trim().toLowerCase();
@@ -7940,6 +8079,10 @@ function drawClipDlg(full) {
                 <div class="sub" style="font-size:11px">Click to load caption words…</div>
               </div>
             </details>
+            <div style="margin-top:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+              <button type="button" class="btn sm ghost" onclick="loadClipEdlAudit(this)" style="font-size:11px;padding:3px 10px;border-color:rgba(245,158,11,0.4);color:#FBBF24">✂️ Dead-Air &amp; Retakes Audit</button>
+              <span id="dlg_edl_audit_res" class="sub" style="font-size:11px"></span>
+            </div>
             <div style="margin-top:12px;padding:8px 12px;background:var(--bg-3);border:1px solid var(--line);border-radius:8px;display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
               <div style="font-size:11px;color:var(--text-sub);display:flex;align-items:center;gap:6px">
                 <span style="color:#00F0FF;font-weight:800">⚡ Live Hook Preview:</span>
@@ -8096,11 +8239,13 @@ function drawClipDlg(full) {
               <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:3px;gap:6px">
                 <span style="font-size:12px;font-weight:600">Title</span>
                 <div style="display:flex;gap:6px;align-items:center">
+                  <button type="button" class="btn sm" onclick="scoreDlgTitles(this)" style="font-size:10px;padding:2px 8px;border-color:rgba(16,185,129,0.45);color:#34D399" title="Score Title + Hook click-surface CTR &amp; generate stronger alternatives">🎯 Score CTR</button>
                   <button type="button" class="btn sm" data-act="ai_generate_titles" id="btn_ai_titles" style="font-size:10px;padding:2px 8px">✨ Title Ideas</button>
                   <button type="button" class="btn sm ghost" data-act="copy_field" data-field="title" style="font-size:11px;padding:2px 8px">📋 Copy Title</button>
                 </div>
               </div>
-              <input data-f="title" value="${esc(autoTitle)}">
+              <input data-f="title" value="${esc(autoTitle)}" oninput="if (typeof scheduleDlgYtLint === 'function') scheduleDlgYtLint();">
+              <div id="dlg_title_lint_badge" style="font-size:11px;margin-top:5px;color:var(--text-sub)"></div>
             </div>
             <div id="dlg_title_pills" style="display:flex;flex-wrap:wrap;gap:6px;margin:0 0 10px 0">
               ${titleList.map((t, i) => `
@@ -8232,7 +8377,99 @@ function drawClipDlg(full) {
   put($("#dposts"), postPills(c));
   updateClipDlgLayoutPreview();
   if (typeof loadDlgCalendarSlots === "function") loadDlgCalendarSlots(j.creator, c);
+  if (typeof scheduleDlgYtLint === "function") scheduleDlgYtLint(0);
 }
+
+let _dlgYtLintTimer = null;
+window.scheduleDlgYtLint = function(delayMs = 220) {
+  clearTimeout(_dlgYtLintTimer);
+  _dlgYtLintTimer = setTimeout(() => window.runDlgYtLint(), delayMs);
+};
+
+window.runDlgYtLint = async function() {
+  const hookIn = $("#clipdlg [data-f='hook']");
+  const titleIn = $("#clipdlg [data-f='title']");
+  const hookBadge = $("#dlg_hook_lint_badge");
+  const titleBadge = $("#dlg_title_lint_badge");
+  if (!hookIn && !titleIn) return;
+  const hook = (hookIn?.value || "").trim();
+  const title = (titleIn?.value || "").trim();
+  try {
+    const res = await send("/api/yt/lint", { hook, title, mode: "shorts", is_shorts: true }, "POST");
+    if (hookBadge && res.hook) {
+      const h = res.hook;
+      const col = h.band === "STRONG" ? "#10B981" : (h.band === "WORKABLE" ? "#F59E0B" : "#EF4444");
+      hookBadge.innerHTML = `
+        <span style="display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap">
+          <span style="padding:1px 7px;border-radius:999px;background:rgba(255,255,255,0.06);border:1px solid ${col};color:${col};font-weight:800;font-size:10px">🎯 Hook ${h.verdict}/100 · ${esc(h.band)}</span>
+          ${h.formula && h.formula !== "Unclassified" ? `<span style="font-size:10px;color:#38BDF8;font-weight:700">📐 ${esc(h.formula)}</span>` : ""}
+          ${h.verdict < 72 ? `<span style="font-size:10.5px;color:#FBBF24">💡 ${esc(h.fix)}</span>` : `<span style="font-size:10.5px;color:#6EE7B7">Strong Shorts opener</span>`}
+        </span>`;
+    } else if (hookBadge) {
+      hookBadge.innerHTML = "";
+    }
+    if (titleBadge && res.title) {
+      const t = res.title;
+      const col = t.band === "STRONG" ? "#10B981" : (t.band === "WORKABLE" ? "#F59E0B" : "#EF4444");
+      const dupIssue = (t.issues || []).find(i => i.code === "duplicate");
+      const topIssue = dupIssue || (t.issues || []).find(i => i.code !== "mobile") || (t.issues || [])[0];
+      titleBadge.innerHTML = `
+        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+          <span style="padding:1px 7px;border-radius:999px;background:rgba(255,255,255,0.06);border:1px solid ${col};color:${col};font-weight:800;font-size:10px">CTR ${t.ctr_score}/100 · ${esc(t.band)}</span>
+          <span style="font-size:10px;color:#94A3B8">${t.chars} chars · Mobile: <code style="color:#E2E8F0">${esc(t.mobile_preview)}</code></span>
+        </div>
+        ${topIssue ? `<div style="font-size:10.5px;color:${dupIssue ? '#F87171' : '#FBBF24'};margin-top:3px">⚠️ ${esc(topIssue.message)}</div>` : ""}`;
+    } else if (titleBadge) {
+      titleBadge.innerHTML = "";
+    }
+  } catch {}
+};
+
+window.scoreDlgTitles = async function(btn) {
+  if (!D.jid || !D.cid) return toast("No clip selected", "bad");
+  const orig = btn ? btn.innerHTML : "";
+  if (btn) { btn.disabled = true; btn.innerHTML = "⏳ Scoring…"; }
+  try {
+    const curTitle = $("#clipdlg [data-f='title']")?.value || "";
+    const curHook = $("#clipdlg [data-f='hook']")?.value || "";
+    const res = await send(`/api/jobs/${encodeURIComponent(D.jid)}/clips/${encodeURIComponent(D.cid)}/title-score`, { title: curTitle, hook: curHook }, "POST");
+    const cands = res?.candidates || [];
+    const pills = $("#dlg_title_pills");
+    if (pills && cands.length) {
+      pills.innerHTML = cands.map((item, i) => `
+        <button type="button" class="btn sm title-pill-btn" data-act="pick_title" data-title="${esc(item.title)}" title="${esc(item.reason || '')}" style="font-size:10px;padding:3px 9px;font-weight:600;background:var(--bg);border:1px solid ${item.title === curTitle ? 'var(--accent, #00f0ff)' : 'var(--line)'};border-radius:12px;color:${item.title === curTitle ? 'var(--accent, #00f0ff)' : 'var(--text)'};cursor:pointer">
+          🎯 ${item.ctr_score} · ${esc(item.title)}
+        </button>`).join("");
+    }
+    window.runDlgYtLint();
+    toast(`🎯 Scored ${cands.length} title candidates against your hook banner!`, "ok");
+  } catch (err) {
+    toast("Title scoring failed: " + (err.message || err), "bad");
+  } finally {
+    if (btn) { btn.disabled = false; btn.innerHTML = orig; }
+  }
+};
+
+window.loadClipEdlAudit = async function(btn) {
+  const out = $("#dlg_edl_audit_res");
+  if (!D.jid || !D.cid || !out) return;
+  const orig = btn ? btn.innerHTML : "";
+  if (btn) { btn.disabled = true; btn.innerHTML = "⏳ Scanning…"; }
+  try {
+    const res = await api(`/api/jobs/${encodeURIComponent(D.jid)}/clips/${encodeURIComponent(D.cid)}/edl`);
+    const cuts = res?.cuts || [];
+    if (!cuts.length) {
+      out.innerHTML = `<span style="color:#34D399">✅ Tight pacing — no &gt;0.45s dead-air, filler, or retakes found!</span>`;
+      return;
+    }
+    const preview = cuts.slice(0, 4).map(c => `${c.kind} ${c.start}s–${c.end}s (${c.why})`).join(" · ");
+    out.innerHTML = `<span style="color:#FBBF24">⚠️ ${cuts.length} trims (~${res.removed_sec}s): ${esc(preview)}${cuts.length > 4 ? ` +${cuts.length - 4} more` : ""}</span>`;
+  } catch (err) {
+    out.innerHTML = `<span style="color:#F87171">${esc(err.message || "Could not inspect transcript")}</span>`;
+  } finally {
+    if (btn) { btn.disabled = false; btn.innerHTML = orig; }
+  }
+};
 
 window.loadDlgCalendarSlots = async function(cid, c) {
   const banner = $("#dlg_cal_slot_banner");
@@ -8472,6 +8709,7 @@ window.generateAiViralHooks = async function(btnEl) {
       }
       if (typeof updateDlgLiveHookOverlay === "function") updateDlgLiveHookOverlay();
       if (typeof replayDlgHookAnimation === "function") replayDlgHookAnimation();
+      if (typeof scheduleDlgYtLint === "function") scheduleDlgYtLint(0);
       if (D.jid && D.cid && typeof postText === "function") {
         send(`/api/jobs/${D.jid}/clips/${D.cid}/text`, postText(), "PUT").catch(() => {});
       }
@@ -11498,6 +11736,7 @@ document.addEventListener("click", async e => {
         });
         if (typeof updateDlgLiveHookOverlay === "function") updateDlgLiveHookOverlay();
         if (typeof replayDlgHookAnimation === "function") replayDlgHookAnimation();
+        if (typeof scheduleDlgYtLint === "function") scheduleDlgYtLint(0);
         if (D.jid && D.cid && typeof postText === "function") {
           send(`/api/jobs/${D.jid}/clips/${D.cid}/text`, postText(), "PUT").catch(() => {});
         }
@@ -11547,6 +11786,7 @@ document.addEventListener("click", async e => {
         btn.style.color = match ? "var(--accent, #00f0ff)" : "var(--text)";
       });
       toast(`Title set: ${t}`, "ok");
+      if (typeof scheduleDlgYtLint === "function") scheduleDlgYtLint(0);
       return;
     }
     if (a === "ai_generate_titles") {
@@ -11577,6 +11817,7 @@ document.addEventListener("click", async e => {
               </button>
             `).join("");
           }
+          if (typeof scheduleDlgYtLint === "function") scheduleDlgYtLint(0);
           toast("✨ Title ideas updated from clip evidence!", "ok");
         }
       } catch (err) {

@@ -25,7 +25,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Redirect
 from . import admin as admins
 from . import account, load
 from . import (accounts, ai, alerts, analytics, auth, brain, calendar, config, creators, ctx, db, jobs, live, media, posting,
-               profiles, render, safe, transcribe, usage)
+               profiles, render, safe, transcribe, usage, yt_intel)
 
 from . import tools as _tools  # noqa: E402
 
@@ -39,7 +39,9 @@ def _quiet(fn):
 
 app = FastAPI(title="PeakCut", docs_url=None, redoc_url=None, openapi_url=None)
 from .routes.calendar_routes import router as _calendar_router  # noqa: E402
+from .routes.growth_routes import router as _growth_router  # noqa: E402
 app.include_router(_calendar_router)
+app.include_router(_growth_router)
 WEB = config.ROOT / "web"
 OPEN = ("/api/auth/", "/pub/", "/api/public", "/auth/google/", "/auth/verify", "/brand/", "/assets/", "/api/audio/", "/healthz", "/favicon.ico", "/robots.txt", "/sitemap.xml")
 PAGES = {"/": "landing.html", "/login": "auth.html", "/signup": "auth.html", "/reset": "reset.html",
@@ -1429,11 +1431,15 @@ def clip_generate_titles(jid: str, cid: str):
         game = job.get("game") or None
         frames = jobs.get_clip_frames_payload(job, clip, n_frames=6)
         titles = brain.generate_viral_titles(text, title, uploader, game=game, count=4, image=frames)
+        hook_txt = clip.get("hook") or ""
+        title_lints = [yt_intel.lint_title_pairing(t, thumb=hook_txt, is_shorts=True) for t in titles]
+        title_lints.sort(key=lambda r: -r["ctr_score"])
+        titles = [r["title"] for r in title_lints] or titles
         clip["titles"] = titles
         if titles and not clip.get("title"):
             clip["title"] = titles[0]
         jobs.save(job)
-        return {"ok": True, "titles": titles, "title": clip.get("title")}
+        return {"ok": True, "titles": titles, "title": clip.get("title"), "title_lints": title_lints}
     except Exception as e:
         raise HTTPException(500, f"Failed to generate viral titles: {e}")
 
@@ -1452,11 +1458,13 @@ def clip_generate_hooks(jid: str, cid: str):
         game = job.get("game") or None
         frames = jobs.get_clip_frames_payload(job, clip, n_frames=6)
         hooks = brain.generate_viral_hooks(text, title, uploader, game=game, count=6, image=frames)
+        hook_scores = yt_intel.rank_hooks(hooks, mode="shorts")
+        hooks = [r["hook"] for r in hook_scores] or hooks
         clip["hooks"] = hooks
         if hooks:
             clip["hook"] = hooks[0]
         jobs.save(job)
-        return {"ok": True, "hooks": hooks, "hook": clip.get("hook")}
+        return {"ok": True, "hooks": hooks, "hook": clip.get("hook"), "hook_scores": hook_scores}
     except Exception as e:
         raise HTTPException(500, f"Failed to generate viral hooks: {e}")
 
