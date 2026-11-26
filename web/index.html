@@ -12040,6 +12040,7 @@ document.addEventListener("click", async e => {
               j.clips[idx] = Object.assign(j.clips[idx], c);
             }
           }
+          if (typeof scheduleDlgYtLint === "function") scheduleDlgYtLint(0);
           toast("✨ YouTube Shorts package refreshed from final cut!", "ok");
         }
       } catch (err) {

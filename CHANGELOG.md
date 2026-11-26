@@ -1,6 +1,17 @@
 ﻿# Changelog
 All notable project changes are documented here.
 
+## [2026-11-27] — Viral Hooks & SEO Quality-Gate Upgrade
+
+### Fixed
+- **Cliché Hook Detection & Rejection (`PeakCut/studio/yt_intel.py`, `PeakCut/studio/brain.py`)**:
+  - Added `yt_intel.is_cliche_hook()` and updated `rank_hooks()` to demote/drop generic template phrases (`"WAIT FOR THE REACTION"`, `"IN GAME"`, `"ABSOLUTE ANNIHILATION"`, `"GETTING SLAPPED AROUND"`, `"WHAT DID HE DO"`).
+  - Removed hardcoded `"WAIT FOR THE REACTION"` / `"ABSOLUTE PEAK COMEDY"` fallback slop from `brain.fallback_seo()`, replacing it with spoken-quote anchoring and concrete stakes templates.
+  - Added a quality-gate rewrite pass in `brain.generate_viral_hooks()` and `brain.generate_final_cut_package()`: if AI returns weak/cliché hooks (`verdict < 58`), PeakCut automatically triggers one targeted rewrite referencing the clip's creator, event reason, and dialogue.
+- **Full Video+Audio Grounding & Creator Resolution (`PeakCut/studio/server.py`, `PeakCut/studio/jobs.py`, `PeakCut/web/index.html`)**:
+  - Updated `/api/jobs/{jid}/clips/{cid}/hooks` and `/titles` to send full video+audio proxy (`jobs.get_clip_media_payload`) + `clip["reason"]` + `jobs.resolve_uploader_name(job)` instead of silent still frames alone.
+  - Updated `jobs.render_one()` to auto-upgrade weak/cliché non-edited hooks using `generate_final_cut_package`, and wired live badge refresh (`scheduleDlgYtLint(0)`) after `re_ai_seo`.
+
 ## [2026-11-27] — AI Model Selection Sync & Topbar Overlap Fix
 
 ### Fixed

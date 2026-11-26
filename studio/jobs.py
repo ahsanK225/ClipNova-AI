@@ -14,7 +14,20 @@ import traceback
 import uuid
 from pathlib import Path
 
-from . import ai, brain, config, creators, ctx, facecam, fetch_model, games, hashtags, load, media, quality, render, roman, safe, transcribe, usage
+from . import ai, brain, config, creators, ctx, facecam, fetch_model, games, hashtags, load, media, quality, render, roman, safe, transcribe, usage, yt_intel
+
+
+def resolve_uploader_name(job: dict) -> str:
+    """Resolve clean display creator name (e.g. 'TheBurntPeanut') instead of raw internal IDs or empty handles."""
+    cid = (job or {}).get("creator") or ""
+    if cid:
+        cr = creators.get(cid)
+        if cr and str(cr.get("name") or "").strip():
+            return str(cr["name"]).strip()
+    up = str((job or {}).get("uploader") or "").strip()
+    if up and up.lower() not in ("streamer", "none", "unknown"):
+        return re.sub(r"_(?:247|vods?|live)$", "", up, flags=re.I) or up
+    return "Streamer"
 
 class _FairQueue:
     """Whose video is next. Each person has their own line and the lines take turns, so someone who adds ten
@@ -987,9 +1000,13 @@ def render_one(job, clip, words):
         cur_span = [round(clip["start"], 2), round(clip["end"], 2)]
         seo_current = clip.get("seo_for") == cur_span and not clip.get("seo_stale")
         has_good_title = bool((clip.get("title") or "").strip()) and not (clip.get("title") or "").strip().lower().startswith("manual clip")
+        edited_fields = set(clip.get("edited_fields") or [])
+        hook_is_weak = bool(cur_hook) and ("hook" not in edited_fields) and (
+            yt_intel.is_cliche_hook(cur_hook) or yt_intel.score_hook(cur_hook, mode="shorts")["verdict"] < 52
+        )
         needs_visual_seo = (not seo_current) and (
             not cur_hook or cur_hook in ("WAIT FOR IT", "AUTO-GENERATED") or
-            "NO CHILL" in cur_hook or "WAY TOO REAL" in cur_hook or
+            "NO CHILL" in cur_hook or "WAY TOO REAL" in cur_hook or hook_is_weak or
             clip.get("needs_ai_seo") or (clip.get("version", 0) == 0 and not has_good_title)
         )
         if needs_visual_seo and src.is_file() and ai.ready():
@@ -997,18 +1014,19 @@ def render_one(job, clip, words):
                 mparts = get_clip_media_payload(job, clip, include_video_proxy=True)
                 if mparts:
                     clip_text = " ".join(w.get("w", "") for w in (words or []) if clip["start"] - 0.5 <= _f(w.get("s")) <= clip["end"] + 0.5)
-                    edited_map = {k: clip[k] for k in (clip.get("edited_fields") or []) if k in clip}
+                    edited_map = {k: clip[k] for k in edited_fields if k in clip}
                     lang_set = o.get("lang") or cr.get("lang") or "en"
                     pkg = brain.generate_final_cut_package(
                         mparts,
                         transcript_text=clip_text,
                         duration=max(1.0, float(clip["end"]) - float(clip["start"])),
                         title=job.get("title", ""),
-                        uploader=job.get("uploader", ""),
+                        uploader=resolve_uploader_name(job),
                         game=job.get("game"),
                         lang=lang_set,
                         short_url=_published_short_url(clip),
                         preserve_fields=edited_map,
+                        reason=clip.get("reason") or "",
                     )
                     if pkg:
                         for k in ("hook", "hooks", "title", "seo_title", "titles", "description", "hashtags", "seo_tags", "pinned_comment", "community_text", "analysis_mode", "analysis_model"):

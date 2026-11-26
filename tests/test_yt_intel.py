@@ -9,7 +9,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from studio import yt_intel  # noqa: E402
+from unittest.mock import patch  # noqa: E402
+from studio import brain, yt_intel  # noqa: E402
 
 BASE = sys.argv[1] if len(sys.argv) > 1 else ""
 
@@ -31,6 +32,20 @@ check(len(yt_intel.HOOK_FORMULAS) == 21, "All 21 YouTube hook formulas loaded")
 ranked = yt_intel.rank_hooks(["wait till the end", "HE LOST *EVERYTHING* IN 5 SECONDS?! 😭", "HE LOST EVERYTHING IN 5 SECONDS?! 😭"])
 check(len(ranked) == 2, "rank_hooks deduplicates ignoring asterisks")
 check("LOST" in ranked[0]["hook"], "rank_hooks places strongest stakes/clock hook first")
+
+# 1b. Screenshot generic slop rejection & quality-gate rewrite test
+for bad_h in ("ABSOLUTE ANNIHILATION IN GAME 💀", "WAIT FOR THE REACTION 💀", "WHAT DID HE DO?! 😱"):
+    check(yt_intel.is_cliche_hook(bad_h) is True, f"Flags generic cliche hook: {bad_h}")
+fb_seo = brain.fallback_seo("Stream Highlight", "TheBurntPeanut", "tarkov", text="Drop the backpack before the extract timer hits zero!")
+check(all(not yt_intel.is_cliche_hook(h) for h in fb_seo["hooks"]), "fallback_seo never emits banned generic cliche hooks")
+
+call_seq = [
+    ({"hooks": ["ABSOLUTE ANNIHILATION IN GAME 💀", "WAIT FOR THE REACTION 💀", "WHAT DID HE DO?! 😱"]}, "gemini-3.8-flash", 10),
+    ({"hooks": ["PEANUT LOST HIS *LOOT* AT 0:02 😭", "WHY DID THAT *SCAV* ONE-SHOT HIM?! 💀", "DON'T PEEK THAT *DOOR* IN TARKOV ⚠️"]}, "gemini-3.8-flash", 12),
+]
+with patch("studio.brain.ask_ai", side_effect=call_seq):
+    upgraded_hooks = brain.generate_viral_hooks("Drop the backpack before extract!", "Tarkov Raid", "TheBurntPeanut", game="Tarkov", count=3)
+check(any("PEANUT" in h or "SCAV" in h or "DOOR" in h for h in upgraded_hooks), "generate_viral_hooks retries and upgrades weak/cliche first-pass output")
 
 # 2. Title + Hook pairing linter
 dup_lint = yt_intel.lint_title_pairing("Speed Crashed Purple Bugatti #Shorts", thumb="SPEED CRASHED *PURPLE* BUGATTI")

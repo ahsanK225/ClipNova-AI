@@ -159,7 +159,28 @@ _VAGUE_WORDS = {
     "powerful", "ultimate", "best", "revolutionary", "mind", "blowing", "unbelievable", "epic",
     "perfect", "complete", "everything",
 }
-_GENERIC_BANNERS = ("wait till the end", "wait for it", "watch till the end", "bro was not ready")
+_GENERIC_BANNERS = (
+    "wait till the end", "wait for it", "wait for the reaction", "wait for the end",
+    "watch till the end", "bro was not ready", "in game", "absolute annihilation",
+    "absolute peak comedy", "absolute lost", "getting slapped around", "what did he do",
+    "nobody saw this coming", "wild moment", "insane moment", "unbelievable moment",
+    "you wont believe", "you won't believe", "no chill", "way too real",
+)
+
+def is_cliche_hook(text: str) -> bool:
+    """Return True when a hook banner relies on banned generic/lazy template phrasing."""
+    clean = re.sub(r"[*]", "", (text or "")).strip().lower()
+    clean_ascii = re.sub(r"[^\w\s']", " ", clean)
+    clean_ascii = re.sub(r"\s+", " ", clean_ascii).strip()
+    if not clean_ascii:
+        return True
+    if any(g in clean_ascii for g in _GENERIC_BANNERS):
+        return True
+    # Pure pronoun + generic verb without a named subject/object ("HE DID THAT", "THIS WAS CRAZY")
+    toks = clean_ascii.split()
+    if len(toks) <= 4 and all(w in {"what", "did", "he", "she", "they", "this", "that", "do", "was", "is", "so", "crazy", "insane", "wild", "unreal", "omg", "bro", "wait"} for w in toks):
+        return True
+    return False
 
 _CONCRETE_RE = re.compile(r"\b(\d[\d,.]*\s?(%|k|m|x|s|h)?|\$\d|\d+\s?(second|minute|hour|day|week|month|year)s?)\b", re.I)
 _YOU_RE = re.compile(r"\b(you|your|you're|youre|yourself|chat|bro)\b", re.I)
@@ -218,12 +239,12 @@ def score_hook(text: str, mode: str = "shorts") -> dict[str, Any]:
     vague_n = sum(1 for w in toks if w in _VAGUE_WORDS)
     filler_n = sum(1 for w in toks if w in _FILLER_WORDS)
     proper_n = sum(1 for w in ascii_ish.split()[1:] if w[:1].isupper() and len(w) > 1)
-    is_generic_cliche = any(g in ascii_ish.lower() for g in _GENERIC_BANNERS)
+    is_generic_cliche = is_cliche_hook(ascii_ish)
 
     # 1. SPECIFICITY
-    spec = 38 + nums * 20 + min(24, proper_n * 8) - vague_n * (6 if mode == "shorts" else 14) - filler_n * 6
+    spec = 38 + nums * 20 + min(24, proper_n * 8) - vague_n * (7 if mode == "shorts" else 14) - filler_n * 6
     if is_generic_cliche:
-        spec -= 28
+        spec = max(5, spec - 34)
     spec = max(5, min(100, spec))
 
     # 2. ADDRESS (direct hook to viewer/subject)
@@ -288,6 +309,7 @@ def score_hook(text: str, mode: str = "shorts") -> dict[str, Any]:
         "hook": raw,
         "verdict": verdict,
         "band": band,
+        "is_cliche": is_generic_cliche,
         "formula": formula,
         "formula_hits": hits,
         "properties": props,
@@ -296,8 +318,8 @@ def score_hook(text: str, mode: str = "shorts") -> dict[str, Any]:
     }
 
 
-def rank_hooks(hooks: Iterable[str], mode: str = "shorts") -> list[dict[str, Any]]:
-    """Score and rank hooks descending by verdict while removing case-insensitive duplicates."""
+def rank_hooks(hooks: Iterable[str], mode: str = "shorts", drop_cliches: bool = False) -> list[dict[str, Any]]:
+    """Score and rank hooks descending by verdict while deduplicating and pushing clichés down."""
     seen: set[str] = set()
     scored: list[dict[str, Any]] = []
     for h in hooks:
@@ -309,7 +331,11 @@ def rank_hooks(hooks: Iterable[str], mode: str = "shorts") -> list[dict[str, Any
             continue
         seen.add(k)
         scored.append(score_hook(s, mode=mode))
-    scored.sort(key=lambda r: -r["verdict"])
+    if drop_cliches:
+        non_cliche = [r for r in scored if not r.get("is_cliche")]
+        if non_cliche:
+            scored = non_cliche
+    scored.sort(key=lambda r: (0 if not r.get("is_cliche") else 1, -r["verdict"]))
     return scored
 
 

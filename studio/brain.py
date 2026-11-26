@@ -970,27 +970,24 @@ def fallback_seo(title="", uploader="", game=None, text="", category="other"):
             f"Nobody Expected This Crash! 😂 #Shorts"
         ]
     else:
-        hooks = {
-            "clutch": f"INSANE {gname.upper()} CLUTCH 🔥",
-            "fail": f"UNBELIEVABLE {gname.upper()} FAIL 💀",
-            "funny": f"{up.upper()} CANNOT STOP LAUGHING 😂",
-            "shock": f"CRAZIEST MOMENT IN {gname.upper()} 😱",
-            "rage": f"{up.upper()} LOST HIS MIND 💀",
-        }
-        hook = hooks.get(category, f"{up.upper()} WILD MOMENT 💀")
-        event_khulasa = f"{up} experienced an unforgettable highlight in {gname} that left the entire stream in disbelief! Watch till the end to see how it unfolds 😂💀"
-        question = f"What was the funniest part of this clip for you? Drop your thoughts below! 👇"
+        hook = f"{up.upper()} CAUGHT A *BAD* BREAK 💀"
+        event_khulasa = f"{up} was caught completely off guard in {gname} right when everything seemed under control! Watch the exact moment things spun out of control."
+        question = f"How would you have played this differently in {gname}? Drop your call below! 👇"
+        # Extract an anchor quote from spoken transcript when available so offline hooks aren't generic slop
+        words_raw = [re.sub(r"[^\w']", "", w) for w in str(text or "").split()]
+        words_clean = [w for w in words_raw if w and w.lower() not in {"the", "a", "an", "and", "or", "is", "are", "was", "to", "in", "of", "it", "uh", "um", "like"}]
+        quote_snip = " ".join(words_clean[:4]).upper() if len(words_clean) >= 3 else ""
         h_options = [
-            "WAIT FOR THE REACTION 💀",
-            f"{up.upper()} LOST HIS MIND 😂",
-            "NOBODY SAW THIS COMING 😱",
-            "HOW DID HE DO THAT? 🔥",
-            "ABSOLUTE PEAK COMEDY 💀"
+            f'"{quote_snip}!" — {up.upper()} 😭' if quote_snip else f"WHY DID {up.upper()} RISK THAT?! 💀",
+            f"{up.upper()} INSTANTLY *REGRETTED* THIS 💀",
+            f"DON'T TRUST THIS IN {gname.upper()}! ⚠️",
+            f"{up.upper()} LOST EVERYTHING IN SECONDS 😭",
+            f"HOW DID {up.upper()} SURVIVE THIS?! 🔥"
         ]
         t_options = [
-            f"{up} Can't Believe This Happened! 😂 #Shorts",
-            f"Craziest {gname} Moment of The Stream! 💀 #Shorts",
-            f"When Everything Goes Wrong! 😭 #Shorts"
+            f"{up} Instantly Regretted This {gname} Play! 💀 #Shorts",
+            f"Why Did {up} Risk Everything in {gname}?! 😱 #Shorts",
+            f"The Exact Second {up}'s {gname} Run Fell Apart 😭 #Shorts"
         ]
 
     seo_title = t_options[0]
@@ -1204,9 +1201,11 @@ def describe_multimodal(image_bytes: bytes | list[bytes], text: str = "", title:
             if "#Shorts" not in stitle and "#shorts" not in stitle:
                 stitle = f"{stitle} #Shorts"[:100]
             raw_hooks = data.get("hooks") or []
-            hooks_list = [_apply_yellow_punch(str(h)[:60].upper()) for h in raw_hooks if isinstance(h, str) and h.strip()][:5]
-            if not hooks_list and data.get("hook"):
-                hooks_list = [_apply_yellow_punch(str(data["hook"])[:60].upper())]
+            prepped_hooks = [_apply_yellow_punch(str(h)[:60].upper()) for h in raw_hooks if isinstance(h, str) and h.strip()][:5]
+            if data.get("hook"):
+                prepped_hooks.insert(0, _apply_yellow_punch(str(data["hook"])[:60].upper()))
+            ranked_mm = yt_intel.rank_hooks(prepped_hooks, mode="shorts", drop_cliches=True)
+            hooks_list = [r["hook"] for r in ranked_mm][:5]
             raw_titles = data.get("titles") or []
             titles_list = [str(t)[:100] for t in raw_titles if isinstance(t, str) and t.strip()][:4]
             if stitle and stitle not in titles_list:
@@ -1214,9 +1213,9 @@ def describe_multimodal(image_bytes: bytes | list[bytes], text: str = "", title:
             if len(titles_list) < 4:
                 fallbacks = [
                     f"{stitle.replace('#Shorts', '').strip()} #Shorts",
-                    f"{up} Loses It in {gname}! 💀 #Shorts",
-                    f"What Did {up} Just Do in {gname}?! 😱 #Shorts",
-                    f"Would You Have Survived This in {gname}?! 😂 #Shorts",
+                    f"{up} Risked Everything in {gname}! 💀 #Shorts",
+                    f"Why Did {up} Do This in {gname}?! 😱 #Shorts",
+                    f"The Moment {up}'s {gname} Plan Backfired 😂 #Shorts",
                 ]
                 for fb in fallbacks:
                     if len(titles_list) >= 4:
@@ -1224,7 +1223,7 @@ def describe_multimodal(image_bytes: bytes | list[bytes], text: str = "", title:
                     if fb not in titles_list:
                         titles_list.append(fb)
             titles_list = titles_list[:4]
-            best_hook = _apply_yellow_punch(str(data.get("hook") or (hooks_list[1] if len(hooks_list) > 1 else hooks_list[0]))[:60].upper())
+            best_hook = hooks_list[0] if hooks_list else _apply_yellow_punch(str(data.get("hook") or f"{up.upper()} RISKED *EVERYTHING* 💀")[:60].upper())
 
             out = {
                 "score": int(data.get("score") or 85),
@@ -1291,81 +1290,81 @@ TITLES_SCHEMA = {
 }
 
 
-def generate_viral_titles(text, title="", uploader="", game=None, count=4, image=None, tone=None) -> list[str]:
-    """Generates 4 high-CTR, viral YouTube Shorts title suggestions with emojis and #Shorts.
-    If image frames are provided, performs true multimodal vision analysis so titles 100% reflect the visual video scene."""
+def generate_viral_titles(text, title="", uploader="", game=None, count=4, image=None, tone=None, media_parts=None, hook="", reason="") -> list[str]:
+    """Generates high-CTR, non-repetitive YouTube Shorts title suggestions grounded in audio, video & transcript."""
     t_clean = (text or "").strip()
     gname = game if (game and game != "None") else "Gaming"
     streamer_name = uploader or "Streamer"
+    reason_line = _safe(reason, 220)
+    hook_line = _safe(re.sub(r"[*]", "", hook or ""), 90)
 
-    if image and ai.ready():
-        is_multi = isinstance(image, list) and len(image) > 1
-        frame_desc = f"{len(image)} sequential video frames across the clip timeline (Setup -> Build-up -> Climax -> Payoff / Streamer Reaction)" if is_multi else "the video frame of this clip"
-        vision_prompt = f"""You are a master viral YouTube Shorts title writer analyzing {frame_desc} of an actual gaming clip alongside streamer dialogue.
+    title_prompt = f"""You are an elite viral YouTube Shorts strategist writing high-CTR titles for a gaming clip.
 
 Streamer: {streamer_name}
 Game: {gname}
-Video Title: {title or 'Stream Highlight'}
-Spoken in clip: "{t_clean if t_clean else '(dialogue minimal or laughing - examine visual scene)'}"
+Stream Title: {title or 'Stream Highlight'}
+Why This Moment Was Clipped: {reason_line or '(examine audio/video)'}
+On-Screen Hook Banner (DO NOT REPEAT THESE SAME WORDS): {hook_line or '(none)'}
+Spoken Dialogue in Clip: "{t_clean if t_clean else '(listen to audio & watch visual action)'}"
 
-CRITICAL GROUNDING INSTRUCTIONS (LIKE CHATGPT / VIRAL CREATORS):
-1. LOOK AT THE ACTUAL VIDEO FRAMES:
-   - Identify the exact car, weapon, action, environment, outfit, NPC interaction, or stunt that is VISUALLY PRESENT!
-   - What is {streamer_name}'s visible facial reaction (laughing, shock, dying inside, rage)?
-2. Write {count} high-CTR, click-worthy YouTube Shorts titles under 70 characters ending with #Shorts.
-   - Title 1: Streamer funny reaction / shock centering on the EXACT visual event (e.g. '{streamer_name} Loses It Driving This Purple Whip in {gname}! 💀 #Shorts')
-   - Title 2: Curiosity gap / mystery (e.g. 'What Did {streamer_name} Just Find in {gname}?! 😱 #Shorts')
-   - Title 3: Relatable question / challenge (e.g. 'Would You Have Survived This in {gname}?! 😂 #Shorts')
-   - Title 4: High energy spectacle / funny fail (e.g. '{streamer_name}\\'s Funniest {gname} Moment Ever! 🔥 #Shorts')
-3. End each title with #Shorts and 1-2 fitting emojis.
-4. STRICTLY BANNED: Do NOT invent fake events that are not in the frames. Describe WHAT IS ON SCREEN!
-5. Return JSON with key 'titles' containing exactly {count} distinct options."""
+STRICT HIGH-CTR TITLE RULES:
+1. SPECIFIC STORY, ZERO GENERIC SLOP: Describe the exact funny twist, betrayal, rare item, quote, fail, or clutch in the clip.
+2. NEVER DUPLICATE THE HOOK BANNER: Your title and the on-screen hook banner must work as two halves of a story — do NOT repeat the same main words from "{hook_line or 'hook'}".
+3. MOBILE-FIRST FRONT-LOADING: Put the juicy subject/conflict in the FIRST 38 characters so mobile feeds never cut off the point! Keep total length 35-62 chars ending with #Shorts + 1 emoji.
+4. VARIED PROVEN ANGLES ({count} distinct options):
+   - Option 1 (Curiosity / Why-How): Opens an irresistible question about the exact event (e.g. "Why {streamer_name} Panicked Over A 1 HP Enemy?! 😱 #Shorts")
+   - Option 2 (Stakes / Disaster): Names what was lost or at risk ("How {streamer_name} Lost A $50k Loadout In 4 Seconds 💀 #Shorts")
+   - Option 3 (Specific Quote / Twist): Highlights the funniest line or sudden betrayal
+   - Option 4 (Direct Challenge / Relatable): Draws viewers into judging the play
+5. STRICTLY BANNED: "Insane Moment", "Wild Moment", "Wait Till The End", "Absolute...", "In Game", "You Won't Believe".
+6. Return JSON with key 'titles' containing exactly {count} distinct strings."""
+
+    def _finish_titles(raw_list: list) -> list[str]:
+        cleaned = []
+        for t in raw_list:
+            tc = re.sub(r'["\\]', '', str(t)).strip()
+            if not tc:
+                continue
+            if "#shorts" not in tc.lower():
+                tc = f"{tc} #Shorts"
+            cleaned.append(tc)
+        if not cleaned:
+            return []
+        linted = [yt_intel.lint_title_pairing(t, thumb=hook_line or None, is_shorts=True) for t in cleaned]
+        linted.sort(key=lambda r: -r["ctr_score"])
+        return [r["title"] for r in linted][:count]
+
+    if media_parts and ai.ready():
         try:
-            out, _ti, _to = ai.see_json(vision_prompt, image, schema=TITLES_SCHEMA, timeout=18)
-            if isinstance(out, dict) and "titles" in out and isinstance(out["titles"], list):
-                res = [re.sub(r'["\\]', '', str(t)).strip() for t in out["titles"] if str(t).strip()]
-                res = [t if "#shorts" in t.lower() else f"{t} #Shorts" for t in res]
+            out, _ti, _to, _m = ai.see_media(title_prompt, media_parts, schema=TITLES_SCHEMA, timeout=24, task="seo")
+            if isinstance(out, dict) and isinstance(out.get("titles"), list):
+                res = _finish_titles(out["titles"])
                 if len(res) >= 2:
-                    return res[:count]
+                    return res
+        except Exception as e:
+            print(f"[brain] Media title vision notice: {e}", flush=True)
+
+    if image and ai.ready():
+        try:
+            out, _ti, _to = ai.see_json(title_prompt, image, schema=TITLES_SCHEMA, timeout=18)
+            if isinstance(out, dict) and isinstance(out.get("titles"), list):
+                res = _finish_titles(out["titles"])
+                if len(res) >= 2:
+                    return res
         except Exception as e:
             print(f"[brain] Multimodal title vision notice: {e}", flush=True)
 
-    prompt = f"""You are a master viral YouTube Shorts title writer for gaming clips.
-Create {count} distinct, click-worthy YouTube Shorts titles under 70 characters that end with #Shorts.
-
-Video Title: {title or 'Stream Highlight'}
-Streamer: {streamer_name}
-Game: {gname}
-Spoken in clip:
-{t_clean if t_clean else '(High action gameplay moment, minimal dialogue)'}
-
-Rules for high CTR Shorts titles:
-1. Make them punchy, funny, curious, or dramatic centering on {streamer_name} and the crazy event in {gname}.
-2. Title 1: Streamer funny reaction / shock (e.g. '{streamer_name} Loses It Driving This Purple Whip in {gname}! 💀 #Shorts')
-3. Title 2: Curiosity gap / mystery (e.g. 'What Did {streamer_name} Just Find in {gname}?! 😱 #Shorts')
-4. Title 3: Relatable question / challenge (e.g. 'Would You Have Survived This in {gname}?! 😂 #Shorts')
-5. Title 4: High energy spectacle / fail (e.g. '{streamer_name}\\'s Funniest {gname} Moment Ever! 🔥 #Shorts')
-6. Each title MUST end with #Shorts and include 1-2 emojis.
-7. Return JSON with key 'titles' containing exactly {count} distinct options."""
-
     try:
-        out, _m, _u = ask_ai(prompt, schema=TITLES_SCHEMA, purpose="Clip: viral titles", timeout=12)
-        if isinstance(out, dict) and "titles" in out and isinstance(out["titles"], list):
-            res = [re.sub(r'["\\]', '', str(t)).strip() for t in out["titles"] if str(t).strip()]
-            res = [t if "#shorts" in t.lower() else f"{t} #Shorts" for t in res]
+        out, _m, _u = ask_ai(title_prompt, schema=TITLES_SCHEMA, purpose="Clip: viral titles", timeout=14, task="seo")
+        if isinstance(out, dict) and isinstance(out.get("titles"), list):
+            res = _finish_titles(out["titles"])
             if len(res) >= 2:
-                return res[:count]
+                return res
     except Exception as e:
         print(f"[brain] AI title generation notice: {e}", flush=True)
 
-    base = title or f"{streamer_name} {gname} Insane Moment"
-    clean_base = re.sub(r"#.*$", "", base).strip()
-    return [
-        f"{clean_base}! 😂 #Shorts",
-        f"{streamer_name} Lost His Mind in {gname}! 💀 #Shorts",
-        f"Did NOT Expect This to Happen in {gname}! 😱 #Shorts",
-        f"What Would You Do in This Situation?! 🔥 #Shorts",
-    ][:count]
+    fb = fallback_seo(title=title, uploader=streamer_name, game=gname, text=t_clean)
+    return _finish_titles(fb.get("titles") or [f"{streamer_name} Risked Everything in {gname}! 💀 #Shorts"])
 
 
 HOOKS_SCHEMA = {
@@ -1380,86 +1379,86 @@ HOOKS_SCHEMA = {
 }
 
 
-def generate_viral_hooks(text, title="", uploader="", game=None, count=5, image=None, tone=None) -> list[str]:
-    """Generates punchy, viral headline hook banners for TikTok / YouTube Shorts.
-    If image frames are provided, performs true multimodal vision analysis so hooks 100% reflect the visual scene."""
+def generate_viral_hooks(text, title="", uploader="", game=None, count=5, image=None, tone=None, media_parts=None, reason="") -> list[str]:
+    """Generates punchy, scroll-stopping Shorts hook banners grounded on video+audio/frames + quality-gate retry."""
     t_clean = (text or "").strip()
     gname = game if (game and game != "None") else "Gaming"
     streamer_name = uploader or "Streamer"
+    reason_line = _safe(reason, 220)
 
-    if image and ai.ready():
-        is_multi = isinstance(image, list) and len(image) > 1
-        frame_desc = f"{len(image)} sequential video frames across the clip timeline (Setup -> Build-up -> Climax -> Payoff / Streamer Reaction)" if is_multi else "the video frame of this clip"
-        vision_prompt = f"""You are an elite, hilarious viral TikTok & YouTube Shorts editor watching {frame_desc} of an actual gaming clip alongside streamer dialogue.
+    def _clean_and_rank(raw_hooks: list) -> list[dict]:
+        prepped = [_apply_yellow_punch(re.sub(r'["\\]', '', str(h)).strip()) for h in raw_hooks if str(h).strip()]
+        return yt_intel.rank_hooks(prepped, mode="shorts", drop_cliches=False)
+
+    hook_prompt = f"""You are a top 1% viral TikTok & YouTube Shorts hook writer who stops people from swiping in the first 1.5 seconds.
 
 Streamer: {streamer_name}
 Game: {gname}
-Video Title: {title or 'Stream Highlight'}
-Spoken in clip: "{t_clean if t_clean else '(dialogue minimal or shouting - examine the visual action)'}"
+Stream Title: {title or 'Stream Highlight'}
+Why This Moment Was Clipped: {reason_line or '(observe exact action & scream/joke)'}
+Spoken Dialogue in Clip: "{t_clean if t_clean else '(listen to audio & inspect frames carefully)'}"
 
-CRITICAL GROUNDING & VIRALITY INSTRUCTIONS (LIKE CHATGPT / VIRAL EDITORS):
-1. LOOK CLOSELY AT THE VIDEO FRAMES:
-   - Identify the EXACT car, weapon, outfit/clothing, character, stunt, crash, police chase, or funny disaster that is ACTUALLY VISIBLE on screen!
-   - What is {streamer_name}'s physical reaction (hands on head, screaming, laughing, dying inside, shocked)?
-2. WRITE {count} UNFORGETTABLE, ULTRA-COMPELLING, VIRAL HOOK BANNERS (3 to 6 words each, ALL CAPS):
-   - Hook 1: Hilarious Reaction / Disbelief hook describing the exact visual event (e.g. 'WHAT IS THAT *CAR*?! 🚗', 'RATE THE *DRIP* CHAT 👗💀', 'SPEED CAUGHT *LACKING* 😂')
-   - Hook 2: Shock / Unexpected outcome (e.g. 'BRO DID NOT SEE THE *TREE* 💥', 'THE POLICE WENT TOO *FAR* 🚨')
-   - Hook 3: Curiosity gap (e.g. 'WHAT IS IN THAT *TRUNK*?! 📦💀', 'HE ACTUALLY PULLED THIS *OFF*?! 😱')
-   - Hook 4: Relatable gaming fail / troll (e.g. 'WORST *DRIVER* IN GTA 6 💀', 'THIS NPC CHOSE *VIOLENCE* 😂')
-   - Hook 5: Dramatic climax (e.g. 'HE LOST *EVERYTHING* IN 5 SECONDS 😭', 'NO WAY HE *SURVIVED* THIS 🔥')
-   - Hook 6: Urgent Question / Challenge (e.g. 'HOW DID HE *SURVIVE* THIS?! 😱', 'COULD YOU FIX THIS *ENGINE*?! 🔧💀')
-3. RULES:
-   - Surround the single most punchy keyword with asterisks (e.g. '*CAR*', '*DRIP*', '*LACKING*') so it gets highlighted in vibrant yellow on video.
-   - End each hook with 1-2 viral emojis.
-   - STRICTLY FORBIDDEN: NEVER write generic disconnected phrases like 'flashbacks are wild' or 'historic moment'. Describe WHAT IS PHYSICALLY ON SCREEN!
-4. Return JSON with key 'hooks' containing exactly {count} distinct options."""
-        try:
-            out, _ti, _to = ai.see_json(vision_prompt, image, schema=HOOKS_SCHEMA, timeout=18)
-            if isinstance(out, dict) and "hooks" in out and isinstance(out["hooks"], list):
-                res = [_apply_yellow_punch(re.sub(r'["\\]', '', str(h)).strip()) for h in out["hooks"] if str(h).strip()]
-                if len(res) >= 3:
-                    ranked = yt_intel.rank_hooks(res, mode="shorts")
-                    return [r["hook"] for r in ranked][:count] if ranked else res[:count]
-        except Exception as e:
-            print(f"[brain] Multimodal hook vision notice: {e}", flush=True)
+WHAT MAKES A 85+ SCORE SHORTS HOOK (VS TRASH 40/100 HOOKS):
+- NEVER write generic captions like "ABSOLUTE ANNIHILATION IN GAME", "GETTING SLAPPED AROUND", "WAIT FOR THE REACTION", "ABSOLUTE LOST HIS MIND", or "WHAT DID HE DO?!" — those get 40/100 and viewers swipe immediately!
+- ALWAYS anchor on a CONCRETE NOUN, QUOTE, NUMBER, STAKES, or NAMED SUBJECT from THIS exact clip!
+- Use 4 to 8 words MAX, highlight the single sharpest word in *ASTERISKS*, end with 1 emoji.
 
-    prompt = f"""You are a master viral TikTok & YouTube Shorts editor for gaming and stream clips.
-Create {count} ultra-compelling, high-CTR hook banner headlines (max 4 to 7 words each) for this moment.
+WRITE {count} DISTINCT HIGH-RETENTION HOOKS USING 5 PROVEN ANGLES:
+1. **The Stakes / Cost**: Name what is about to be lost/destroyed or exact timer ("{streamer_name.upper()} LOST HIS *LOOT* IN 3S 😭")
+2. **Curiosity Question**: Specific "WHY/HOW" naming the exact thing on screen ("WHY DID THAT *BOSS* ONE-SHOT HIM?! 💀")
+3. **The Warning / Callout**: Urgent warning or direct chat callout ("DON'T OPEN THAT *DOOR* IN {gname.upper()} ⚠️")
+4. **Spoken Quote / Caught Moment**: Build around the funniest actual spoken phrase or visual fail ("'NO WAY' BEFORE THE *CRASH* 💥")
+5. **Impossible / Contrarian Twist**: Flip expectations ("HE SURVIVED ON *1 HP* HOW?! 🔥")
 
-Video Title: {title or 'Stream Highlight'}
-Streamer: {streamer_name}
-Game: {gname}
-Spoken in clip:
-{t_clean if t_clean else '(High action gameplay moment, minimal dialogue)'}
+Return JSON with key 'hooks' containing exactly {count} punchy strings."""
 
-Rules for high CTR hooks (use varied proven hook shapes: Stakes, Curiosity Question, Impossible Claim, Warning, Mistake, Superlative):
-1. Make them punchy, dramatic, hilarious, or curious (e.g. 'GTA 6 influencers are insane 😳', 'HE ACTUALLY PULLED THIS OFF?! 💀', 'OHNEPIXEL REGRETS THIS MOMENT 😭').
-2. Keep length between 3 and 7 words, naming the specific person/item/action. NEVER write generic clichés like 'WAIT TILL THE END'.
-3. Put a single fitting emoji at the end of each headline.
-4. Surround the single most important punch keyword with asterisks (e.g. 'GTA 6 *influencers* are insane 😳') so it gets highlighted in vibrant canary yellow on video.
-5. Return JSON with key 'hooks' containing exactly {count} distinct options."""
+    def _run_hook_ai(prompt_txt: str) -> list:
+        if media_parts and ai.ready():
+            try:
+                out, _ti, _to, _m = ai.see_media(prompt_txt, media_parts, schema=HOOKS_SCHEMA, timeout=24, task="hooks")
+                if isinstance(out, dict) and isinstance(out.get("hooks"), list):
+                    return out["hooks"]
+            except Exception as e:
+                print(f"[brain] Media hook vision notice: {e}", flush=True)
+        if image and ai.ready():
+            try:
+                out, _ti, _to = ai.see_json(prompt_txt, image, schema=HOOKS_SCHEMA, timeout=18)
+                if isinstance(out, dict) and isinstance(out.get("hooks"), list):
+                    return out["hooks"]
+            except Exception as e:
+                print(f"[brain] Multimodal hook vision notice: {e}", flush=True)
+        out, _m, _u = ask_ai(prompt_txt, schema=HOOKS_SCHEMA, purpose="Clip: viral hooks", timeout=14, task="hooks")
+        return out.get("hooks", []) if isinstance(out, dict) else []
 
     try:
-        out, _m, _u = ask_ai(prompt, schema=HOOKS_SCHEMA, purpose="Clip: viral hooks", timeout=12)
-        if isinstance(out, dict) and "hooks" in out and isinstance(out["hooks"], list):
-            res = [re.sub(r'["\\]', '', str(h)).strip() for h in out["hooks"] if str(h).strip()]
-            if res:
-                ranked = yt_intel.rank_hooks(res, mode="shorts")
-                return [r["hook"] for r in ranked][:count] if ranked else res[:count]
+        raw_1 = _run_hook_ai(hook_prompt)
+        ranked_1 = _clean_and_rank(raw_1)
+        strong_1 = [r for r in ranked_1 if r["verdict"] >= 58 and not r.get("is_cliche")]
+        # Quality gate: if AI gave mostly weak/cliché hooks, do 1 targeted rewrite pass!
+        if len(strong_1) < 3 and raw_1:
+            weak_examples = ", ".join(f'"{r["hook"]}" ({r["verdict"]}/100)' for r in ranked_1[:3])
+            retry_prompt = (
+                f"{hook_prompt}\n\n"
+                f"QUALITY REJECTION — FIX THIS NOW:\n"
+                f"Your previous draft scored WEAK/GENERIC ({weak_examples}). "
+                f"Rewrite {count} COMPLETELY DIFFERENT hooks that explicitly name the person ({streamer_name}), "
+                f"a concrete stakes verb (LOST, ROBBED, BETRAYED, CRASHED, ESCAPED, COST, 1 HP), or a specific HOW/WHY question about the actual event!"
+            )
+            raw_2 = _run_hook_ai(retry_prompt)
+            ranked_2 = _clean_and_rank(list(raw_2) + [r["hook"] for r in strong_1])
+            if ranked_2:
+                return [r["hook"] for r in ranked_2[:count]]
+        if ranked_1:
+            return [r["hook"] for r in ranked_1[:count]]
     except Exception as e:
         print(f"[brain] AI hook generation notice: {e}", flush=True)
 
-    streamer_name = uploader or "Streamer"
-    game_tag = gname if gname != "Gaming" else "GTA 6"
-    fallback_list = [
-        f"{game_tag} *influencers* are insane 😳",
-        f"HE DID *NOT* EXPECT THIS TO HAPPEN?! 💀",
-        f"{streamer_name.upper()}'S *CRAZIEST* MOMENT EVER 😱",
-        f"THIS WENT COMPLETELY *WRONG* 😭",
-        f"NO WAY THIS ACTUALLY *WORKED* 🏆"
-    ]
-    ranked = yt_intel.rank_hooks(fallback_list, mode="shorts")
-    return [r["hook"] for r in ranked][:count] if ranked else fallback_list[:count]
+    fb = fallback_seo(title=title, uploader=streamer_name, game=gname, text=t_clean)
+    ranked_fb = _clean_and_rank(fb.get("hooks") or [])
+    return [r["hook"] for r in ranked_fb[:count]] if ranked_fb else [
+        f"{streamer_name.upper()} LOST EVERYTHING IN *SECONDS* 😭",
+        f"WHY DID {streamer_name.upper()} *RISK* THAT?! 💀",
+    ][:count]
 
 
 # ---------------------------------------------------------------- live: two judges that never see each other's input
@@ -1971,6 +1970,7 @@ def generate_final_cut_package(
     regenerate_fields: list[str] | None = None,
     tone: str | None = None,
     timeout: float = 45.0,
+    reason: str = "",
 ) -> dict:
     """Analyze the exact final cut (video+audio or frames + exact cut transcript) in ONE structured request
     and generate one cohesive, non-repetitive YouTube Shorts package while preserving manual user edits."""
@@ -1988,28 +1988,31 @@ def generate_final_cut_package(
     game_meta = _safe(game, 60) if game and str(game).lower() not in ("none", "unverified") else ""
     url_token = (short_url or "").strip() or "[SHORT_URL]"
     spoken = _safe(transcript_text, 2400) or "(minimal or no spoken dialogue — ground strictly in visible actions & sound)"
+    reason_meta = _safe(reason, 220)
 
     prompt = (
         f"You are analyzing the EXACT final exported/trimmed YouTube Short ({duration:.1f}s).\n"
         f"Source video title (metadata): {_safe(title, 140) or 'unknown'}\n"
         f"Creator (use ONLY if supported by footage/metadata): {up_meta or 'unverified'}\n"
         f"Game/Topic (use ONLY if supported by footage/metadata): {game_meta or 'unverified'}\n"
+        f"Why this moment was clipped: {reason_meta or '(observe exact action, joke, fail, or clutch)'}\n"
         f"Final cut spoken transcript:\n\"{spoken}\"\n\n"
         f"Tone hint: {_safe(tone or 'natural engaging Shorts editor', 80)}\n"
         f"{lang_instruction}\n\n"
-        "STRICT GROUNDING & ANTI-DUPLICATION RULES:\n"
+        "STRICT GROUNDING, HOOK QUALITY & ANTI-DUPLICATION RULES:\n"
         "1. Base every field on specific actions, dialogue, or reactions present in THIS exact cut.\n"
         "2. Verify any quoted words against the transcript/audio above. If uncertain about exact wording, paraphrase.\n"
         "3. Never invent unrelated creator names, wrong games, or events outside this cut.\n"
-        "4. Give EACH field a distinct job so they NEVER repeat the same sentence:\n"
-        "   - hook: 2-6 punchy words for the first 1-2s on-screen banner (highlight 1 punch word with *ASTERISKS*).\n"
-        "   - hooks: 4 distinct hook alternatives (curiosity, funny, reaction, suspense/direct).\n"
-        "   - title: One recommended YouTube Shorts title (<=90 chars, natural phrasing, NOT identical to hook).\n"
+        "4. BANNED CLICHES: NEVER use lazy phrases like 'WAIT FOR THE REACTION', 'WAIT FOR IT', 'IN GAME', 'ABSOLUTE ANNIHILATION', 'GETTING SLAPPED AROUND', 'WHAT DID HE DO', 'BRO WAS NOT READY', or 'NOBODY SAW THIS COMING'.\n"
+        "5. Give EACH field a distinct job so they NEVER repeat the same sentence:\n"
+        "   - hook: 4-7 punchy words naming the specific action, person, quote, or stakes for the first 1.5s banner (highlight 1 punch word with *ASTERISKS*).\n"
+        "   - hooks: 5 distinct hook angles (Stakes/Cost, Curiosity Question, Warning/Callout, Spoken Quote/Reaction, Impossible Twist).\n"
+        "   - title: One high-CTR YouTube Shorts title (35-62 chars so mobile doesn't cut the subject, ending with #Shorts, NOT repeating the hook banner words).\n"
         "   - titles: 4 genuinely distinct clickable title options ending with #Shorts.\n"
-        "   - description: Concise 1-2 sentence summary explaining what happens & why it hits (no hashtag stuffing).\n"
-        "   - hashtags: 3-5 relevant hashtags without # sign.\n"
-        "   - seo_tags: 8-14 comma-free YouTube search keyword phrases.\n"
-        "   - pinned_comment: One specific conversation question referencing an exact detail/reaction from the cut.\n"
+        "   - description: Concise 1-2 sentence story summarizing what happened & why it hits + 1 engaging viewer question (no hashtag stuffing).\n"
+        "   - hashtags: 4-6 relevant searchable hashtags without # sign.\n"
+        "   - seo_tags: 10-14 specific YouTube search phrases mixing streamer + game + exact clip event.\n"
+        "   - pinned_comment: One specific debate/question referencing an exact detail/quote from the cut.\n"
         f"   - community_text: One ready-to-copy YouTube Community post teasing this clip and including `{url_token}` cleanly.\n"
         "   - reason: One plain sentence explaining why this cut works for a new viewer."
     )
@@ -2042,10 +2045,22 @@ def generate_final_cut_package(
     hooks_list = [_apply_yellow_punch(roman.to_roman(_text(h, 90)).upper()) for h in (raw.get("hooks") or []) if str(h).strip()][:5]
     if clean_hook_txt and clean_hook_txt not in hooks_list:
         hooks_list.insert(0, clean_hook_txt)
-    ranked_hooks = yt_intel.rank_hooks(hooks_list, mode="shorts")
+    ranked_hooks = yt_intel.rank_hooks(hooks_list, mode="shorts", drop_cliches=True)
+    # Quality gate: if AI returned lazy/weak/cliche hooks on the first pass, upgrade via generate_viral_hooks
+    strong_hooks = [r for r in ranked_hooks if r["verdict"] >= 58 and not r.get("is_cliche")]
+    if len(strong_hooks) < 2 and ai.ready():
+        try:
+            upgraded = generate_viral_hooks(
+                transcript_text, title=title, uploader=up_meta, game=game_meta,
+                count=5, media_parts=media_parts, reason=reason_meta,
+            )
+            if upgraded:
+                ranked_hooks = yt_intel.rank_hooks(upgraded + [r["hook"] for r in strong_hooks], mode="shorts", drop_cliches=True)
+        except Exception:
+            pass
     if ranked_hooks:
         hooks_list = [r["hook"] for r in ranked_hooks]
-        if not clean_hook_txt:
+        if not clean_hook_txt or yt_intel.is_cliche_hook(clean_hook_txt) or yt_intel.score_hook(clean_hook_txt, mode="shorts")["verdict"] < 55:
             clean_hook_txt = hooks_list[0]
 
     rec_title = roman.to_roman(_text(raw.get("title"), 95)) or f"{up_meta or 'Gaming'} Moment #Shorts"

@@ -1320,8 +1320,8 @@ def _generate_and_save_package(job: dict, clip: dict, model: str | None = None, 
     """Single centralized Shorts package generator grounded on exact final cut video/audio + cut transcript."""
     d = Path(job["dir"])
     clip_text = jobs.spoken_in(job, clip)
-    streamer_name = job.get("creator") or job.get("uploader") or ""
-    if not streamer_name or str(streamer_name).lower() in ("streamer", "none", ""):
+    streamer_name = jobs.resolve_uploader_name(job)
+    if streamer_name.lower() in ("streamer", "none", ""):
         t = job.get("title", "")
         for known in ("ishowspeed", "speed", "ohnepixel", "kai cenat", "jynxzi", "sketch", "xqc", "adin ross", "gameranx"):
             if known in t.lower():
@@ -1343,6 +1343,7 @@ def _generate_and_save_package(job: dict, clip: dict, model: str | None = None, 
         preserve_fields=edited_map,
         regenerate_fields=regenerate_fields,
         tone=tone,
+        reason=clip.get("reason") or "",
     )
     cur_span = [round(float(clip.get("start", 0.0)), 2), round(float(clip.get("end", 0.0)), 2)]
     raw_ht = pkg.get("hashtags", clip.get("hashtags") or [])
@@ -1427,11 +1428,15 @@ def clip_generate_titles(jid: str, cid: str):
     try:
         text = jobs.spoken_in(job, clip)
         title = job.get("title") or clip.get("title") or ""
-        uploader = job.get("uploader") or job.get("creator") or ""
+        uploader = jobs.resolve_uploader_name(job)
         game = job.get("game") or None
-        frames = jobs.get_clip_frames_payload(job, clip, n_frames=6)
-        titles = brain.generate_viral_titles(text, title, uploader, game=game, count=4, image=frames)
+        mparts = jobs.get_clip_media_payload(job, clip, include_video_proxy=True)
+        frames = [b for m, b in mparts if m.startswith("image/")] or jobs.get_clip_frames_payload(job, clip, n_frames=6)
         hook_txt = clip.get("hook") or ""
+        titles = brain.generate_viral_titles(
+            text, title, uploader, game=game, count=4, image=frames,
+            media_parts=mparts, hook=hook_txt, reason=clip.get("reason") or "",
+        )
         title_lints = [yt_intel.lint_title_pairing(t, thumb=hook_txt, is_shorts=True) for t in titles]
         title_lints.sort(key=lambda r: -r["ctr_score"])
         titles = [r["title"] for r in title_lints] or titles
@@ -1447,17 +1452,21 @@ def clip_generate_titles(jid: str, cid: str):
 @app.get("/api/jobs/{jid}/clips/{cid}/hooks")
 @app.post("/api/jobs/{jid}/clips/{cid}/hooks")
 def clip_generate_hooks(jid: str, cid: str):
-    """Generate 6 viral hook banner variations for this clip using AI vision and video frames."""
+    """Generate 6 viral hook banner variations for this clip using AI video+audio & frames."""
     job, clip = _clip_or_404(jid, cid)
     _throttle("cliphooks:" + ctx.uid(), 30, 600, "Please wait a moment before generating more hooks.")
     usage.set_context(job.get("creator"), job.get("title") or "")
     try:
         text = jobs.spoken_in(job, clip)
         title = job.get("title") or clip.get("title") or ""
-        uploader = job.get("uploader") or job.get("creator") or ""
+        uploader = jobs.resolve_uploader_name(job)
         game = job.get("game") or None
-        frames = jobs.get_clip_frames_payload(job, clip, n_frames=6)
-        hooks = brain.generate_viral_hooks(text, title, uploader, game=game, count=6, image=frames)
+        mparts = jobs.get_clip_media_payload(job, clip, include_video_proxy=True)
+        frames = [b for m, b in mparts if m.startswith("image/")] or jobs.get_clip_frames_payload(job, clip, n_frames=6)
+        hooks = brain.generate_viral_hooks(
+            text, title, uploader, game=game, count=6, image=frames,
+            media_parts=mparts, reason=clip.get("reason") or "",
+        )
         hook_scores = yt_intel.rank_hooks(hooks, mode="shorts")
         hooks = [r["hook"] for r in hook_scores] or hooks
         clip["hooks"] = hooks
