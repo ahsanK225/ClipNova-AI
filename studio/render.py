@@ -553,6 +553,12 @@ def _filter(layout, fg_h, facecam=None, facecam_pos="top-right", facecam_delay=0
             gx, gy, gw, gh = 0, 0, 1920, 1080
         fw, fh = max(20, fw), max(20, fh)
         gw, gh = max(20, gw), max(20, gh)
+        # UI coordinates are always in 1920x1080 space; scale proportionally to actual source (iw x ih)
+        def _ncrop(x, y, w, h):
+            return (f"crop='max(2,trunc(iw*{w}/1920/2)*2)':'max(2,trunc(ih*{h}/1080/2)*2)'"
+                    f":'min(iw-2,trunc(iw*{x}/1920))':'min(ih-2,trunc(ih*{y}/1080))'")
+        cam_crop = _ncrop(fx, fy, fw, fh)
+        game_crop = _ncrop(gx, gy, gw, gh)
 
         if cl_mode == "pip":
             pip_size = int(custom_layout.get("pip_size") or PIP_W)
@@ -567,15 +573,15 @@ def _filter(layout, fg_h, facecam=None, facecam_pos="top-right", facecam_delay=0
             else:
                 px, py = W - pip_size - PIP_MARGIN, PIP_MARGIN
             return (f"{vin_prefix},split=2[base][fc];"
-                    f"[base]crop={gw}:{gh}:{gx}:{gy},"
+                    f"[base]{game_crop},"
                     f"scale={W}:{H}:flags=lanczos+accurate_rnd:force_original_aspect_ratio=increase,"
                     f"crop={W}:{H},cas=0.30,unsharp=5:5:0.5:5:5:0.0,setsar=1[b];"
-                    f"[fc]crop={fw}:{fh}:{fx}:{fy}{fc_delay_filter},"
+                    f"[fc]{cam_crop}{fc_delay_filter},"
                     f"scale={pip_size}:{pip_h}:flags=lanczos+accurate_rnd,cas=0.25,setsar=1[p];"
                     f"[b][p]overlay={px}:{py}[v0];")
 
         elif cl_mode == "crop":
-            return (f"{vin_prefix},crop={gw}:{gh}:{gx}:{gy},"
+            return (f"{vin_prefix},{game_crop},"
                     f"scale={W}:{H}:flags=lanczos+accurate_rnd:force_original_aspect_ratio=increase,"
                     f"crop={W}:{H},cas=0.30,unsharp=5:5:0.5:5:5:0.0,setsar=1[v0];")
 
@@ -583,17 +589,17 @@ def _filter(layout, fg_h, facecam=None, facecam_pos="top-right", facecam_delay=0
             pct = max(30, min(100, int(float(custom_layout.get("mobile_height") or 65))))
             bg_style = str(custom_layout.get("bg_style") or "blur").lower()
             if pct >= 98:
-                return (f"{vin_prefix},crop={gw}:{gh}:{gx}:{gy},"
+                return (f"{vin_prefix},{game_crop},"
                         f"scale={W}:{H}:flags=lanczos+accurate_rnd:force_original_aspect_ratio=increase,"
                         f"crop={W}:{H},cas=0.30,unsharp=5:5:0.5:5:5:0.0,setsar=1[v0];")
             box_h = max(360, int(round(H * pct / 100.0)) // 2 * 2)
             box_y = max(0, (H - box_h) // 2)
             if bg_style == "black":
-                return (f"{vin_prefix},crop={gw}:{gh}:{gx}:{gy},"
+                return (f"{vin_prefix},{game_crop},"
                         f"scale={W}:{box_h}:flags=lanczos+accurate_rnd:force_original_aspect_ratio=increase,"
                         f"crop={W}:{box_h},cas=0.30,unsharp=5:5:0.5:5:5:0.0,"
                         f"pad={W}:{H}:0:{box_y}:black,setsar=1[v0];")
-            return (f"{vin_prefix},crop={gw}:{gh}:{gx}:{gy},split=2[a][b];"
+            return (f"{vin_prefix},{game_crop},split=2[a][b];"
                     f"[a]scale=270:480:force_original_aspect_ratio=increase,crop=270:480,boxblur=6:2,"
                     f"scale={W}:{H},eq=brightness=-0.14:saturation=1.15[bg];"
                     f"[b]scale={W}:{box_h}:flags=lanczos+accurate_rnd:force_original_aspect_ratio=increase,"
@@ -609,12 +615,12 @@ def _filter(layout, fg_h, facecam=None, facecam_pos="top-right", facecam_delay=0
             div_filter = (f",drawbox=x=0:y={cam_h-3}:w={W}:h=6:color=0x141210:t=fill,"
                           f"drawbox=x=0:y={cam_h-1}:w={W}:h=2:color=0x00F0FF@0.9:t=fill" if has_div else "")
             return (f"{vin_prefix},split=2[game][cam];"
-                    f"[cam]crop={fw}:{fh}:{fx}:{fy}{fc_delay_filter},"
+                    f"[cam]{cam_crop}{fc_delay_filter},"
                     f"scale={W}:{cam_h}:flags=lanczos+accurate_rnd:force_original_aspect_ratio=increase,"
-                    f"crop={W}:{cam_h}:(in_w-out_w)/2:0,cas=0.25,unsharp=5:5:0.4:5:5:0.0,setsar=1[f];"
-                    f"[game]crop={gw}:{gh}:{gx}:{gy},"
+                    f"crop={W}:{cam_h}:(in_w-out_w)/2:(in_h-out_h)/2,cas=0.25,unsharp=5:5:0.4:5:5:0.0,setsar=1[f];"
+                    f"[game]{game_crop},"
                     f"scale={W}:{game_h}:flags=lanczos+accurate_rnd:force_original_aspect_ratio=increase,"
-                    f"crop={W}:{game_h}:(in_w-out_w)/2:0,cas=0.30,unsharp=5:5:0.5:5:5:0.0,setsar=1[g];"
+                    f"crop={W}:{game_h}:(in_w-out_w)/2:(in_h-out_h)/2,cas=0.30,unsharp=5:5:0.5:5:5:0.0,setsar=1[g];"
                     f"[f][g]vstack=inputs=2{div_filter}[v0];")
 
     if layout == "split" and facecam and len(facecam) == 4 and int(facecam[2]) > 8:
