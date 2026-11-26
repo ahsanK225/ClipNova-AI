@@ -288,7 +288,10 @@ def get_winner_insights(cid: str):
         "recommendation": f"Keep clips near ~{int(avg_dur or 35)}s using '{best_hook}' hook & '{best_style}' captions.",
     }
     c["winner_insights"] = insights
-    creators.save_all() if hasattr(creators, "save_all") else None
+    try:
+        creators.update(cid, {"winner_insights": insights})
+    except Exception:
+        pass
     return {"ok": True, "insights": insights}
 
 

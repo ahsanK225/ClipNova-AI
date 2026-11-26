@@ -32,7 +32,7 @@ DEFAULTS = {"name": "", "channel": "", "style": "bounce", "layout": "split_half"
             "privacy": "public", "post_footer": "", "rate_per_1k": 0.0, "channels": {}, "active_preset": "",
             "facecam_pos": "top-right", "facecam_delay": 0.0, "audio_delay": 0.0, "hook_style": "neon", "outro_cta": True, "outro_text": "",
             "custom_layout": {"enabled": False, "mode": "split", "facecam": [0, 0, 480, 360], "gameplay": [0, 0, 1920, 1080], "split_ratio": 0.35, "pip_pos": "top-right", "pip_size": 380, "divider": True},
-            "custom_presets": {},
+            "custom_presets": {}, "winner_insights": {},
             "post_cleanup": "ask", "trim_silence": False, "streamer_only_captions": False, "lang": "en"}
 PLATFORMS = ("youtube", "twitch", "kick")
 
@@ -176,6 +176,8 @@ def _clean(data: dict) -> dict:
                         p_obj["gameplay"] = [0, 0, 1920, 1080]
                     cleaned_presets[pname_clean] = p_obj
             v = cleaned_presets
+        elif k == "winner_insights":
+            v = v if isinstance(v, dict) else {}
         elif k in ("facecam_pos", "hook_style", "outro_text"):
             v = str(v).strip()[:100]
         elif k == "lang":

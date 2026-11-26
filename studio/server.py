@@ -1797,8 +1797,11 @@ def studio_export_clip(jid: str, cid: str, body: dict = Body(default={})):
         from studio import posting, accounts
         accs = body.get("accounts")
         if not accs:
-            user_accs = accounts.list_for(ctx.uid() or "u_local")
-            accs = [a["id"] for a in user_accs if a.get("type") == "youtube"]
+            cr_obj = creators.get(job.get("creator")) if job.get("creator") else None
+            accs = list((cr_obj or {}).get("accounts") or [])
+        if not accs:
+            user_accs = accounts.list_accounts()
+            accs = [a["id"] for a in user_accs if a.get("platform") == "youtube" or a.get("type") == "youtube"]
         if accs:
             try:
                 sched_res = posting.enqueue(job, clip, accs, target_ts=body.get("target_ts"))

@@ -303,7 +303,7 @@ def sync_youtube_stats(cid: str, aid: Optional[str] = None) -> dict:
     target_aid = aid or (c.get("accounts", [])[0] if c.get("accounts") else None)
     if not target_aid:
         # Auto-detect from creator's recent posts or any connected YouTube account
-        target_aid = next((p.get("account") for p in posting._posts if p.get("creator") == cid and p.get("account")), None)
+        target_aid = next((p.get("account") for p in posting._mine() if p.get("creator") == cid and p.get("account")), None)
         if not target_aid:
             target_aid = next((a["id"] for a in accounts._all() if a.get("platform") == "youtube"), None)
 
@@ -330,11 +330,12 @@ def sync_youtube_stats(cid: str, aid: Optional[str] = None) -> dict:
 
     # 1. Update live view counts for all this creator's uploaded posts
     try:
-        post_vids = [p["remote_id"] for p in posting._posts if p.get("creator") == cid and p.get("platform") == "youtube" and p.get("remote_id")]
+        mine_posts = posting._mine()
+        post_vids = [p["remote_id"] for p in mine_posts if p.get("creator") == cid and p.get("platform") == "youtube" and p.get("remote_id")]
         if post_vids:
             pviews = accounts.youtube_views(acc, post_vids)
             updated_any = False
-            for p in posting._posts:
+            for p in mine_posts:
                 if p.get("creator") == cid and p.get("remote_id") in pviews:
                     p["views"] = pviews[p["remote_id"]]
                     updated_any = True

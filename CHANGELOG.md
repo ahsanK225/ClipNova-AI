@@ -1,6 +1,20 @@
 ﻿# Changelog
 All notable project changes are documented here.
 
+## [2026-11-27] — Full-Project Audit & Reliability Fixes
+
+### Fixed
+- **Studio Export YouTube Auto-Queue (`PeakCut/studio/server.py`)**:
+  - Replaced invalid `accounts.list_for(...)` call in `studio_export_clip()` with `creator["accounts"]` lookup + `accounts.list_accounts()` fallback so **Save & Queue to YouTube** works reliably.
+- **Calendar `+Add` Channel Selection (`PeakCut/studio/routes/calendar_routes.py`)**:
+  - Updated `schedule_clip_to_slot()` to honor `payload["account_id"]` when scheduling from a selected YouTube channel pill.
+- **Winner Insights Persistence (`PeakCut/studio/creators.py`, `PeakCut/studio/routes/growth_routes.py`)**:
+  - Added `winner_insights` to `creators.DEFAULTS` & `_clean()` and replaced invalid `creators.save_all()` call with `creators.update(cid, {"winner_insights": insights})`.
+- **Crash/Restart Clip Recovery (`PeakCut/studio/jobs.py`)**:
+  - Updated `_pick_up_after_restart()` to automatically re-queue any clips left in `queued` / `rendering` when their source media exists on disk.
+- **User-Scoped Analytics Sync & File Picker Formats (`PeakCut/studio/analytics.py`, `PeakCut/web/index.html`)**:
+  - Replaced direct `posting._posts` access with user-scoped `posting._mine()` in `analytics.py`, and added `.flac,.opus,.wma,.m4v,.ts` to `#studio_custom_sfx_input` `accept`.
+
 ## [2026-11-26] — Video-to-Sound Extraction & Custom VFX Uploads
 
 ### Added
@@ -72,6 +86,22 @@ All notable project changes are documented here.
   - Converted the **`✂️ Cut & Merge`** drawer tab into a visual **Media Bin (`#studio_media_bin`)** with clip thumbnails, durations, scores, and 1-click `➕ Add` buttons; updated `studio/server.py` `GET /studio-project` to return `video_url` and `cover_url` on `creator_clips` and initial segments.
   - Added **Timeline Zoom Controls (`− / Slider / + / ⊡ Fit`)** with horizontally scrollable pixel-scaled tracks (`#studio_timeline_scroll`, `_studioScaleInfo`, `studioSetZoom`), live **Selected Clip Max Duration & Total 180s Shorts Limit** badges, and a dashed `+Xs room` extension indicator when a clip is trimmed shorter than its source length.
 - **Tests (`PeakCut/tests/test_nextgen_upgrade.py`)**: Updated check #8 to assert the CapCut timeline handlers (`studioSplitSegmentAtPlayhead`, `studioStartTrimDrag`, `studioTrimSelectedToPlayhead`, `studioAddClipToTimeline`, `#studio_media_bin`).
+
+## [2026-11-27] — Fix YouTube Shorts 0-View Root Cause (Remove 588MB 2K Re-Encode Bloat & Shorts `thumbnails.set` API Call)
+
+### Fixed
+- **Eliminated 588 MB / 129 Mbps 2K Double-Encode Bloat (`studio/posting.py`, `studio/render.py`)**:
+  - Live YouTube Data API v3 diagnostics revealed that `scale_to_2k` (CQP 14 @ 1440x2560 60fps) inflated 41s Shorts to `522–588 MB` (`61–129 Mbps`), while normal `1080x1920` / `720x1280` uploads on the same channel received `1,043–2,615` views.
+  - Removed `scale_to_2k` double-encoding from `posting._post()`, uploading clean native `1080x1920` clips directly.
+  - Tuned `h264_amf` CQP in `render._encode_with_fallback()` from `15/16/18` to `18/19/21` so clips stay crisp at ~15–22 Mbps (~60–90 MB).
+- **Disabled `thumbnails.set` API Call on YouTube Shorts (`studio/posting.py`)**:
+  - Skipped `accounts.youtube_set_thumbnail()` for Shorts (`duration <= 61s`), matching the exact pipeline that achieved `1,043–2,615` views.
+- **Restored Anti-Spam Guard, Safety Sanitizer & `#Shorts` Deduplication (`studio/posting.py`)**:
+  - Enforced 45-minute cooldown + 3 Shorts/day cap (`_yt_needs_spacing`), upload-time safety sanitizer (`sanitize_youtube_shorts_text`), and `#Shorts` deduplication (`_caption`).
+
+### Tests and Verification
+- `uv --directory PeakCut run python -m unittest tests/test_youtube_views_guard.py` -> 3/3 passed.
+- `uv --directory PeakCut run python tests/test_hashtags.py` -> ALL PASSED (19/19).
 
 ## [2026-11-25] — YouTube Shorts Anti-Spam Burst Guard, Safety Sanitizer & `#Shorts` Deduplication
 

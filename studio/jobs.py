@@ -1761,9 +1761,22 @@ def _pick_up_after_restart():
     for j in waiting:
         _q.put(("job", j["id"], None), user=j["user"])
     for j in all_jobs():
-        for cid in j.pop("remake", []):
+        remake_ids = set(j.pop("remake", []))
+        changed = bool(remake_ids)
+        for cid in remake_ids:
             _q.put(("clip", j["id"], cid))
-        if j.get("status") == "done":
+        d = Path(j.get("dir", ""))
+        for clp in (j.get("clips") or []):
+            cid = clp.get("id")
+            if not cid or cid in remake_ids:
+                continue
+            if clp.get("status") in ("queued", "rendering"):
+                has_src = (d / "clips" / f"{cid}.src.mp4").is_file() or bool(j.get("source_path") and Path(j["source_path"]).is_file())
+                if has_src:
+                    clp["status"] = "queued"
+                    changed = True
+                    _q.put(("clip", j["id"], cid))
+        if j.get("status") == "done" or changed:
             save(j)
 
 

@@ -268,8 +268,11 @@ def schedule_clip_to_slot(payload: dict = Body(...)):
         raise HTTPException(404, "Clip not found")
 
     c = creators.get(cid)
+    req_acc = str(payload.get("account_id") or "").strip()
     acc_id = None
-    if c and c.get("accounts"):
+    if req_acc and req_acc != "all" and accounts.get(req_acc):
+        acc_id = req_acc
+    elif c and c.get("accounts"):
         acc_id = c["accounts"][0]
     else:
         user_accs = accounts.list_accounts()
