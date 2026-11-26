@@ -37,7 +37,15 @@ if %errorlevel% neq 0 (
 )
 
 git stash push -m "auto-before-bat-update" >nul 2>nul
-git checkout -f -B main origin/main
+git reset --mixed origin/main >nul 2>nul
+git checkout -B main origin/main
+if %errorlevel% neq 0 (
+    echo.
+    echo [ERROR] Git checkout failed. Close ClipNova AI if it is running and try again.
+    pause
+    exit /b 1
+)
+git reset --hard origin/main
 if %errorlevel% neq 0 (
     echo.
     echo [ERROR] Git update failed. Close ClipNova AI if it is running and try again.

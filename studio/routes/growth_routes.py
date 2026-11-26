@@ -463,7 +463,11 @@ def run_one_click_update():
 
     out_txt = "Already up to date."
     if not already_up_to_date:
-        reset = subprocess.run(["git", "checkout", "-f", "-B", "main", "origin/main"], cwd=str(root), capture_output=True, text=True, timeout=45)
+        # --mixed first so untracked files (e.g. from a ZIP download) don't block checkout
+        subprocess.run(["git", "reset", "--mixed", "origin/main"], cwd=str(root), capture_output=True, text=True, timeout=30)
+        reset = subprocess.run(["git", "checkout", "-B", "main", "origin/main"], cwd=str(root), capture_output=True, text=True, timeout=45)
+        if reset.returncode == 0:
+            reset = subprocess.run(["git", "reset", "--hard", "origin/main"], cwd=str(root), capture_output=True, text=True, timeout=45)
         out_txt = ((reset.stdout or "") + "\n" + (reset.stderr or "")).strip()
         if reset.returncode != 0:
             raise HTTPException(422, f"Git update failed: {out_txt[:300]}")
