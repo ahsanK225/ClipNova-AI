@@ -1,6 +1,15 @@
 ﻿# Changelog
 All notable project changes are documented here.
 
+## [2026-11-27] — Topbar Tab Pill Height & Twitch Player Reload Button
+
+### Fixed
+- **Creator Topbar Tab Pill & Wrapping (`PeakCut/web/index.html`)**:
+  - Changed `.topbar.tabbed .utabs` from `position: static !important` to `position: relative !important; align-self: center; overflow-y: hidden` so the sliding `.ind` pill never stretches vertically across wrapped topbar rows.
+  - Added clean 2-row responsive wrapping below `1460px` (`order: 5; flex-basis: 100%` for `.utabs` below the title + AI bar + record button) and ran `moveInd()` after `.topbar.tabbed` class toggle.
+- **Twitch Embed Post-Ad Recovery (`PeakCut/web/index.html`)**:
+  - Added a `↻ Reload` button beside `Watch on Twitch` in `drawStream()` so users can refresh the embed player in one click if Twitch stays stuck on `"Commercial break in progress"` after an ad ends.
+
 ## [2026-11-27] — Viral Hooks & SEO Quality-Gate Upgrade
 
 ### Fixed

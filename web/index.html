@@ -194,14 +194,14 @@ main{background:var(--bg);margin:8px 8px 8px 0;border-radius:var(--r-lg);height:
 #tpic span.avatar{background:var(--brand-soft);color:var(--brand-deep);display:grid;place-items:center;font-weight:700}
 #tpic.live img,#tpic.live .avatar{padding:2px;background:#fff;border:2px solid #E5323F}
 .topbar.tabbed{border-color:var(--line);display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-.topbar.tabbed .titles{flex:0 1 auto;min-width:120px;max-width:200px}
-.topbar.tabbed .utabs{position:static!important;transform:none!important;margin:0 4px;flex:0 1 auto;max-width:100%}
+.topbar.tabbed .titles{flex:0 1 auto;min-width:120px;max-width:210px}
+.topbar.tabbed .utabs{position:relative!important;transform:none!important;margin:0 4px;flex:0 0 auto;align-self:center;max-width:100%;overflow-y:hidden}
 #global_ai_bar{margin-left:auto;display:flex;align-items:center;flex-shrink:1;min-width:0;max-width:100%}
 .topbar.tabbed #actions{margin-left:4px;display:flex;align-items:center;flex-shrink:0}
 .utabs:empty{display:none}
-.utabs{display:flex;gap:2px;padding:3px;background:var(--muted);border-radius:11px;overflow-x:auto;scrollbar-width:none}
-@media (min-width:981px){.topbar.tabbed{position:sticky}.topbar.tabbed .utabs{position:static!important;transform:none!important;margin:0 4px}}
-@media (max-width:1360px){.global-ai-lbl{display:none!important}}
+.utabs{position:relative;display:flex;align-items:center;gap:2px;padding:3px;background:var(--muted);border-radius:11px;overflow-x:auto;overflow-y:hidden;scrollbar-width:none}
+@media (min-width:981px){.topbar.tabbed{position:sticky}.topbar.tabbed .utabs{position:relative!important;transform:none!important;margin:0 4px}}
+@media (max-width:1460px){.topbar.tabbed{row-gap:6px}.topbar.tabbed .titles{flex:1 1 auto;max-width:none}.topbar.tabbed #themeToggleBtn{order:2}.topbar.tabbed #global_ai_bar{order:3;margin-left:0}.topbar.tabbed #actions{order:4}.topbar.tabbed .utabs{order:5;flex-basis:100%;width:100%;margin:2px 0 0;justify-content:flex-start}.global-ai-lbl{display:none!important}}
 @media (max-width:980px){.topbar{flex-wrap:wrap;padding:8px 14px}.utabs{order:5;flex-basis:100%;margin:6px 0 0;position:relative}.topbar.tabbed .titles{max-width:none;flex:1}#global_ai_bar{margin-left:auto;order:3}.topbar.tabbed #actions{order:4}}
 .utabs .tabbtn{height:34px;padding:0 14px;border-radius:8px;background:transparent;color:var(--dim);font-size:13px;transition:background-color .18s ease,color .18s ease}
 .utabs .tabbtn:hover{background:#EDE3DB;color:var(--text)}
@@ -2049,7 +2049,7 @@ function drawStream() {
     const ipHost = /^[\d.]+$|^\[/.test(location.hostname);
     pl.innerHTML = k === "twitch" && ipHost
       ? `<div class="noembed">${platLogo(k)}<b>Twitch stream preview</b><span>Twitch player requires localhost or a domain name. Switch to localhost to play stream directly:</span><div style="display:flex;gap:8px;margin-top:6px"><a class="btn primary sm" href="http://localhost:${location.port || 8765}${location.pathname}">Switch to localhost ${ic("check")}</a><a class="btn sm ghost" href="${esc(p.channel)}" target="_blank" rel="noopener">Watch on Twitch ${ic("upright")}</a></div></div>`
-      : src ? `<iframe src="${src}" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen referrerpolicy="strict-origin-when-cross-origin" title="${PLAT[k].name} live stream"></iframe><a class="btn sm ghost" href="${esc(p.channel)}" target="_blank" rel="noopener" style="position:absolute;top:10px;right:10px;z-index:10;background:rgba(18,16,14,0.85);backdrop-filter:blur(6px);color:#fff;border:1px solid rgba(255,255,255,0.2);box-shadow:0 4px 12px rgba(0,0,0,0.5)">Watch on ${PLAT[k].name} ${ic("upright")}</a>` : "";
+      : src ? `<iframe src="${src}" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen referrerpolicy="strict-origin-when-cross-origin" title="${PLAT[k].name} live stream"></iframe><div style="position:absolute;top:10px;right:10px;z-index:10;display:flex;gap:6px;align-items:center"><button type="button" class="btn sm ghost" onclick="const ifr=this.closest('.player')?.querySelector('iframe');if(ifr){const s=ifr.src;ifr.src='about:blank';setTimeout(()=>ifr.src=s,120);}" title="Reload embed player if stuck after a commercial break" style="background:rgba(18,16,14,0.85);backdrop-filter:blur(6px);color:#fff;border:1px solid rgba(255,255,255,0.2);box-shadow:0 4px 12px rgba(0,0,0,0.5)">↻ Reload</button><a class="btn sm ghost" href="${esc(p.channel)}" target="_blank" rel="noopener" style="background:rgba(18,16,14,0.85);backdrop-filter:blur(6px);color:#fff;border:1px solid rgba(255,255,255,0.2);box-shadow:0 4px 12px rgba(0,0,0,0.5)">Watch on ${PLAT[k].name} ${ic("upright")}</a></div>` : "";
   }
   const stats = [p.viewers != null ? [fmtK(p.viewers), "watching"] : null, p.started ? [since(p.started), "live for"] : null,
                  p.followers ? [p.followers.split(" ")[0], p.followers.split(" ").slice(1).join(" ")] : null].filter(Boolean);
@@ -2294,7 +2294,7 @@ function drawShell() {  const nav = (v, icon, label, extra = "") => `<button cla
   put($("#vbanner"), toolBar ? toolBar : diskBar ? diskBar : aiBar ? aiBar : upBar ? upBar : me && me.verified === false ? `<div class="vb" role="status">${ic("warn")}<span>Confirm your email to start clipping. We sent a link to <b>${esc(me.email)}</b>.</span><button class="btn sm" data-act="resendverify">Send a new link</button></div>`
     : kk && kk.ready === false && S.view !== "usage" ? `<div class="vb" role="status">${ic("bolt")}<span>${me?.is_admin ? "Add your AI key to let the AI pick clips and write titles. Until then, clips are picked by loudness." : "The AI isn't set up on this server yet, so clips are picked by loudness."}</span>${me?.is_admin && S.view !== "settings" ? `<button class="btn sm primary" data-act="go" data-v="settings" data-tab="ai">${ic("plus")}Add AI key</button>` : ""}</div>` : "");
   put($("#tpic"), pic); $("#tpic").classList.toggle("live", !!(c && (c.live_job || liveOn(c).length)));
-  put($("#utabs"), tabs); moveInd(); $(".topbar").classList.toggle("tabbed", !!tabs);
+  put($("#utabs"), tabs); $(".topbar").classList.toggle("tabbed", !!tabs); lastInd = null; requestAnimationFrame(moveInd);
   put($("#title"), `<span>${esc(title)}</span>`); put($("#subtitle"), subHtml ?? esc(sub)); put($("#actions"), act);
   if (typeof updateThemeToggleBtn === "function") updateThemeToggleBtn();
   renderGlobalAiBar();
