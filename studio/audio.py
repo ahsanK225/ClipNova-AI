@@ -152,7 +152,7 @@ def list_tracks() -> list[dict[str, Any]]:
                     "emoji": "📁",
                     "category": "custom",
                     "desc": f"Custom uploaded audio ({p.name})",
-                    "duration": 0,
+                    "duration": _probe_duration(p),
                     "filename": p.name,
                     "url": f"/api/audio/track/{track_id}"
                 })
@@ -195,6 +195,30 @@ def get_track_path(track_id: str) -> Path | None:
         return direct_builtin.resolve()
 
     return None
+
+
+_DUR_CACHE: dict[str, float] = {}
+
+
+def _probe_duration(path: Path) -> float:
+    key = str(path)
+    if key in _DUR_CACHE:
+        return _DUR_CACHE[key]
+    try:
+        import json as _json
+        import subprocess as _sp
+        r = _sp.run(
+            ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "json", key],
+            capture_output=True, text=True, timeout=5,
+        )
+        if r.returncode == 0 and r.stdout:
+            d = round(float(_json.loads(r.stdout).get("format", {}).get("duration") or 0.0), 1)
+            if d > 0:
+                _DUR_CACHE[key] = d
+                return d
+    except Exception:
+        pass
+    return 0.0
 
 
 def save_upload(filename: str, content: bytes) -> dict[str, Any]:
@@ -253,7 +277,7 @@ def save_upload(filename: str, content: bytes) -> dict[str, Any]:
         "emoji": "🎬" if is_video else "📁",
         "category": "custom",
         "desc": f"Extracted from video ({Path(filename).name})" if is_video else f"Custom uploaded audio ({target_path.name})",
-        "duration": 0,
+        "duration": _probe_duration(target_path),
         "filename": target_path.name,
         "url": f"/api/audio/track/{track_id}"
     }
