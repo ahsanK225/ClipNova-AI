@@ -32,16 +32,55 @@ def get_calendar_slots(account_id: str = None, count: int = 6):
 
 
 @router.get("/api/creators/{cid}/calendar")
-def get_creator_calendar(cid: str):
-    """Return full publishing calendar schedule, slots, and queued videos for a creator."""
+def get_creator_calendar(cid: str, account_id: str = "all"):
+    """Return full publishing calendar schedule, slots, and queued videos for a creator (optionally filtered by YouTube channel)."""
     _throttle("creatorcal:" + ctx.uid(), 60, 60)
+    from .. import accounts
     c = creators.get(cid)
     if not c:
         raise HTTPException(404, "Creator not found")
 
     now_ts = time.time()
     all_mine = posting._mine()
+    user_accs = [a for a in accounts.list_for(ctx.uid()) if a.get("platform") == "youtube" or a.get("type") == "youtube"]
+    creator_acc_ids = set(c.get("accounts") or [])
+    yt_accs = [a for a in user_accs if a.get("id") in creator_acc_ids] if creator_acc_ids else user_accs
+    if not yt_accs:
+        yt_accs = user_accs
+
+    today_str = time.strftime("%Y-%m-%d", time.localtime(now_ts + 5 * 3600 if False else now_ts))
+    max_day = int(calendar.MAX_VIDEOS_PER_DAY)
+
+    def _post_acc_id(p: dict) -> str:
+        return str(p.get("account") or p.get("account_id") or "")
+
+    def _is_today_video(p: dict) -> bool:
+        if p.get("kind") == "community" or p.get("is_community"):
+            return False
+        if p.get("status") in ("cancelled", "deleted"):
+            return False
+        cs = p.get("calendar_slot")
+        if isinstance(cs, dict) and cs.get("cycle_date"):
+            return cs["cycle_date"] == today_str
+        st = float(p.get("scheduled_at") or p.get("due_at") or 0)
+        return st > 0 and time.strftime("%Y-%m-%d", time.localtime(st)) == today_str
+
+    available_accounts = []
+    for a in yt_accs:
+        aid = a["id"]
+        used = sum(1 for p in all_mine if _post_acc_id(p) == aid and _is_today_video(p))
+        available_accounts.append({
+            "id": aid,
+            "name": a.get("name") or a.get("label") or aid,
+            "today_used": used,
+            "today_left": max(0, max_day - used),
+            "daily_cap": max_day,
+        })
+
+    sel_acc = account_id if (account_id and account_id != "all") else "all"
     c_posts = [p for p in all_mine if p.get("creator") == cid]
+    if sel_acc != "all":
+        c_posts = [p for p in c_posts if _post_acc_id(p) == sel_acc]
 
     scheduled_posts = []
     seen_post_ids = set()
@@ -63,6 +102,8 @@ def get_creator_calendar(cid: str):
             for pid, pdata in (clip.get("posts") or {}).items():
                 if pid not in seen_post_ids and isinstance(pdata, dict):
                     if pdata.get("status") in ("cancelled", "deleted"):
+                        continue
+                    if sel_acc != "all" and _post_acc_id(pdata) != sel_acc:
                         continue
                     cs = pdata.get("calendar_slot")
                     sched_t = float(pdata.get("scheduled_at") or pdata.get("due_at") or (cs.get("video_ts") if isinstance(cs, dict) else 0) or 0)
@@ -102,13 +143,16 @@ def get_creator_calendar(cid: str):
                 p["reason"] = clip.get("reason") or ""
                 p["clip_status"] = clip.get("status") or "done"
 
-    primary_acc = c["accounts"][0] if c.get("accounts") else None
-    dedup_posts = list({(p.get("id") or id(p)): p for p in (all_mine + scheduled_posts)}.values())
+    primary_acc = sel_acc if sel_acc != "all" else (c["accounts"][0] if c.get("accounts") else None)
+    mine_for_slots = [p for p in all_mine if _post_acc_id(p) == sel_acc] if sel_acc != "all" else all_mine
+    dedup_posts = list({(p.get("id") or id(p)): p for p in (mine_for_slots + scheduled_posts)}.values())
     upcoming_slots = calendar.assign_slots_to_videos(primary_acc, dedup_posts, count=21, creator_id=cid)
     analytics_profile = analytics.get_analytics_profile(cid)
 
     return {
         "creator": {"id": c["id"], "name": c["name"], "accounts": c.get("accounts", [])},
+        "available_accounts": available_accounts,
+        "selected_account_id": sel_acc,
         "scheduled": scheduled_posts,
         "recent_posted": recent_posted,
         "upcoming_slots": upcoming_slots,

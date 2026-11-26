@@ -4274,7 +4274,9 @@ function _calBuildSmoothAreaSvg(velocity, maxV) {
 async function renderCreatorCalendarCard(c, targetEl, isCompact = false, useCache = false) {
   if (!targetEl || !c) return;
   window._calCache = window._calCache || {};
-  let calData = (useCache && window._calCache[c.id]) ? window._calCache[c.id] : null;
+  const selAcc = window._calAccountId || "all";
+  const cacheKey = `${c.id}::${selAcc}`;
+  let calData = (useCache && window._calCache[cacheKey]) ? window._calCache[cacheKey] : null;
 
   if (!calData) {
     targetEl.innerHTML = `<div class="cal-root-card" style="padding:18px 22px">
@@ -4283,12 +4285,14 @@ async function renderCreatorCalendarCard(c, targetEl, isCompact = false, useCach
       </div>
     </div>`;
     try {
-      calData = await api(`/api/creators/${c.id}/calendar`);
-      window._calCache[c.id] = calData;
+      calData = await api(`/api/creators/${c.id}/calendar?account_id=${encodeURIComponent(selAcc)}`);
+      window._calCache[cacheKey] = calData;
     } catch (err) {
       console.warn("Failed to load creator calendar endpoint:", err);
     }
   }
+  const availAccounts = calData?.available_accounts || [];
+  const activeAccountId = calData?.selected_account_id || selAcc;
 
   const vPosts = (calData?.scheduled || []).filter(p => p.kind !== "community" && !p.is_community);
   const commPosts = (calData?.scheduled || []).filter(p => p.kind === "community" || p.is_community);
@@ -4587,6 +4591,29 @@ async function renderCreatorCalendarCard(c, targetEl, isCompact = false, useCach
           </button>
         </div>
       </div>
+
+      ${availAccounts.length ? `
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:-4px 0 12px 0;padding:8px 12px;background:rgba(15,23,42,0.55);border:1px solid var(--cal-border);border-radius:12px">
+          <span style="font-size:11px;font-weight:800;color:var(--cal-muted);text-transform:uppercase;letter-spacing:0.4px">📺 YouTube Channels:</span>
+          <button type="button" class="btn sm" onclick="window._calAccountId='all';renderCreatorCalendarCard(creator(), $('#creator_calendar_view'), false, false)" style="font-size:11px;padding:4px 10px;border-radius:999px;background:${activeAccountId === 'all' ? 'rgba(0,240,255,0.18)' : 'var(--bg-2)'};border:1px solid ${activeAccountId === 'all' ? '#00F0FF' : 'var(--cal-border)'};color:${activeAccountId === 'all' ? '#00F0FF' : 'var(--cal-heading)'};font-weight:700">
+            All Channels
+          </button>
+          ${availAccounts.map(acc => {
+            const isSel = activeAccountId === acc.id;
+            const left = Number(acc.today_left ?? (3 - (acc.today_used || 0)));
+            const cap = Number(acc.daily_cap || 3);
+            const full = left <= 0;
+            return `
+              <button type="button" class="btn sm" onclick="window._calAccountId='${esc(acc.id)}';renderCreatorCalendarCard(creator(), $('#creator_calendar_view'), false, false)" style="font-size:11px;padding:4px 10px;border-radius:999px;display:inline-flex;align-items:center;gap:6px;background:${isSel ? 'rgba(0,240,255,0.18)' : 'var(--bg-2)'};border:1px solid ${isSel ? '#00F0FF' : 'var(--cal-border)'};color:${isSel ? '#00F0FF' : 'var(--cal-heading)'};font-weight:700">
+                <span>📺 ${esc(acc.name)}</span>
+                <span style="font-size:10px;padding:1px 6px;border-radius:999px;background:${full ? 'rgba(239,68,68,0.2)' : 'rgba(16,185,129,0.2)'};color:${full ? '#FCA5A5' : '#34D399'};font-weight:800">
+                  ${full ? `Full (${acc.today_used}/${cap})` : `${left}/${cap} Left`}
+                </span>
+              </button>
+            `;
+          }).join("")}
+        </div>
+      ` : ""}
 
       <!-- 4-Card Live Telemetry KPI Strip -->
       <div class="cal-kpi-grid">
