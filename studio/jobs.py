@@ -986,10 +986,11 @@ def render_one(job, clip, words):
         cur_hook = (clip.get("hook") or "").strip().upper()
         cur_span = [round(clip["start"], 2), round(clip["end"], 2)]
         seo_current = clip.get("seo_for") == cur_span and not clip.get("seo_stale")
+        has_good_title = bool((clip.get("title") or "").strip()) and not (clip.get("title") or "").strip().lower().startswith("manual clip")
         needs_visual_seo = (not seo_current) and (
             not cur_hook or cur_hook in ("WAIT FOR IT", "AUTO-GENERATED") or
             "NO CHILL" in cur_hook or "WAY TOO REAL" in cur_hook or
-            clip.get("needs_ai_seo") or clip.get("version", 0) == 0
+            clip.get("needs_ai_seo") or (clip.get("version", 0) == 0 and not has_good_title)
         )
         if needs_visual_seo and src.is_file() and ai.ready():
             try:
@@ -1773,4 +1774,5 @@ def start():
     for _ in range(max(1, config.JOB_WORKERS)):
         threading.Thread(target=_worker, daemon=True).start()
     threading.Thread(target=_worker, args=(True,), daemon=True).start()   # re-making a single clip never waits behind whole videos
-    threading.Thread(target=_live_worker, daemon=True).start()
+    for _ in range(max(2, config.JOB_WORKERS)):
+        threading.Thread(target=_live_worker, daemon=True).start()
