@@ -2157,6 +2157,14 @@ def edit_creator(cid: str, body: dict = Body(...)):
         jobs.save(s.job)
     if "channels" in body or "channel" in body:
         profiles.refresh(cid, force=True)
+    if "streamer_only_captions" in body:
+        soc = bool(c.get("streamer_only_captions"))
+        for j in jobs.all_jobs():
+            if j.get("creator") == cid:
+                j.setdefault("options", {})["streamer_only_captions"] = soc
+                for clp in (j.get("clips") or []):
+                    clp["streamer_only_captions"] = soc
+                jobs.save(j)
     if body.get("auto_watch") and c.get("auto_watch") and not s:
         live.check_now(cid)    # if they are live right now, recording starts within seconds
     return c
