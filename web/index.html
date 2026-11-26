@@ -5965,7 +5965,7 @@ window.studioUploadCustomSfx = async function(input) {
     input.value = "";
     return;
   }
-  let added = 0, skipped = 0, lastTrack = null;
+  let added = 0, skipped = 0, lastTrack = null, lastErr = "";
   try {
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
@@ -5989,9 +5989,11 @@ window.studioUploadCustomSfx = async function(input) {
           }
         } else {
           skipped++;
+          if (data.detail) lastErr = data.detail;
         }
-      } catch {
+      } catch (e) {
         skipped++;
+        if (e?.message) lastErr = e.message;
       }
     }
     if (added > 0) {
@@ -5999,7 +6001,7 @@ window.studioUploadCustomSfx = async function(input) {
       renderStudioWorkspace();
       toast(`✨ ${added} sound${added > 1 ? "s" : ""} imported${skipped ? ` (${skipped} skipped)` : ""}!`, "ok", 4500);
     } else {
-      toast("Upload failed: no valid audio tracks imported.", "bad");
+      toast("Upload failed: " + (lastErr || "no valid audio tracks imported."), "bad");
     }
   } finally {
     input.value = "";

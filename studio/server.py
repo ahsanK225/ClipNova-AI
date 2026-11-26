@@ -106,8 +106,14 @@ class Gate:
             # Only the upload may be big. Everything else is a small form, and is cut off at 256 KB whatever its
             # headers claim, so nobody can fill the server's memory by posting junk (signed in or not).
             piece = method == "PUT" and path.startswith("/api/upload/")
-            cap = ((min(config.MAX_UPLOAD_MB, config.UPLOAD_PART_MB) if piece else config.MAX_UPLOAD_MB) + 8) * 1024 * 1024 \
-                if path == "/api/upload" or piece else 256 * 1024
+            if path == "/api/upload" or piece:
+                cap = ((min(config.MAX_UPLOAD_MB, config.UPLOAD_PART_MB) if piece else config.MAX_UPLOAD_MB) + 8) * 1024 * 1024
+            elif path == "/api/audio/upload":
+                cap = 108 * 1024 * 1024
+            elif path == "/api/vfx/upload":
+                cap = 58 * 1024 * 1024
+            else:
+                cap = 256 * 1024
             try:
                 if int(req.headers.get("content-length") or 0) > cap:
                     return await deny(413, f"That file is too big. The limit is {config.MAX_UPLOAD_MB} MB." if path == "/api/upload" else "That request is too large.")
