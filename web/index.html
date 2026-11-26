@@ -5368,8 +5368,7 @@ function renderStudioWorkspace() {
   const vid = $("#studio_video_el");
   if (vid) {
     vid.onloadedmetadata = () => {
-      vid.volume = Math.min(1.0, Number(_studioVideoVolume ?? 1.0));
-      vid.muted = Number(_studioVideoVolume ?? 1.0) <= 0.01;
+      _studioApplyGain(vid, _studioVideoVolume ?? 1.0);
       const m = tMap[_studioPlayingSegIdx];
       if (m && Math.abs(vid.currentTime - m.seg.start) > 0.25 && _studioPlayhead === m.outStart) {
         try { vid.currentTime = m.seg.start; } catch {}
@@ -5418,22 +5417,54 @@ function renderStudioWorkspace() {
           const key = `s:${sc.id || sc.track_id}:${sc.time}`;
           if (!_studioFiredCues.has(key) && globalCur >= sc.time - 0.05 && globalCur <= sc.time + 0.35) {
             _studioFiredCues.add(key);
-            studioPlayCueSfx(sc.track_id, sc.volume ?? 0.95, sc.duration || 0);
+            const sMeta = (_studioProj?.available_sounds || []).find(x => x.id === sc.track_id);
+            const sDur = Number(sc.duration || sMeta?.duration || 0);
+            studioPlayCueSfx(sc.track_id, sc.volume ?? 0.95, sDur, 0);
           }
         }
       }
     };
 
     vid.onplay = () => {
-      vid.volume = Math.min(1.0, Number(_studioVideoVolume ?? 1.0));
-      vid.muted = Number(_studioVideoVolume ?? 1.0) <= 0.01;
+      if (window._studioAudioCtx && window._studioAudioCtx.state === "suspended") {
+        window._studioAudioCtx.resume().catch(() => {});
+      }
+      _studioApplyGain(vid, _studioVideoVolume ?? 1.0);
       const btn = $("#studio_play_btn"); if (btn) btn.innerText = "⏸️";
+      const curT = Number(_studioPlayhead || 0);
+      // Start any SFX cue already covering the current playhead (e.g. seeked into middle of track)
+      for (const sc of _studioSfxCues) {
+        const sMeta = (_studioProj?.available_sounds || []).find(x => x.id === sc.track_id);
+        const sDur = Number(sc.duration || sMeta?.duration || 30);
+        const startT = Number(sc.time || 0);
+        if (curT > startT + 0.05 && curT < startT + sDur - 0.1) {
+          const key = `s:${sc.id || sc.track_id}:${sc.time}`;
+          _studioFiredCues.add(key);
+          studioPlayCueSfx(sc.track_id, sc.volume ?? 0.95, (startT + sDur) - curT, curT - startT);
+        }
+      }
+      // Start live synced BGM preview if selected
+      if (_studioBgmTrack && _studioBgmTrack !== "none") {
+        try {
+          if (window._studioBgmLiveAudio) { window._studioBgmLiveAudio.pause(); }
+          const bga = new Audio(`/api/audio/track/${encodeURIComponent(_studioBgmTrack)}`);
+          bga.loop = true;
+          bga.volume = Math.max(0, Math.min(1.0, Number(_studioBgmVolume ?? 0.18)));
+          bga.currentTime = Math.max(0, curT + Number(_studioBgmOffset || 0));
+          window._studioBgmLiveAudio = bga;
+          bga.play().catch(() => {});
+        } catch {}
+      }
     };
     vid.onpause = () => {
       const btn = $("#studio_play_btn"); if (btn) btn.innerText = "▶️";
       if (window._studioCueAudios) {
         window._studioCueAudios.forEach(a => { try { a.pause(); } catch {} });
         window._studioCueAudios = [];
+      }
+      if (window._studioBgmLiveAudio) {
+        try { window._studioBgmLiveAudio.pause(); } catch {}
+        window._studioBgmLiveAudio = null;
       }
     };
     applyStudioFilterCss(_studioActiveFilter);
@@ -5630,7 +5661,7 @@ function renderStudioDrawerContent() {
               <option value="${esc(s.id)}" ${_studioBgmTrack === s.id ? 'selected' : ''}>${esc(s.emoji || "")} ${esc(s.title || s.name || s.id)} [${esc(s.category)}]</option>
             `).join("")}
           </select>
-          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px">
             <label class="f" style="margin:0">
               <span>🎬 Video Sound: <b id="studio_vvol_val">${Math.round((_studioVideoVolume ?? 1.0) * 100)}%</b></span>
               <input type="range" min="0" max="2" step="0.05" value="${_studioVideoVolume ?? 1.0}" oninput="studioChangeVideoVolume(this.value)">
@@ -5639,6 +5670,16 @@ function renderStudioDrawerContent() {
               <span>🎵 BGM Volume: <b id="studio_vol_val">${Math.round(_studioBgmVolume * 100)}%</b></span>
               <input type="range" min="0" max="1" step="0.05" value="${_studioBgmVolume}" oninput="studioChangeBgmVolume(this.value)">
             </label>
+            ${_studioSfxCues.length ? (() => {
+              const sIdx = (_studioSelCue?.kind === "sfx" && _studioSfxCues[_studioSelCue.idx]) ? _studioSelCue.idx : 0;
+              const sVol = Number(_studioSfxCues[sIdx]?.volume ?? 0.95);
+              return `
+                <label class="f" style="margin:0">
+                  <span>🔊 SFX #${sIdx + 1} Vol: <b id="studio_sfxvol_val">${Math.round(sVol * 100)}%</b></span>
+                  <input type="range" min="0.1" max="1.5" step="0.05" value="${sVol}" oninput="studioChangeSelectedSfxVolume(${sIdx}, this.value)">
+                </label>
+              `;
+            })() : ""}
             <label class="f" style="margin:0">
               <span>Drop Offset: <b id="studio_offset_val">${_studioBgmOffset}s</b></span>
               <input type="range" min="0" max="60" step="0.5" value="${_studioBgmOffset}" oninput="studioChangeBgmOffset(this.value)">
@@ -5899,11 +5940,40 @@ window.studioPlaySfx = function(trackId, vol = 0.95) {
   } catch {}
 };
 
-window.studioPlayCueSfx = function(trackId, vol = 0.95, dur = 0) {
+function _studioApplyGain(el, gainVal) {
+  if (!el) return;
+  const v = Math.max(0, Math.min(2.0, Number(gainVal ?? 1.0)));
+  el.muted = v <= 0.01;
+  try {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (AC) {
+      if (!window._studioAudioCtx) window._studioAudioCtx = new AC();
+      if (window._studioAudioCtx.state === "suspended") window._studioAudioCtx.resume().catch(() => {});
+      if (!el._gainNode) {
+        const src = window._studioAudioCtx.createMediaElementSource(el);
+        const gn = window._studioAudioCtx.createGain();
+        src.connect(gn);
+        gn.connect(window._studioAudioCtx.destination);
+        el._gainNode = gn;
+      }
+      el.volume = 1.0;
+      el._gainNode.gain.value = v;
+      return;
+    }
+  } catch {}
+  el.volume = Math.min(1.0, v);
+}
+
+window.studioPlayCueSfx = function(trackId, vol = 0.95, dur = 0, offsetSec = 0) {
   if (!trackId || trackId === "none") return;
   try {
     const a = new Audio(`/api/audio/track/${encodeURIComponent(trackId)}`);
-    a.volume = Math.max(0.05, Math.min(1.0, Number(vol) || 0.95));
+    _studioApplyGain(a, Number(vol ?? 0.95));
+    if (offsetSec > 0.05) {
+      a.addEventListener("loadedmetadata", () => {
+        try { if (offsetSec < (a.duration || 999)) a.currentTime = offsetSec; } catch {}
+      }, { once: true });
+    }
     window._studioCueAudios = window._studioCueAudios || [];
     window._studioCueAudios.push(a);
     a.play().catch(() => {});
@@ -5918,9 +5988,17 @@ window.studioChangeVideoVolume = function(val) {
   const el = $("#studio_vvol_val");
   if (el) el.textContent = `${Math.round(_studioVideoVolume * 100)}%`;
   const vid = $("#studio_video_el");
-  if (vid) {
-    vid.volume = Math.min(1.0, _studioVideoVolume);
-    vid.muted = _studioVideoVolume <= 0.01;
+  if (vid) _studioApplyGain(vid, _studioVideoVolume);
+};
+
+window.studioChangeSelectedSfxVolume = function(idx, val) {
+  const cue = _studioSfxCues[idx];
+  if (!cue) return;
+  cue.volume = Math.max(0.1, Math.min(1.5, Number(val) || 0.95));
+  const el = $("#studio_sfxvol_val");
+  if (el) el.textContent = `${Math.round(cue.volume * 100)}%`;
+  if (window._studioCueAudios) {
+    window._studioCueAudios.forEach(a => _studioApplyGain(a, cue.volume));
   }
 };
 
@@ -6223,6 +6301,9 @@ function studioChangeBgmVolume(val) {
   _studioBgmVolume = parseFloat(val);
   const lbl = $("#studio_vol_val");
   if (lbl) lbl.innerText = `${Math.round(_studioBgmVolume * 100)}%`;
+  if (window._studioBgmLiveAudio) {
+    window._studioBgmLiveAudio.volume = Math.max(0, Math.min(1.0, _studioBgmVolume));
+  }
 }
 
 function studioChangeBgmOffset(val) {
