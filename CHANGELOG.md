@@ -1,6 +1,16 @@
 ﻿# Changelog
 All notable project changes are documented here.
 
+## [2026-11-27] — AI Model Selection Sync & Topbar Overlap Fix
+
+### Fixed
+- **Primary Model Priority & Live Monitor Sync (`PeakCut/studio/ai.py`, `PeakCut/studio/server.py`, `PeakCut/web/index.html`)**:
+  - Updated `ai.route_models()` so non-discovery tasks (`general`, `deep_review`, `reasoning`, `seo`) honor the user's selected primary model `ms[0]` (e.g., `gemini-3.8-flash`) first instead of forcing `gemini-3.5-flash-lite` ahead of it.
+  - Updated `ai.select_primary_model()` and `ai.switch_model()` to call `set_last_active_model(mid)` and cleared `usage.forget_all()` in `/api/ai/switch` and `/api/ai/models/select`.
+  - Updated the Live Monitor `Active AI Model` stat subtitle to explicitly distinguish `Primary active` vs `Fallback active (Selected: ...)`.
+- **Topbar AI Pill Overflow/Overlap (`PeakCut/web/index.html`)**:
+  - Fixed `.topbar.tabbed` wrapping, `.global-ai-pill` shrinking (`min-width: 0; max-width: 100%; overflow: hidden`), and `#top_ai_model` width clamping (`max-width: 160px`) so `Connected ✓` and `🔄` no longer clip under the `Stop recording` button.
+
 ## [2026-11-27] — YouTube Agent Intelligence Integration & Growth Router Mount
 
 ### Added
@@ -115,6 +125,16 @@ All notable project changes are documented here.
   - Converted the **`✂️ Cut & Merge`** drawer tab into a visual **Media Bin (`#studio_media_bin`)** with clip thumbnails, durations, scores, and 1-click `➕ Add` buttons; updated `studio/server.py` `GET /studio-project` to return `video_url` and `cover_url` on `creator_clips` and initial segments.
   - Added **Timeline Zoom Controls (`− / Slider / + / ⊡ Fit`)** with horizontally scrollable pixel-scaled tracks (`#studio_timeline_scroll`, `_studioScaleInfo`, `studioSetZoom`), live **Selected Clip Max Duration & Total 180s Shorts Limit** badges, and a dashed `+Xs room` extension indicator when a clip is trimmed shorter than its source length.
 - **Tests (`PeakCut/tests/test_nextgen_upgrade.py`)**: Updated check #8 to assert the CapCut timeline handlers (`studioSplitSegmentAtPlayhead`, `studioStartTrimDrag`, `studioTrimSelectedToPlayhead`, `studioAddClipToTimeline`, `#studio_media_bin`).
+
+## [2026-11-27] — Calendar Live Countdown, Auto-Comment on Publish & 1-Click `💬 Post Comment`
+
+### Added
+- **Scheduled Video Auto-Comment Queue (`studio/posting.py`)**:
+  - Scheduled YouTube uploads (`private` + `publishAt`) now queue `comment_pending=True` instead of failing with `403` during upload; `_run()` automatically posts the Top Comment 90s after `publishAt` goes live.
+  - Added `posting.post_top_comment()` and `POST /api/posts/{pid}/comment` (`studio/routes/calendar_routes.py`) for 1-click Top Comment posting on live videos.
+- **Calendar Live Countdown & 1-Click Comment Button (`web/index.html`)**:
+  - Both Timeline Slot cards and Queue cards now show `⏳ Live In ...` countdown while scheduled and `🟢 LIVE ON YT` once live.
+  - Live videos display a 1-click `💬 Post Comment` button (and `📌 Pin ↗` direct YouTube Studio link) + `💬 Comment Queued` / `✓ Comment Posted` status pills.
 
 ## [2026-11-27] — Fix YouTube Shorts 0-View Root Cause (Remove 588MB 2K Re-Encode Bloat & Shorts `thumbnails.set` API Call)
 

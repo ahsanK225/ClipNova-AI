@@ -2604,6 +2604,7 @@ def ai_switch(request: Request, body: dict = Body(default={})):
         raise HTTPException(400, "Provider and Model required.")
     try:
         out = ai.switch_model(prov, model)
+        usage.forget_all()
         test_res = {}
         try:
             test_res = ai.test_key()
@@ -2637,6 +2638,7 @@ def ai_select_model(request: Request, body: dict = Body(default={})):
         raise HTTPException(400, "Model ID required.")
     try:
         out = ai.select_primary_model(model)
+        usage.forget_all()
     except ValueError as e:
         raise HTTPException(400, str(e))
     ctx.bump()

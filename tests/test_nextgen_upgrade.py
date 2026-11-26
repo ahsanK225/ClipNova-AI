@@ -74,6 +74,15 @@ try:
           and routed_review[0] == "gemini-4-hydrogen",
           f"scan={routed_scan} review={routed_review}")
 
+    with patch.object(ai, "test_key", return_value=None):
+        ai.switch_model("gemini", "gemini-3.8-flash")
+    routed_gen_38 = ai.route_models("general")
+    check("switch_model('gemini', 'gemini-3.8-flash') syncs general route & last_active_model",
+          routed_gen_38[0] == "gemini-3.8-flash" and ai.last_active_model() == "gemini-3.8-flash",
+          f"general={routed_gen_38} active={ai.last_active_model()}")
+    with patch.object(ai, "test_key", return_value=None):
+        ai.save("gemini", ["gemini-4-hydrogen", "gemini-3.5-flash-lite"], "", "AIzaFakeKeyOne1111111111", free_only=True)
+
     # Verify cache avoids duplicate network calls + 429 does NOT bypass quota via key rotation
     gemini_client.clear_cache()
     sdk_calls = []

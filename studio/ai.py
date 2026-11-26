@@ -219,14 +219,14 @@ def route_models(task: str = "general") -> list[str]:
     if provider() != "gemini" or not auto_route() or _using_mock_httpx():
         return ms
     mode = analysis_mode()
-    # In Fast mode or Pass-1 candidate discovery, prefer ultra-fast free Flash-Lite first if present, else primary.
     preferred_order: list[str] = []
     if task in ("discovery", "fast_scan") or mode == "fast":
-        order = ("gemini-3.5-flash-lite", "gemini-4-hydrogen", "gemini-3.8-flash", "gemini-3.6-flash", "gemini-3.1-flash-lite")
-    elif task in ("reasoning", "deep_review", "seo", "hooks", "ranking") or mode == "deep":
-        order = ("gemini-4-hydrogen", "gemini-3.8-flash", "gemini-3.5-flash-lite", "gemini-3.6-flash", "gemini-3-flash-preview")
+        # Fast / Pass-1 discovery prefers ultra-fast free Flash-Lite first if enabled, then user primary.
+        order = ("gemini-3.5-flash-lite", ms[0] if ms else "gemini-4-hydrogen", "gemini-4-hydrogen", "gemini-3.8-flash", "gemini-3.6-flash", "gemini-3.1-flash-lite")
     else:
-        order = ("gemini-4-hydrogen", "gemini-3.5-flash-lite", "gemini-3.8-flash")
+        # Honor the user's selected primary model first for live monitoring, reasoning, deep review & SEO,
+        # falling back to remaining free-tier models only on error/rate limit.
+        order = (ms[0] if ms else "gemini-4-hydrogen", "gemini-4-hydrogen", "gemini-3.8-flash", "gemini-3.5-flash-lite", "gemini-3.6-flash", "gemini-3-flash-preview")
     for cand in order:
         if cand in ms and cand not in preferred_order:
             preferred_order.append(cand)
@@ -458,7 +458,9 @@ def select_primary_model(model_id: str) -> dict:
     cur_models = [m for m in (c.get("models") or []) if m != mid]
     new_models = [mid] + cur_models[:4]
     base_url = PROVIDERS[prov][1] if prov in PROVIDERS else c.get("base_url", "")
-    return save(prov, new_models, base_url)
+    out = save(prov, new_models, base_url)
+    set_last_active_model(mid)
+    return out
 
 
 def switch_model(provider_id: str, model_id: str) -> dict:
@@ -473,7 +475,9 @@ def switch_model(provider_id: str, model_id: str) -> dict:
     cur_models = [m for m in (c.get("models") or []) if m != mid]
     new_models = [mid] + cur_models[:4]
     base_url = PROVIDERS[p][1] if p in PROVIDERS else c.get("base_url", "")
-    return save(p, new_models, base_url)
+    out = save(p, new_models, base_url)
+    set_last_active_model(mid)
+    return out
 
 
 def get_catalog(provider_id: str | None = None) -> dict:
