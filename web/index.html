@@ -5561,8 +5561,8 @@ function renderStudioDrawerContent() {
                 </div>
               </div>
               <div style="display:flex;gap:6px">
-                <button type="button" class="btn sm" onclick="studioPlaySfx('${esc(s.id)}', 0.95)" style="background:#0F172A;border:1px solid #334155;font-size:10.5px;flex:0.8">
-                  🔊 Play
+                <button type="button" class="btn sm" onclick="studioPlaySfx('${esc(s.id)}', 0.95)" style="background:${window._studioPlayingTrackId === s.id ? 'rgba(239,68,68,0.22)' : '#0F172A'};border:1px solid ${window._studioPlayingTrackId === s.id ? '#EF4444' : '#334155'};color:${window._studioPlayingTrackId === s.id ? '#FCA5A5' : ''};font-size:10.5px;flex:0.8">
+                  ${window._studioPlayingTrackId === s.id ? "⏹ Stop" : "🔊 Play"}
                 </button>
                 <button type="button" class="btn sm primary" onclick="studioAddSfxCue('${esc(s.id)}')" style="font-size:10.5px;background:linear-gradient(135deg,#EC4899,#8B5CF6);border:none;color:#FFF;font-weight:800;flex:1.4">
                   ➕ Drop @ ${_studioPlayhead.toFixed(1)}s
@@ -5575,7 +5575,10 @@ function renderStudioDrawerContent() {
         <div style="background:#0F172A;border:1px solid #1E293B;border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:10px">
           <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
             <b style="font-size:12px;color:#22D3EE">🎵 Background Music (BGM)</b>
-            ${_studioBgmTrack && _studioBgmTrack !== "none" ? `<button type="button" class="btn sm ghost" onclick="studioPlaySfx('${esc(_studioBgmTrack)}', _studioBgmVolume)" style="font-size:10.5px;padding:2px 8px">🔊 Preview BGM</button>` : ""}
+            <div style="display:flex;gap:6px;align-items:center">
+              ${window._studioPlayingTrackId ? `<button type="button" class="btn sm" onclick="studioStopSfx()" style="background:rgba(239,68,68,0.2);border:1px solid #EF4444;color:#FCA5A5;font-size:10.5px;padding:2px 8px">⏹ Stop Sound</button>` : ""}
+              ${_studioBgmTrack && _studioBgmTrack !== "none" ? `<button type="button" class="btn sm ghost" onclick="studioPlaySfx('${esc(_studioBgmTrack)}', _studioBgmVolume)" style="font-size:10.5px;padding:2px 8px">${window._studioPlayingTrackId === _studioBgmTrack ? "⏹ Stop BGM" : "🔊 Preview BGM"}</button>` : ""}
+            </div>
           </div>
           <select id="studio_bgm_track_select" onchange="studioChangeBgmTrack(this.value)" style="font-size:12px;padding:6px 8px;border-radius:8px">
             ${bgmList.map(s => `
@@ -5799,13 +5802,35 @@ window.studioRemoveVfxCue = function(idx) {
   renderStudioWorkspace();
 };
 
+window.studioStopSfx = function() {
+  try {
+    if (_studioAudioAudition) {
+      _studioAudioAudition.pause();
+      _studioAudioAudition.currentTime = 0;
+    }
+  } catch {}
+  window._studioPlayingTrackId = null;
+  renderStudioWorkspace();
+};
+
 window.studioPlaySfx = function(trackId, vol = 0.95) {
   if (!trackId || trackId === "none") return;
+  if (window._studioPlayingTrackId === trackId && _studioAudioAudition && !_studioAudioAudition.paused) {
+    return window.studioStopSfx();
+  }
   try {
     if (_studioAudioAudition) { _studioAudioAudition.pause(); }
     _studioAudioAudition = new Audio(`/api/audio/track/${encodeURIComponent(trackId)}`);
     _studioAudioAudition.volume = Math.max(0.1, Math.min(1.0, Number(vol) || 0.95));
+    window._studioPlayingTrackId = trackId;
+    _studioAudioAudition.onended = () => {
+      if (window._studioPlayingTrackId === trackId) {
+        window._studioPlayingTrackId = null;
+        renderStudioWorkspace();
+      }
+    };
     _studioAudioAudition.play().catch(() => {});
+    renderStudioWorkspace();
   } catch {}
 };
 
