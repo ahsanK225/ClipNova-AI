@@ -1749,6 +1749,7 @@ def get_studio_project(jid: str, cid: str):
         "segments": saved_segs,
         "vfx_cues": clip.get("vfx_cues") or [],
         "sfx_cues": clip.get("sfx_cues") or [],
+        "filter_cues": clip.get("filter_cues") or [],
         "creator_clips": creator_clips[:40],
         "tracks": {
             "subtitles": subtitles,
@@ -1781,7 +1782,7 @@ def studio_export_clip(jid: str, cid: str, body: dict = Body(default={})):
     job, clip = _clip_or_404(jid, cid)
     
     changes = {}
-    for fld in ("hook", "title", "description", "layout", "facecam_pos", "bgm_track", "bgm_volume", "bgm_offset", "video_volume", "video_filter", "speed", "style", "segments", "vfx_cues", "sfx_cues"):
+    for fld in ("hook", "title", "description", "layout", "facecam_pos", "bgm_track", "bgm_volume", "bgm_offset", "video_volume", "video_filter", "speed", "style", "segments", "vfx_cues", "sfx_cues", "filter_cues"):
         if fld in body:
             changes[fld] = body[fld]
     if "words" in body and isinstance(body["words"], list):

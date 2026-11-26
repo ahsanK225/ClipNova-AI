@@ -971,6 +971,7 @@ def render_clip(src: Path, out_dir: Path, name: str, clip: dict, words: list, sr
                           bgm_offset=bgm_offset, video_filter=video_filter,
                           segments=segs if (isinstance(segs, list) and len(segs) >= 1) else None,
                           vfx_cues=clip.get("vfx_cues"), sfx_cues=clip.get("sfx_cues"),
+                          filter_cues=clip.get("filter_cues"),
                           video_volume=clip.get("video_volume", 1.0),
                           target_w=src_w, target_h=src_h)
     finally:
@@ -1063,7 +1064,7 @@ def _render_in(work: Path, src: Path, out_dir: Path, name: str, start, end, layo
                facecam_offset_y=0, game_offset_x=0, zoom=1.0, custom_layout=None,
                teaser_enabled=False, teaser_dur=0.0, teaser_start=None,
                bgm_track=None, bgm_volume=0.18, bgm_offset=0.0, video_filter=None,
-               segments=None, vfx_cues=None, sfx_cues=None, video_volume=1.0, target_w=1920, target_h=1080) -> dict:
+               segments=None, vfx_cues=None, sfx_cues=None, filter_cues=None, video_volume=1.0, target_w=1920, target_h=1080) -> dict:
     global _qsv_ok
     (work / f"{name}.ass").write_text(ass, encoding="utf-8")
     (work / "f").mkdir()
@@ -1105,7 +1106,25 @@ def _render_in(work: Path, src: Path, out_dir: Path, name: str, start, end, layo
     if abs(vvol - 1.0) > 0.01:
         af_filters.insert(0, f"volume={vvol:.2f}")
     af_chain = ",".join(af_filters)
-    vf_extra = (f",{VIDEO_FILTERS[video_filter]}" if (video_filter and video_filter in VIDEO_FILTERS) else "") + _vfx_ffmpeg_chain(vfx_cues)
+    def _filter_cues_chain(fcues) -> str:
+        if not isinstance(fcues, list) or not fcues:
+            return ""
+        out_f = []
+        for fc in fcues[:15]:
+            if not isinstance(fc, dict):
+                continue
+            ft = str(fc.get("type") or "").lower().strip()
+            if ft not in VIDEO_FILTERS:
+                continue
+            try:
+                t0 = max(0.0, float(fc.get("time", 0.0)))
+                fd = max(0.2, float(fc.get("duration", 5.0)))
+            except (TypeError, ValueError):
+                continue
+            out_f.append(f"{VIDEO_FILTERS[ft]}:enable='between(t,{t0:.2f},{t0 + fd:.2f})'")
+        return ("," + ",".join(out_f)) if out_f else ""
+
+    vf_extra = (f",{VIDEO_FILTERS[video_filter]}" if (video_filter and video_filter in VIDEO_FILTERS) else "") + _filter_cues_chain(filter_cues) + _vfx_ffmpeg_chain(vfx_cues)
 
     def _custom_vfx_chain(s_args, in_lbl="[v_base]", out_lbl="[v]"):
         from . import vfx as _vfx_mod

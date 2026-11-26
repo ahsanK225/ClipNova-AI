@@ -474,6 +474,8 @@ def request_render(jid, cid, changes: dict):
         new["outro_cta"] = bool(changes["outro_cta"])
     if "streamer_only_captions" in changes:
         new["streamer_only_captions"] = bool(changes["streamer_only_captions"])
+    if "filter_cues" in changes and isinstance(changes["filter_cues"], list):
+        new["filter_cues"] = changes["filter_cues"][:20]
     if "video_volume" in changes:
         try:
             new["video_volume"] = round(max(0.0, min(2.0, float(changes["video_volume"]))), 2)

@@ -4996,6 +4996,7 @@ async function drawVideoStudioTab() {
   _studioWords = (project.tracks?.subtitles || []).map(w => ({ ...w }));
   _studioVfxCues = (project.vfx_cues || []).map((v, i) => ({ id: v.id || `vfx_${i + 1}`, type: v.type, time: Number(v.time || 0) }));
   _studioSfxCues = (project.sfx_cues || []).map((s, i) => ({ id: s.id || `sfx_${i + 1}`, track_id: s.track_id, time: Number(s.time || 0), duration: Number(s.duration || 0), volume: Number(s.volume ?? 0.95) }));
+  _studioFilterCues = (project.filter_cues || []).map((f, i) => ({ id: f.id || `flt_${i + 1}`, type: f.type, time: Number(f.time || 0), duration: Number(f.duration || 5.0) }));
   _studioFiredCues = new Set();
   _studioCuts = [];
   _studioSegments = (project.segments && project.segments.length)
@@ -5345,7 +5346,44 @@ function renderStudioWorkspace() {
                 `;
               })()}
 
-              <!-- Track 3: Subtitle Words -->
+              <!-- Track 4: Dedicated Multi-Lane Timed Filters Track -->
+              ${(() => {
+                const fltEnds = [];
+                const fltPlaced = (_studioFilterCues || []).map((fc, i) => {
+                  const fMeta = (_studioProj.available_filters || []).find(x => x.id === fc.type);
+                  const leftPx = Math.max(2, Math.min(Math.max(2, canvasW - 84), Math.round(Number(fc.time || 0) * pxPerSec)));
+                  const maxVisW = Math.max(76, canvasW - leftPx - 4);
+                  const fDur = Math.max(0.4, Math.min(Number(fc.duration || 5.0), Math.max(0.4, Math.round((maxVisW / Math.max(1, pxPerSec)) * 10) / 10)));
+                  const wPx = Math.min(maxVisW, Math.max(76, Math.round(fDur * pxPerSec)));
+                  let lane = fltEnds.findIndex(endPx => endPx <= leftPx - 4);
+                  if (lane < 0) { lane = fltEnds.length; fltEnds.push(0); }
+                  fltEnds[lane] = leftPx + wPx;
+                  return { fc, i, fMeta, fDur, leftPx, wPx, lane };
+                });
+                const fltH = Math.max(1, fltEnds.length) * 32 + 6;
+                return `
+                  <div class="studio-track-row" id="studio_track_filters" style="height:${fltH}px;width:${canvasW}px;background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.28);position:relative;border-radius:8px;overflow:hidden" title="Timed Filters: Drag body to move | Drag right edge to set end time">
+                    <div style="position:absolute;left:8px;top:9px;font-size:10px;font-weight:700;color:#34D399;z-index:1;pointer-events:none;opacity:${(_studioFilterCues || []).length ? '0.35' : '0.9'}">
+                      🎨 Timed Filters (${(_studioFilterCues || []).length} placed)
+                    </div>
+                    ${fltPlaced.map(({ fc, i, fMeta, fDur, leftPx, wPx, lane }) => {
+                      const isCueSel = _studioSelCue && _studioSelCue.kind === "filter" && _studioSelCue.idx === i;
+                      return `
+                        <div data-cue-kind="filter" data-cue-idx="${i}" onpointerdown="studioStartCueDrag(event, 'filter', ${i})" style="position:absolute;left:${leftPx}px;width:${wPx}px;top:${lane * 32 + 4}px;height:26px;z-index:${isCueSel ? 13 : 6};background:linear-gradient(135deg,#10B981,#059669);color:#FFFFFF;border-radius:6px;padding:0 12px 0 8px;display:inline-flex;align-items:center;justify-content:space-between;gap:5px;font-size:10px;font-weight:800;cursor:grab;border:2px solid ${isCueSel ? '#FFFFFF' : 'rgba(255,255,255,0.2)'};white-space:nowrap;overflow:hidden;user-select:none" title="Drag body to move | Drag right edge to resize (${esc(fMeta?.name || fc.type)} · ${fDur.toFixed(1)}s)">
+                          <span style="overflow:hidden;text-overflow:ellipsis">🎨 ${esc(fMeta?.name || fc.type)}</span>
+                          <span style="display:inline-flex;align-items:center;gap:3px;flex-shrink:0">
+                            <span class="cue-time-lbl" style="opacity:0.9;font-family:monospace">${Number(fc.time || 0).toFixed(1)}s–${(Number(fc.time || 0) + fDur).toFixed(1)}s</span>
+                            <button type="button" onpointerdown="event.stopPropagation()" onclick="event.stopPropagation();studioRemoveFilterCue(${i})" style="background:none;border:none;color:#FFFFFF;font-weight:900;cursor:pointer;padding:0 2px;font-size:11px" title="Remove filter">×</button>
+                          </span>
+                          <div onpointerdown="studioStartFilterTrim(event, ${i})" title="Drag right edge to set where filter ends" style="position:absolute;right:0;top:0;bottom:0;width:8px;background:rgba(255,255,255,0.55);cursor:ew-resize;border-radius:0 4px 4px 0"></div>
+                        </div>
+                      `;
+                    }).join("")}
+                  </div>
+                `;
+              })()}
+
+              <!-- Track 5: Subtitle Words -->
               <div class="studio-track-row" id="studio_track_subtitles" style="width:${canvasW}px" title="Subtitles Track">
                 <div style="position:absolute;left:8px;top:10px;font-size:10px;font-weight:700;color:#818CF8;z-index:2;pointer-events:none">
                   💬 Subtitles (Auto-synced to cuts)
@@ -5404,6 +5442,9 @@ function renderStudioWorkspace() {
         const activeW = _studioWords.find(w => localCur >= w.start && localCur <= w.end);
         overlay.innerText = activeW ? activeW.text : "";
       }
+
+      const activeTimedFlt = (_studioFilterCues || []).find(fc => globalCur >= Number(fc.time || 0) && globalCur <= Number(fc.time || 0) + Number(fc.duration || 5.0));
+      applyStudioFilterCss(activeTimedFlt ? activeTimedFlt.type : _studioActiveFilter);
 
       if (!vid.paused) {
         for (const vc of _studioVfxCues) {
@@ -5531,16 +5572,23 @@ function renderStudioDrawerContent() {
     const filters = _studioProj.available_filters || [];
     return `
       <div>
-        <h4 style="margin:0 0 8px;font-size:14px;color:#F8FAFC">Visual Video Filters</h4>
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;margin-bottom:8px">
+          <h4 style="margin:0;font-size:14px;color:#F8FAFC">🎨 Visual Video Filters</h4>
+          <span class="pill" style="font-size:11px;padding:3px 10px;border-radius:999px;background:rgba(16,185,129,0.16);color:#34D399;border:1px solid rgba(16,185,129,0.35);font-weight:800">🎨 ${(_studioFilterCues || []).length} timed</span>
+        </div>
         <p style="margin:0 0 12px;font-size:12px;color:#94A3B8">
-          Instant real-time CSS preview on the player; rendered with FFmpeg color grading.
+          Poori video par lagayein ya <b>➕ Add @ Playhead</b> se timeline par set karein ke filter kahan se kahan tak aaye!
         </p>
-        <div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(130px, 1fr));gap:10px">
+        <div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(175px, 1fr));gap:10px">
           ${filters.map(f => `
-            <button type="button" class="btn sm" onclick="studioSelectFilter('${f.id}')" style="display:flex;flex-direction:column;align-items:flex-start;padding:10px;border-radius:10px;background:${_studioActiveFilter === f.id ? 'rgba(0,240,255,0.15)' : '#1E293B'};border:1px solid ${_studioActiveFilter === f.id ? '#00F0FF' : '#334155'};text-align:left">
+            <div style="display:flex;flex-direction:column;gap:6px;padding:10px;border-radius:10px;background:${_studioActiveFilter === f.id ? 'rgba(0,240,255,0.12)' : '#1E293B'};border:1px solid ${_studioActiveFilter === f.id ? '#00F0FF' : '#334155'}">
               <b style="font-size:12px;color:${_studioActiveFilter === f.id ? '#00F0FF' : '#F8FAFC'}">${esc(f.name)}</b>
-              <span style="font-size:10px;color:#94A3B8;margin-top:4px">${f.id === 'normal' ? 'Natural look' : 'Color graded'}</span>
-            </button>
+              <span style="font-size:10px;color:#94A3B8">${f.id === 'normal' ? 'Natural look' : 'Color graded'}</span>
+              <div style="display:flex;gap:5px;margin-top:auto">
+                <button type="button" class="btn sm" onclick="studioSelectFilter('${f.id}')" style="flex:1;font-size:10px;background:#0F172A;border:1px solid #334155">Apply All</button>
+                ${f.id !== 'normal' ? `<button type="button" class="btn sm primary" onclick="studioAddFilterCue('${f.id}')" style="flex:1.2;font-size:10px;background:linear-gradient(135deg,#10B981,#059669);border:none;color:#fff;font-weight:800">➕ @ ${_studioPlayhead.toFixed(1)}s</button>` : ''}
+              </div>
+            </div>
           `).join("")}
         </div>
       </div>
@@ -6035,10 +6083,62 @@ window.studioDeleteSelected = function() {
   studioRemoveSegment(_studioSelSegIdx);
 };
 
+window.studioAddFilterCue = function(ftype) {
+  const t = round2(_studioPlayhead || 0);
+  const { totalDur } = _studioTimelineMap();
+  const dur = round2(Math.min(5.0, Math.max(0.5, totalDur - t)));
+  _studioFilterCues = _studioFilterCues || [];
+  _studioFilterCues.push({ id: `flt_${Date.now()}`, type: ftype, time: t, duration: dur });
+  _studioSelCue = { kind: "filter", idx: _studioFilterCues.length - 1 };
+  applyStudioFilterCss(ftype);
+  renderStudioWorkspace();
+  toast(`🎨 Added ${ftype} filter (${t.toFixed(1)}s–${(t + dur).toFixed(1)}s) — drag right edge to resize!`, "ok", 3000);
+};
+
+window.studioRemoveFilterCue = function(idx) {
+  _studioFilterCues.splice(idx, 1);
+  if (_studioSelCue?.kind === "filter") _studioSelCue = null;
+  renderStudioWorkspace();
+};
+
+window.studioStartFilterTrim = function(e, idx) {
+  e.stopPropagation();
+  e.preventDefault();
+  const cue = _studioFilterCues[idx];
+  if (!cue) return;
+  _studioSelCue = { kind: "filter", idx };
+  const { totalDur } = _studioTimelineMap();
+  const { pxPerSec, canvasW } = _studioScaleInfo(totalDur);
+  const maxDur = Math.max(0.5, totalDur - Number(cue.time || 0));
+  const origDur = Math.min(maxDur, Number(cue.duration || 5.0));
+  const startX = e.clientX;
+  const pill = e.currentTarget.parentElement;
+
+  const onMove = (ev) => {
+    const dx = ev.clientX - startX;
+    const nd = round2(Math.max(0.4, Math.min(maxDur, origDur + dx / Math.max(4, pxPerSec))));
+    cue.duration = nd;
+    if (pill) {
+      const leftPx = parseFloat(pill.style.left) || 2;
+      const maxVisW = Math.max(76, canvasW - leftPx - 4);
+      pill.style.width = `${Math.min(maxVisW, Math.max(76, Math.round(nd * pxPerSec)))}px`;
+      const lbl = pill.querySelector(".cue-time-lbl");
+      if (lbl) lbl.textContent = `${Number(cue.time || 0).toFixed(1)}s–${(Number(cue.time || 0) + nd).toFixed(1)}s`;
+    }
+  };
+  const onUp = () => {
+    window.removeEventListener("pointermove", onMove);
+    window.removeEventListener("pointerup", onUp);
+    renderStudioWorkspace();
+  };
+  window.addEventListener("pointermove", onMove);
+  window.addEventListener("pointerup", onUp);
+};
+
 window.studioStartCueDrag = function(e, kind, idx) {
   e.stopPropagation();
   e.preventDefault();
-  const list = kind === "vfx" ? _studioVfxCues : _studioSfxCues;
+  const list = kind === "vfx" ? _studioVfxCues : (kind === "filter" ? _studioFilterCues : _studioSfxCues);
   const cue = list[idx];
   if (!cue) return;
   _studioSelCue = { kind, idx };
@@ -6613,6 +6713,7 @@ async function saveStudioExport(scheduleNow) {
     segments: _studioSegments.map(s => ({ id: s.id, job_id: s.job_id, clip_id: s.clip_id, title: s.title, start: Number(s.start), end: Number(s.end) })),
     vfx_cues: _studioVfxCues,
     sfx_cues: _studioSfxCues,
+    filter_cues: _studioFilterCues || [],
     schedule_now: scheduleNow
   };
 
