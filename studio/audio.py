@@ -263,12 +263,21 @@ def save_upload(filename: str, content: bytes) -> dict[str, Any]:
     target_name = f"{stem}{save_ext}"
     target_path = USER_AUDIO_DIR / target_name
 
-    # Avoid overwrite collision if file with same name exists
-    counter = 1
-    while target_path.exists():
-        target_name = f"{stem}_{counter}{save_ext}"
-        target_path = USER_AUDIO_DIR / target_name
-        counter += 1
+    # If this sound already exists, return the existing track instead of creating _1/_2 duplicates
+    if target_path.is_file():
+        track_id = f"custom_{target_path.stem}"
+        display_title = target_path.stem.replace("_", " ").replace("-", " ").title()
+        return {
+            "id": track_id,
+            "title": display_title,
+            "emoji": "🎬" if is_video else "📁",
+            "category": "custom",
+            "desc": f"Custom uploaded audio ({target_path.name})",
+            "duration": _probe_duration(target_path),
+            "filename": target_path.name,
+            "url": f"/api/audio/track/{track_id}",
+            "duplicate": True,
+        }
 
     if needs_ffmpeg:
         with tempfile.NamedTemporaryFile(suffix=ext, delete=False) as tf:
