@@ -4994,7 +4994,7 @@ async function drawVideoStudioTab() {
   _studioLayout = project.tracks?.facecam?.layout || "split";
   _studioWords = (project.tracks?.subtitles || []).map(w => ({ ...w }));
   _studioVfxCues = (project.vfx_cues || []).map((v, i) => ({ id: v.id || `vfx_${i + 1}`, type: v.type, time: Number(v.time || 0) }));
-  _studioSfxCues = (project.sfx_cues || []).map((s, i) => ({ id: s.id || `sfx_${i + 1}`, track_id: s.track_id, time: Number(s.time || 0), volume: Number(s.volume ?? 0.95) }));
+  _studioSfxCues = (project.sfx_cues || []).map((s, i) => ({ id: s.id || `sfx_${i + 1}`, track_id: s.track_id, time: Number(s.time || 0), duration: Number(s.duration || 0), volume: Number(s.volume ?? 0.95) }));
   _studioFiredCues = new Set();
   _studioCuts = [];
   _studioSegments = (project.segments && project.segments.length)
@@ -5292,14 +5292,19 @@ function renderStudioWorkspace() {
                   `;
                 }).join("")}
                 ${_studioSfxCues.map((sc, i) => {
-                  const leftPx = Math.max(2, Math.min(Math.max(2, canvasW - 135), Math.round(Number(sc.time || 0) * pxPerSec)));
                   const sMeta = (_studioProj.available_sounds || []).find(x => x.id === sc.track_id);
+                  const sDur = Number(sc.duration || sMeta?.duration || 2.0);
+                  const wPx = Math.max(76, Math.round(sDur * pxPerSec));
+                  const leftPx = Math.max(2, Math.min(Math.max(2, canvasW - wPx), Math.round(Number(sc.time || 0) * pxPerSec)));
                   const isCueSel = _studioSelCue && _studioSelCue.kind === "sfx" && _studioSelCue.idx === i;
                   return `
-                    <div data-cue-kind="sfx" data-cue-idx="${i}" onpointerdown="studioStartCueDrag(event, 'sfx', ${i})" style="position:absolute;left:${leftPx}px;top:4px;bottom:4px;z-index:${isCueSel ? 13 : 6};background:linear-gradient(135deg,#EC4899,#8B5CF6);color:#FFFFFF;border-radius:6px;padding:0 7px;display:inline-flex;align-items:center;gap:5px;font-size:10px;font-weight:800;cursor:grab;border:2px solid ${isCueSel ? '#FFFFFF' : 'transparent'};box-shadow:${isCueSel ? '0 0 0 2px #00F0FF, 0 4px 12px rgba(0,240,255,0.4)' : '0 2px 8px rgba(236,72,153,0.35)'};white-space:nowrap;user-select:none" title="Hold &amp; drag to move | Click to select (${esc(sMeta?.title || sc.track_id)} @ ${Number(sc.time || 0).toFixed(1)}s)">
-                      <span>${esc(sMeta?.emoji || "🔊")} ${esc(sMeta?.title || sc.track_id)}</span>
-                      <span class="cue-time-lbl" style="opacity:0.85;font-family:monospace">${Number(sc.time || 0).toFixed(1)}s</span>
-                      <button type="button" onpointerdown="event.stopPropagation()" onclick="event.stopPropagation();studioRemoveSfxCue(${i})" style="background:none;border:none;color:#FFFFFF;font-weight:900;cursor:pointer;padding:0 2px;font-size:11px" title="Remove SFX">×</button>
+                    <div data-cue-kind="sfx" data-cue-idx="${i}" onpointerdown="studioStartCueDrag(event, 'sfx', ${i})" style="position:absolute;left:${leftPx}px;width:${wPx}px;top:4px;bottom:4px;z-index:${isCueSel ? 13 : 6};background:linear-gradient(135deg,#EC4899,#8B5CF6);color:#FFFFFF;border-radius:6px;padding:0 12px 0 7px;display:inline-flex;align-items:center;justify-content:space-between;gap:5px;font-size:10px;font-weight:800;cursor:grab;border:2px solid ${isCueSel ? '#FFFFFF' : 'transparent'};box-shadow:${isCueSel ? '0 0 0 2px #00F0FF, 0 4px 12px rgba(0,240,255,0.4)' : '0 2px 8px rgba(236,72,153,0.35)'};white-space:nowrap;overflow:hidden;user-select:none" title="Drag body to move | Drag right edge to resize (${esc(sMeta?.title || sc.track_id)} · ${sDur.toFixed(1)}s)">
+                      <span style="overflow:hidden;text-overflow:ellipsis">${esc(sMeta?.emoji || "🔊")} ${esc(sMeta?.title || sc.track_id)}</span>
+                      <span style="display:inline-flex;align-items:center;gap:3px;flex-shrink:0">
+                        <span class="cue-time-lbl" style="opacity:0.85;font-family:monospace">${Number(sc.time || 0).toFixed(1)}s·${sDur.toFixed(1)}s</span>
+                        <button type="button" onpointerdown="event.stopPropagation()" onclick="event.stopPropagation();studioRemoveSfxCue(${i})" style="background:none;border:none;color:#FFFFFF;font-weight:900;cursor:pointer;padding:0 2px;font-size:11px" title="Remove SFX">×</button>
+                      </span>
+                      <div onpointerdown="studioStartSfxTrim(event, ${i})" title="Drag right edge to make sound shorter or longer" style="position:absolute;right:0;top:0;bottom:0;width:8px;background:rgba(255,255,255,0.45);cursor:ew-resize;border-radius:0 4px 4px 0"></div>
                     </div>
                   `;
                 }).join("")}
@@ -5548,7 +5553,10 @@ function renderStudioDrawerContent() {
             <div style="background:#131B2E;border:1px solid #1E293B;border-radius:10px;padding:8px 10px;display:flex;flex-direction:column;gap:6px">
               <div style="display:flex;align-items:center;justify-content:space-between;gap:6px">
                 <b style="font-size:12px;color:#F8FAFC;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(s.emoji || "🔊")} ${esc(s.title || s.name || s.id)}</b>
-                ${s.duration ? `<span style="font-size:9.5px;font-family:monospace;color:#94A3B8">${Number(s.duration).toFixed(1)}s</span>` : ""}
+                <div style="display:flex;align-items:center;gap:4px;flex-shrink:0">
+                  ${s.duration ? `<span style="font-size:9.5px;font-family:monospace;color:#94A3B8">${Number(s.duration).toFixed(1)}s</span>` : ""}
+                  ${String(s.id).startsWith("custom_") ? `<button type="button" onclick="studioDeleteCustomSfx('${esc(s.id)}')" title="Delete this sound" style="background:none;border:none;color:#F87171;cursor:pointer;font-size:11px;padding:0 2px">🗑</button>` : ""}
+                </div>
               </div>
               <div style="display:flex;gap:6px">
                 <button type="button" class="btn sm" onclick="studioPlaySfx('${esc(s.id)}', 0.95)" style="background:#0F172A;border:1px solid #334155;font-size:10.5px;flex:0.8">
@@ -5898,47 +5906,101 @@ window.studioUploadCustomVfx = async function(input) {
   }
 };
 
+window.studioStartSfxTrim = function(e, idx) {
+  e.stopPropagation();
+  e.preventDefault();
+  const cue = _studioSfxCues[idx];
+  if (!cue) return;
+  _studioSelCue = { kind: "sfx", idx };
+  const sMeta = (_studioProj?.available_sounds || []).find(x => x.id === cue.track_id);
+  const maxDur = Math.max(0.5, Number(sMeta?.duration || 30) || 30);
+  const origDur = Number(cue.duration || sMeta?.duration || 2.0);
+  const { totalDur } = _studioTimelineMap();
+  const { pxPerSec } = _studioScaleInfo(totalDur);
+  const startX = e.clientX;
+  const pill = e.currentTarget.parentElement;
+
+  const onMove = (ev) => {
+    const dx = ev.clientX - startX;
+    const nd = round2(Math.max(0.2, Math.min(maxDur, origDur + dx / Math.max(4, pxPerSec))));
+    cue.duration = nd;
+    if (pill) {
+      pill.style.width = `${Math.max(76, Math.round(nd * pxPerSec))}px`;
+      const lbl = pill.querySelector(".cue-time-lbl");
+      if (lbl) lbl.textContent = `${Number(cue.time || 0).toFixed(1)}s·${nd.toFixed(1)}s`;
+    }
+  };
+  const onUp = () => {
+    window.removeEventListener("pointermove", onMove);
+    window.removeEventListener("pointerup", onUp);
+    renderStudioWorkspace();
+  };
+  window.addEventListener("pointermove", onMove);
+  window.addEventListener("pointerup", onUp);
+};
+
+window.studioDeleteCustomSfx = async function(trackId) {
+  try {
+    const res = await fetch(`/api/audio/track/${encodeURIComponent(trackId)}`, { method: "DELETE" });
+    if (!res.ok) throw new Error("Delete failed");
+    if (_studioProj) {
+      _studioProj.available_sounds = (_studioProj.available_sounds || []).filter(s => s.id !== trackId);
+    }
+    if (S.bgmTracks) S.bgmTracks = S.bgmTracks.filter(s => s.id !== trackId);
+    _studioSfxCues = _studioSfxCues.filter(c => c.track_id !== trackId);
+    if (_studioBgmTrack === trackId) _studioBgmTrack = "none";
+    renderStudioWorkspace();
+    toast("🗑️ Sound deleted!", "ok");
+  } catch (err) {
+    toast("Could not delete sound: " + err.message, "bad");
+  }
+};
+
 window.studioUploadCustomSfx = async function(input) {
   if (!input?.files || !input.files.length) return;
-  const VALID_EXT = /\.(mp3|wav|m4a|ogg|aac|mp4|mov|mkv|webm|avi)$/i;
+  const VALID_EXT = /\.(mp3|wav|m4a|ogg|aac|flac|opus|wma|mp4|mov|mkv|webm|avi|m4v|ts)$/i;
   const files = Array.from(input.files).filter(f => VALID_EXT.test(f.name));
   if (!files.length) {
     toast("No supported audio/video files found in selection.", "bad");
     input.value = "";
     return;
   }
-  let added = 0, lastTrack = null;
+  let added = 0, skipped = 0, lastTrack = null;
   try {
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
       toast(`⏳ Importing (${i + 1}/${files.length}): ${file.name}…`, "ok");
-      const formData = new FormData();
-      formData.append("file", file);
-      const res = await fetch("/api/audio/upload", { method: "POST", body: formData });
-      const data = await res.json();
-      if (data.ok && data.track) {
-        added++;
-        lastTrack = data.track;
-        if (_studioProj) {
-          _studioProj.available_sounds = _studioProj.available_sounds || [];
-          if (!_studioProj.available_sounds.some(s => s.id === data.track.id)) {
-            _studioProj.available_sounds.unshift(data.track);
+      try {
+        const formData = new FormData();
+        formData.append("file", file);
+        const res = await fetch("/api/audio/upload", { method: "POST", body: formData });
+        const data = await res.json();
+        if (data.ok && data.track) {
+          added++;
+          lastTrack = data.track;
+          if (_studioProj) {
+            _studioProj.available_sounds = _studioProj.available_sounds || [];
+            if (!_studioProj.available_sounds.some(s => s.id === data.track.id)) {
+              _studioProj.available_sounds.unshift(data.track);
+            }
           }
+          if (S.bgmTracks && !S.bgmTracks.some(s => s.id === data.track.id)) {
+            S.bgmTracks.push(data.track);
+          }
+        } else {
+          skipped++;
         }
-        if (S.bgmTracks && !S.bgmTracks.some(s => s.id === data.track.id)) {
-          S.bgmTracks.push(data.track);
-        }
+      } catch {
+        skipped++;
       }
     }
     if (added > 0) {
       if (lastTrack) studioPlaySfx(lastTrack.id, 0.95);
       renderStudioWorkspace();
-      toast(`✨ ${added} sound${added > 1 ? "s" : ""} imported! Click 🔊 Play to preview or ➕ Drop @ Playhead.`, "ok", 4000);
+      toast(`✨ ${added} sound${added > 1 ? "s" : ""} imported${skipped ? ` (${skipped} skipped)` : ""}!`, "ok", 4500);
     } else {
       toast("Upload failed: no valid audio tracks imported.", "bad");
     }
-  } catch (err) {
-    toast("Upload error: " + err.message, "bad");
   } finally {
     input.value = "";
   }

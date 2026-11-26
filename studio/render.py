@@ -1030,10 +1030,12 @@ def _mix_audio_inputs(seek_args: list, base_a_label: str, next_idx: int, bgm_pat
                     continue
                 t0 = max(0.0, float(sc.get("time", 0.0)))
                 vol = max(0.1, min(1.5, float(sc.get("volume", 0.95))))
+                sdur = sc.get("duration")
+                trim_f = f"atrim=0:{max(0.2, float(sdur)):.2f}," if sdur and float(sdur) > 0.1 else ""
                 ms = int(round(t0 * 1000))
                 seek_args += ["-i", str(sp)]
                 lbl = f"sfx{idx}"
-                parts.append(f"[{idx}:a]asetpts=PTS-STARTPTS,adelay={ms}|{ms},volume={vol:.2f}[{lbl}]")
+                parts.append(f"[{idx}:a]{trim_f}asetpts=PTS-STARTPTS,adelay={ms}|{ms},volume={vol:.2f}[{lbl}]")
                 mix_labels.append(f"[{lbl}]")
                 idx += 1
             except Exception:

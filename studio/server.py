@@ -1961,6 +1961,14 @@ async def audio_upload(file: UploadFile = File(...)):
         raise HTTPException(400, str(err))
 
 
+@app.delete("/api/audio/track/{track_id}")
+def audio_delete(track_id: str):
+    from . import audio
+    if not audio.delete_custom(track_id):
+        raise HTTPException(404, "Custom audio track not found.")
+    return {"ok": True}
+
+
 @app.post("/api/vfx/upload")
 async def vfx_upload(file: UploadFile = File(...)):
     from . import vfx

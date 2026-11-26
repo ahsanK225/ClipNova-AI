@@ -221,6 +221,23 @@ def _probe_duration(path: Path) -> float:
     return 0.0
 
 
+def delete_custom(track_id: str) -> bool:
+    """Delete a user-uploaded custom audio track (never built-in tracks)."""
+    if not track_id or not track_id.startswith("custom_"):
+        return False
+    p = get_track_path(track_id)
+    if not p or not p.is_file():
+        return False
+    try:
+        if USER_AUDIO_DIR.resolve() not in p.resolve().parents:
+            return False
+        _DUR_CACHE.pop(str(p), None)
+        p.unlink(missing_ok=True)
+        return True
+    except Exception:
+        return False
+
+
 def save_upload(filename: str, content: bytes) -> dict[str, Any]:
     """Validates and saves custom audio file, or extracts audio from an uploaded video (< 100MB)."""
     import subprocess
@@ -228,19 +245,21 @@ def save_upload(filename: str, content: bytes) -> dict[str, Any]:
 
     ensure_dirs()
     ext = Path(filename).suffix.lower()
-    audio_exts = (".mp3", ".wav", ".m4a", ".ogg", ".aac")
-    video_exts = (".mp4", ".mov", ".mkv", ".webm", ".avi")
-    if ext not in audio_exts and ext not in video_exts:
-        raise ValueError("Unsupported format. Upload MP3/WAV/M4A/OGG/AAC audio or MP4/MOV/MKV/WebM video.")
+    native_audio = (".mp3", ".wav", ".m4a", ".ogg", ".aac")
+    convert_audio = (".flac", ".opus", ".wma")
+    video_exts = (".mp4", ".mov", ".mkv", ".webm", ".avi", ".m4v", ".ts")
+    if ext not in native_audio and ext not in convert_audio and ext not in video_exts:
+        raise ValueError("Unsupported format. Upload MP3/WAV/M4A/OGG/AAC/FLAC/OPUS audio or MP4/MOV/MKV/WebM video.")
 
     is_video = ext in video_exts
+    needs_ffmpeg = is_video or (ext in convert_audio)
     max_mb = 100 if is_video else 30
     if len(content) > max_mb * 1024 * 1024:
         raise ValueError(f"File is too large (maximum {max_mb}MB).")
 
     # Sanitize base stem
     stem = re.sub(r"[^\w\-]", "_", Path(filename).stem)[:40].strip("_") or "audio"
-    save_ext = ".mp3" if is_video else ext
+    save_ext = ".mp3" if needs_ffmpeg else ext
     target_name = f"{stem}{save_ext}"
     target_path = USER_AUDIO_DIR / target_name
 
@@ -251,7 +270,7 @@ def save_upload(filename: str, content: bytes) -> dict[str, Any]:
         target_path = USER_AUDIO_DIR / target_name
         counter += 1
 
-    if is_video:
+    if needs_ffmpeg:
         with tempfile.NamedTemporaryFile(suffix=ext, delete=False) as tf:
             tf.write(content)
             tmp_vid = Path(tf.name)
@@ -262,7 +281,7 @@ def save_upload(filename: str, content: bytes) -> dict[str, Any]:
             )
             if res.returncode != 0 or not target_path.is_file() or target_path.stat().st_size < 100:
                 target_path.unlink(missing_ok=True)
-                raise ValueError("Could not extract audio from this video (no audio track found).")
+                raise ValueError("Could not extract audio from this file.")
         finally:
             tmp_vid.unlink(missing_ok=True)
     else:
