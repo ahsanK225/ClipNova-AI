@@ -42,7 +42,7 @@ def get_creator_calendar(cid: str, account_id: str = "all"):
 
     now_ts = time.time()
     all_mine = posting._mine()
-    user_accs = [a for a in accounts.list_for(ctx.uid()) if a.get("platform") == "youtube" or a.get("type") == "youtube"]
+    user_accs = [a for a in accounts.list_accounts() if a.get("platform") == "youtube" or a.get("type") == "youtube"]
     creator_acc_ids = set(c.get("accounts") or [])
     yt_accs = [a for a in user_accs if a.get("id") in creator_acc_ids] if creator_acc_ids else user_accs
     if not yt_accs:
