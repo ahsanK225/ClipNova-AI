@@ -4991,6 +4991,7 @@ async function drawVideoStudioTab() {
   _studioBgmTrack = project.tracks?.audio?.track || "none";
   _studioBgmVolume = project.tracks?.audio?.volume ?? 0.18;
   _studioBgmOffset = project.tracks?.audio?.offset ?? 0.0;
+  _studioVideoVolume = project.tracks?.audio?.video_volume ?? 1.0;
   _studioLayout = project.tracks?.facecam?.layout || "split";
   _studioWords = (project.tracks?.subtitles || []).map(w => ({ ...w }));
   _studioVfxCues = (project.vfx_cues || []).map((v, i) => ({ id: v.id || `vfx_${i + 1}`, type: v.type, time: Number(v.time || 0) }));
@@ -5367,6 +5368,8 @@ function renderStudioWorkspace() {
   const vid = $("#studio_video_el");
   if (vid) {
     vid.onloadedmetadata = () => {
+      vid.volume = Math.min(1.0, Number(_studioVideoVolume ?? 1.0));
+      vid.muted = Number(_studioVideoVolume ?? 1.0) <= 0.01;
       const m = tMap[_studioPlayingSegIdx];
       if (m && Math.abs(vid.currentTime - m.seg.start) > 0.25 && _studioPlayhead === m.outStart) {
         try { vid.currentTime = m.seg.start; } catch {}
@@ -5415,14 +5418,24 @@ function renderStudioWorkspace() {
           const key = `s:${sc.id || sc.track_id}:${sc.time}`;
           if (!_studioFiredCues.has(key) && globalCur >= sc.time - 0.05 && globalCur <= sc.time + 0.35) {
             _studioFiredCues.add(key);
-            studioPlaySfx(sc.track_id, sc.volume ?? 0.95);
+            studioPlayCueSfx(sc.track_id, sc.volume ?? 0.95, sc.duration || 0);
           }
         }
       }
     };
 
-    vid.onplay = () => { const btn = $("#studio_play_btn"); if (btn) btn.innerText = "⏸️"; };
-    vid.onpause = () => { const btn = $("#studio_play_btn"); if (btn) btn.innerText = "▶️"; };
+    vid.onplay = () => {
+      vid.volume = Math.min(1.0, Number(_studioVideoVolume ?? 1.0));
+      vid.muted = Number(_studioVideoVolume ?? 1.0) <= 0.01;
+      const btn = $("#studio_play_btn"); if (btn) btn.innerText = "⏸️";
+    };
+    vid.onpause = () => {
+      const btn = $("#studio_play_btn"); if (btn) btn.innerText = "▶️";
+      if (window._studioCueAudios) {
+        window._studioCueAudios.forEach(a => { try { a.pause(); } catch {} });
+        window._studioCueAudios = [];
+      }
+    };
     applyStudioFilterCss(_studioActiveFilter);
   }
 }
@@ -5593,7 +5606,7 @@ function renderStudioDrawerContent() {
                 </div>
               </div>
               <div style="display:flex;gap:6px">
-                <button type="button" class="btn sm" onclick="studioPlaySfx('${esc(s.id)}', 0.95)" style="background:${window._studioPlayingTrackId === s.id ? 'rgba(239,68,68,0.22)' : '#0F172A'};border:1px solid ${window._studioPlayingTrackId === s.id ? '#EF4444' : '#334155'};color:${window._studioPlayingTrackId === s.id ? '#FCA5A5' : ''};font-size:10.5px;flex:0.8">
+                <button type="button" class="btn sm" data-sfx-play="${esc(s.id)}" onclick="studioPlaySfx('${esc(s.id)}', 0.95)" style="background:${window._studioPlayingTrackId === s.id ? 'rgba(239,68,68,0.22)' : '#0F172A'};border:1px solid ${window._studioPlayingTrackId === s.id ? '#EF4444' : '#334155'};color:${window._studioPlayingTrackId === s.id ? '#FCA5A5' : ''};font-size:10.5px;flex:0.8">
                   ${window._studioPlayingTrackId === s.id ? "⏹ Stop" : "🔊 Play"}
                 </button>
                 <button type="button" class="btn sm primary" onclick="studioAddSfxCue('${esc(s.id)}')" style="font-size:10.5px;background:linear-gradient(135deg,#EC4899,#8B5CF6);border:none;color:#FFF;font-weight:800;flex:1.4">
@@ -5606,10 +5619,10 @@ function renderStudioDrawerContent() {
 
         <div style="background:#0F172A;border:1px solid #1E293B;border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:10px">
           <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
-            <b style="font-size:12px;color:#22D3EE">🎵 Background Music (BGM)</b>
+            <b style="font-size:12px;color:#22D3EE">🎵 Background Music &amp; Audio Mixer</b>
             <div style="display:flex;gap:6px;align-items:center">
-              ${window._studioPlayingTrackId ? `<button type="button" class="btn sm" onclick="studioStopSfx()" style="background:rgba(239,68,68,0.2);border:1px solid #EF4444;color:#FCA5A5;font-size:10.5px;padding:2px 8px">⏹ Stop Sound</button>` : ""}
-              ${_studioBgmTrack && _studioBgmTrack !== "none" ? `<button type="button" class="btn sm ghost" onclick="studioPlaySfx('${esc(_studioBgmTrack)}', _studioBgmVolume)" style="font-size:10.5px;padding:2px 8px">${window._studioPlayingTrackId === _studioBgmTrack ? "⏹ Stop BGM" : "🔊 Preview BGM"}</button>` : ""}
+              <button type="button" id="studio_global_stop_btn" class="btn sm" onclick="studioStopSfx()" style="display:${window._studioPlayingTrackId ? 'inline-flex' : 'none'};background:rgba(239,68,68,0.2);border:1px solid #EF4444;color:#FCA5A5;font-size:10.5px;padding:2px 8px">⏹ Stop Sound</button>
+              ${_studioBgmTrack && _studioBgmTrack !== "none" ? `<button type="button" id="studio_bgm_prev_btn" class="btn sm ghost" onclick="studioPlaySfx('${esc(_studioBgmTrack)}', _studioBgmVolume)" style="font-size:10.5px;padding:2px 8px">${window._studioPlayingTrackId === _studioBgmTrack ? "⏹ Stop BGM" : "🔊 Preview BGM"}</button>` : ""}
             </div>
           </div>
           <select id="studio_bgm_track_select" onchange="studioChangeBgmTrack(this.value)" style="font-size:12px;padding:6px 8px;border-radius:8px">
@@ -5617,9 +5630,13 @@ function renderStudioDrawerContent() {
               <option value="${esc(s.id)}" ${_studioBgmTrack === s.id ? 'selected' : ''}>${esc(s.emoji || "")} ${esc(s.title || s.name || s.id)} [${esc(s.category)}]</option>
             `).join("")}
           </select>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
             <label class="f" style="margin:0">
-              <span>BGM Volume: <b id="studio_vol_val">${Math.round(_studioBgmVolume * 100)}%</b></span>
+              <span>🎬 Video Sound: <b id="studio_vvol_val">${Math.round((_studioVideoVolume ?? 1.0) * 100)}%</b></span>
+              <input type="range" min="0" max="2" step="0.05" value="${_studioVideoVolume ?? 1.0}" oninput="studioChangeVideoVolume(this.value)">
+            </label>
+            <label class="f" style="margin:0">
+              <span>🎵 BGM Volume: <b id="studio_vol_val">${Math.round(_studioBgmVolume * 100)}%</b></span>
               <input type="range" min="0" max="1" step="0.05" value="${_studioBgmVolume}" oninput="studioChangeBgmVolume(this.value)">
             </label>
             <label class="f" style="margin:0">
@@ -5759,6 +5776,7 @@ function applyStudioFilterCss(fid) {
 }
 
 function studioTriggerVfx(vfxId) {
+  const vid = $("#studio_video_el");
   const pBox = $("#studio_preview_box");
   const flash = $("#studio_vfx_flash");
   if (vfxId === "flash") {
@@ -5834,6 +5852,21 @@ window.studioRemoveVfxCue = function(idx) {
   renderStudioWorkspace();
 };
 
+function _syncSfxPlayButtons() {
+  const pid = window._studioPlayingTrackId || null;
+  $$("[data-sfx-play]").forEach(btn => {
+    const active = btn.dataset.sfxPlay === pid;
+    btn.textContent = active ? "⏹ Stop" : "🔊 Play";
+    btn.style.background = active ? "rgba(239,68,68,0.22)" : "#0F172A";
+    btn.style.borderColor = active ? "#EF4444" : "#334155";
+    btn.style.color = active ? "#FCA5A5" : "";
+  });
+  const gStop = $("#studio_global_stop_btn");
+  if (gStop) gStop.style.display = pid ? "inline-flex" : "none";
+  const bPrev = $("#studio_bgm_prev_btn");
+  if (bPrev) bPrev.textContent = (pid && pid === _studioBgmTrack) ? "⏹ Stop BGM" : "🔊 Preview BGM";
+}
+
 window.studioStopSfx = function() {
   try {
     if (_studioAudioAudition) {
@@ -5842,7 +5875,7 @@ window.studioStopSfx = function() {
     }
   } catch {}
   window._studioPlayingTrackId = null;
-  renderStudioWorkspace();
+  _syncSfxPlayButtons();
 };
 
 window.studioPlaySfx = function(trackId, vol = 0.95) {
@@ -5858,12 +5891,37 @@ window.studioPlaySfx = function(trackId, vol = 0.95) {
     _studioAudioAudition.onended = () => {
       if (window._studioPlayingTrackId === trackId) {
         window._studioPlayingTrackId = null;
-        renderStudioWorkspace();
+        _syncSfxPlayButtons();
       }
     };
     _studioAudioAudition.play().catch(() => {});
-    renderStudioWorkspace();
+    _syncSfxPlayButtons();
   } catch {}
+};
+
+window.studioPlayCueSfx = function(trackId, vol = 0.95, dur = 0) {
+  if (!trackId || trackId === "none") return;
+  try {
+    const a = new Audio(`/api/audio/track/${encodeURIComponent(trackId)}`);
+    a.volume = Math.max(0.05, Math.min(1.0, Number(vol) || 0.95));
+    window._studioCueAudios = window._studioCueAudios || [];
+    window._studioCueAudios.push(a);
+    a.play().catch(() => {});
+    if (dur && Number(dur) > 0.1) {
+      setTimeout(() => { try { a.pause(); } catch {} }, Number(dur) * 1000);
+    }
+  } catch {}
+};
+
+window.studioChangeVideoVolume = function(val) {
+  _studioVideoVolume = Math.max(0, Math.min(2.0, Number(val) || 0));
+  const el = $("#studio_vvol_val");
+  if (el) el.textContent = `${Math.round(_studioVideoVolume * 100)}%`;
+  const vid = $("#studio_video_el");
+  if (vid) {
+    vid.volume = Math.min(1.0, _studioVideoVolume);
+    vid.muted = _studioVideoVolume <= 0.01;
+  }
 };
 
 window.studioAddSfxCue = function(trackId) {
@@ -6447,6 +6505,7 @@ async function saveStudioExport(scheduleNow) {
     bgm_track: _studioBgmTrack,
     bgm_volume: _studioBgmVolume,
     bgm_offset: _studioBgmOffset,
+    video_volume: _studioVideoVolume ?? 1.0,
     layout: _studioLayout,
     words: _studioWords.map(w => ({ w: w.text, s: w.start, e: w.end })),
     segments: _studioSegments.map(s => ({ id: s.id, job_id: s.job_id, clip_id: s.clip_id, title: s.title, start: Number(s.start), end: Number(s.end) })),

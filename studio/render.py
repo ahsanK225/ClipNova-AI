@@ -971,6 +971,7 @@ def render_clip(src: Path, out_dir: Path, name: str, clip: dict, words: list, sr
                           bgm_offset=bgm_offset, video_filter=video_filter,
                           segments=segs if (isinstance(segs, list) and len(segs) >= 1) else None,
                           vfx_cues=clip.get("vfx_cues"), sfx_cues=clip.get("sfx_cues"),
+                          video_volume=clip.get("video_volume", 1.0),
                           target_w=src_w, target_h=src_h)
     finally:
         shutil.rmtree(work, ignore_errors=True)
@@ -1004,12 +1005,13 @@ def _vfx_ffmpeg_chain(vfx_cues) -> str:
 
 
 def _mix_audio_inputs(seek_args: list, base_a_label: str, next_idx: int, bgm_path, bgm_vol_f: float,
-                          bgm_offset_f: float, sfx_cues, af_chain: str) -> tuple[str, bool]:
+                          bgm_offset_f: float, sfx_cues, af_chain: str, video_volume: float = 1.0) -> tuple[str, bool]:
     """Append BGM + timed Meme SFX FFmpeg inputs and return (filter_graph_suffix, used_filter_complex_audio)."""
     from . import audio as _audio_mod
     mix_labels = []
     parts = []
     idx = next_idx
+    vvol = max(0.0, min(2.0, float(video_volume if video_volume is not None else 1.0)))
 
     if bgm_path:
         if bgm_offset_f > 0.001:
@@ -1042,9 +1044,15 @@ def _mix_audio_inputs(seek_args: list, base_a_label: str, next_idx: int, bgm_pat
                 continue
 
     if not mix_labels:
-        return f";[{base_a_label}]{af_chain}[a]", False
+        vvol_f = f"volume={vvol:.2f}," if abs(vvol - 1.0) > 0.01 else ""
+        return f";[{base_a_label}]{vvol_f}{af_chain}[a]", False
 
-    all_in = f"[{base_a_label}]" + "".join(mix_labels)
+    if abs(vvol - 1.0) > 0.01:
+        parts.append(f"[{base_a_label}]volume={vvol:.2f}[base_v]")
+        base_mix = "[base_v]"
+    else:
+        base_mix = f"[{base_a_label}]"
+    all_in = base_mix + "".join(mix_labels)
     n_in = 1 + len(mix_labels)
     prefix = ";".join(parts)
     return f";{prefix};{all_in}amix=inputs={n_in}:duration=first:dropout_transition=2:normalize=0[a_mix];[a_mix]{af_chain}[a]", True
@@ -1055,7 +1063,7 @@ def _render_in(work: Path, src: Path, out_dir: Path, name: str, start, end, layo
                facecam_offset_y=0, game_offset_x=0, zoom=1.0, custom_layout=None,
                teaser_enabled=False, teaser_dur=0.0, teaser_start=None,
                bgm_track=None, bgm_volume=0.18, bgm_offset=0.0, video_filter=None,
-               segments=None, vfx_cues=None, sfx_cues=None, target_w=1920, target_h=1080) -> dict:
+               segments=None, vfx_cues=None, sfx_cues=None, video_volume=1.0, target_w=1920, target_h=1080) -> dict:
     global _qsv_ok
     (work / f"{name}.ass").write_text(ass, encoding="utf-8")
     (work / "f").mkdir()
@@ -1093,6 +1101,9 @@ def _render_in(work: Path, src: Path, out_dir: Path, name: str, start, end, layo
             af_filters.append(f"atrim=start={abs(audio_delay):.3f}")
             af_filters.append("asetpts=PTS-STARTPTS")
     af_filters.append("loudnorm=I=-14:TP=-1.5:LRA=11")
+    vvol = max(0.0, min(2.0, float(video_volume if video_volume is not None else 1.0)))
+    if abs(vvol - 1.0) > 0.01:
+        af_filters.insert(0, f"volume={vvol:.2f}")
     af_chain = ",".join(af_filters)
     vf_extra = (f",{VIDEO_FILTERS[video_filter]}" if (video_filter and video_filter in VIDEO_FILTERS) else "") + _vfx_ffmpeg_chain(vfx_cues)
 
@@ -1147,7 +1158,7 @@ def _render_in(work: Path, src: Path, out_dir: Path, name: str, start, end, layo
             concat_inputs.append(f"[sv{s_idx}][sa{s_idx}]")
         n_seg = len(segments)
         concat_fc = "".join(concat_parts) + "".join(concat_inputs) + f"concat=n={n_seg}:v=1:a=1[v_raw][a_raw];"
-        audio_filter, _ = _mix_audio_inputs(seek_args, "a_raw", n_seg, bgm_path, bgm_vol_f, bgm_offset_f, sfx_cues, af_chain)
+        audio_filter, _ = _mix_audio_inputs(seek_args, "a_raw", n_seg, bgm_path, bgm_vol_f, bgm_offset_f, sfx_cues, af_chain, video_volume=video_volume)
 
         fc = concat_fc + _filter(layout, fg_h, face, facecam_pos=facecam_pos, facecam_delay=facecam_delay,
                      facecam_offset_y=facecam_offset_y, game_offset_x=game_offset_x, zoom=zoom,
@@ -1167,7 +1178,7 @@ def _render_in(work: Path, src: Path, out_dir: Path, name: str, start, end, layo
             "-ss", f"{start:.3f}", "-i", str(Path(src).resolve()), "-t", f"{dur:.3f}",
         ]
         concat_fc = f"[0:v]setpts=PTS-STARTPTS,fps={config.OUT_FPS}[tv];[0:a:0]asetpts=PTS-STARTPTS[ta];[1:v]setpts=PTS-STARTPTS,fps={config.OUT_FPS}[mv];[1:a:0]asetpts=PTS-STARTPTS[ma];[tv][ta][mv][ma]concat=n=2:v=1:a=1[v_raw][a_raw];"
-        audio_filter, _ = _mix_audio_inputs(seek_args, "a_raw", 2, bgm_path, bgm_vol_f, bgm_offset_f, sfx_cues, af_chain)
+        audio_filter, _ = _mix_audio_inputs(seek_args, "a_raw", 2, bgm_path, bgm_vol_f, bgm_offset_f, sfx_cues, af_chain, video_volume=video_volume)
 
         fc = concat_fc + _filter(layout, fg_h, face, facecam_pos=facecam_pos, facecam_delay=facecam_delay,
                      facecam_offset_y=facecam_offset_y, game_offset_x=game_offset_x, zoom=zoom,
@@ -1181,7 +1192,7 @@ def _render_in(work: Path, src: Path, out_dir: Path, name: str, start, end, layo
                 "-c:a", "aac", "-b:a", "160k", "-ar", "48000"]
     else:
         seek_args = ["-ss", f"{start:.3f}", "-i", str(Path(src).resolve()), "-t", f"{dur:.3f}"]
-        audio_filter, has_mix = _mix_audio_inputs(seek_args, "0:a:0", 1, bgm_path, bgm_vol_f, bgm_offset_f, sfx_cues, af_chain)
+        audio_filter, has_mix = _mix_audio_inputs(seek_args, "0:a:0", 1, bgm_path, bgm_vol_f, bgm_offset_f, sfx_cues, af_chain, video_volume=video_volume)
         if has_mix:
             fc = _filter(layout, fg_h, face, facecam_pos=facecam_pos, facecam_delay=facecam_delay,
                          facecam_offset_y=facecam_offset_y, game_offset_x=game_offset_x, zoom=zoom,

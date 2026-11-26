@@ -474,6 +474,11 @@ def request_render(jid, cid, changes: dict):
         new["outro_cta"] = bool(changes["outro_cta"])
     if "streamer_only_captions" in changes:
         new["streamer_only_captions"] = bool(changes["streamer_only_captions"])
+    if "video_volume" in changes:
+        try:
+            new["video_volume"] = round(max(0.0, min(2.0, float(changes["video_volume"]))), 2)
+        except (ValueError, TypeError):
+            new["video_volume"] = 1.0
     if "quality" in changes:
         try:
             q = int(float(changes["quality"]))
