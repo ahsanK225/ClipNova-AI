@@ -4593,10 +4593,10 @@ async function renderCreatorCalendarCard(c, targetEl, isCompact = false, useCach
       </div>
 
       ${availAccounts.length ? `
-        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:-4px 0 12px 0;padding:8px 12px;background:rgba(15,23,42,0.55);border:1px solid var(--cal-border);border-radius:12px">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:-4px 0 12px 0;padding:10px 12px;background:rgba(15,23,42,0.55);border:1px solid var(--cal-border);border-radius:12px">
           <span style="font-size:11px;font-weight:800;color:var(--cal-muted);text-transform:uppercase;letter-spacing:0.4px">📺 YouTube Channels:</span>
-          <button type="button" class="btn sm" onclick="window._calAccountId='all';renderCreatorCalendarCard(creator(), $('#creator_calendar_view'), false, false)" style="font-size:11px;padding:4px 10px;border-radius:999px;background:${activeAccountId === 'all' ? 'rgba(0,240,255,0.18)' : 'var(--bg-2)'};border:1px solid ${activeAccountId === 'all' ? '#00F0FF' : 'var(--cal-border)'};color:${activeAccountId === 'all' ? '#00F0FF' : 'var(--cal-heading)'};font-weight:700">
-            All Channels
+          <button type="button" onclick="window._calAccountId='all';renderCreatorCalendarCard(creator(), $('#creator_calendar_view'), false, false)" style="cursor:pointer;font-size:11.5px;padding:6px 12px;border-radius:999px;background:${activeAccountId === 'all' ? 'linear-gradient(135deg,#00F0FF,#0088FF)' : 'rgba(15,23,42,0.9)'};border:2px solid ${activeAccountId === 'all' ? '#00F0FF' : 'rgba(148,163,184,0.28)'};color:${activeAccountId === 'all' ? '#020617' : '#CBD5E1'};font-weight:800;box-shadow:${activeAccountId === 'all' ? '0 0 14px rgba(0,240,255,0.45)' : 'none'}">
+            ${activeAccountId === 'all' ? '✓ ' : ''}All Channels
           </button>
           ${availAccounts.map(acc => {
             const isSel = activeAccountId === acc.id;
@@ -4604,9 +4604,9 @@ async function renderCreatorCalendarCard(c, targetEl, isCompact = false, useCach
             const cap = Number(acc.daily_cap || 3);
             const full = left <= 0;
             return `
-              <button type="button" class="btn sm" onclick="window._calAccountId='${esc(acc.id)}';renderCreatorCalendarCard(creator(), $('#creator_calendar_view'), false, false)" style="font-size:11px;padding:4px 10px;border-radius:999px;display:inline-flex;align-items:center;gap:6px;background:${isSel ? 'rgba(0,240,255,0.18)' : 'var(--bg-2)'};border:1px solid ${isSel ? '#00F0FF' : 'var(--cal-border)'};color:${isSel ? '#00F0FF' : 'var(--cal-heading)'};font-weight:700">
-                <span>📺 ${esc(acc.name)}</span>
-                <span style="font-size:10px;padding:1px 6px;border-radius:999px;background:${full ? 'rgba(239,68,68,0.2)' : 'rgba(16,185,129,0.2)'};color:${full ? '#FCA5A5' : '#34D399'};font-weight:800">
+              <button type="button" onclick="window._calAccountId='${esc(acc.id)}';renderCreatorCalendarCard(creator(), $('#creator_calendar_view'), false, false)" style="cursor:pointer;font-size:11.5px;padding:6px 12px;border-radius:999px;display:inline-flex;align-items:center;gap:7px;background:${isSel ? 'linear-gradient(135deg,#00F0FF,#0088FF)' : 'rgba(15,23,42,0.9)'};border:2px solid ${isSel ? '#00F0FF' : 'rgba(148,163,184,0.28)'};color:${isSel ? '#020617' : '#E2E8F0'};font-weight:800;box-shadow:${isSel ? '0 0 16px rgba(0,240,255,0.5)' : 'none'}">
+                <span>${isSel ? '✓ ' : '📺 '}${esc(acc.name)}</span>
+                <span style="font-size:10px;padding:1px 7px;border-radius:999px;background:${isSel ? 'rgba(2,6,23,0.22)' : (full ? 'rgba(239,68,68,0.2)' : 'rgba(16,185,129,0.2)')};color:${isSel ? '#020617' : (full ? '#FCA5A5' : '#34D399')};font-weight:900">
                   ${full ? `Full (${acc.today_used}/${cap})` : `${left}/${cap} Left`}
                 </span>
               </button>
@@ -6984,7 +6984,8 @@ async function assignClipToCalendarSlot(cid, jid, cid_clip, slotTs, pktTimeStr) 
       creator_id: cid,
       job_id: jid,
       clip_id: cid_clip,
-      slot_ts: slotTs
+      slot_ts: slotTs,
+      account_id: (window._calAccountId && window._calAccountId !== "all") ? window._calAccountId : undefined
     }, "POST");
     if (res && res.ok) {
       toast(`✅ Scheduled for ${pktTimeStr} PKT! Paired Community Post (+30m) active.`, "ok");
