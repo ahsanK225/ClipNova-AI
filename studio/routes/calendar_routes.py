@@ -78,9 +78,11 @@ def get_creator_calendar(cid: str, account_id: str = "all"):
         })
 
     sel_acc = account_id if (account_id and account_id != "all") else "all"
-    c_posts = [p for p in all_mine if p.get("creator") == cid]
     if sel_acc != "all":
-        c_posts = [p for p in c_posts if _post_acc_id(p) == sel_acc]
+        # When viewing a specific YouTube channel, show ALL videos scheduled/posted on that channel across creators
+        c_posts = [p for p in all_mine if _post_acc_id(p) == sel_acc]
+    else:
+        c_posts = [p for p in all_mine if p.get("creator") == cid]
 
     scheduled_posts = []
     seen_post_ids = set()
@@ -146,7 +148,7 @@ def get_creator_calendar(cid: str, account_id: str = "all"):
     primary_acc = sel_acc if sel_acc != "all" else (c["accounts"][0] if c.get("accounts") else None)
     mine_for_slots = [p for p in all_mine if _post_acc_id(p) == sel_acc] if sel_acc != "all" else all_mine
     dedup_posts = list({(p.get("id") or id(p)): p for p in (mine_for_slots + scheduled_posts)}.values())
-    upcoming_slots = calendar.assign_slots_to_videos(primary_acc, dedup_posts, count=21, creator_id=cid)
+    upcoming_slots = calendar.assign_slots_to_videos(primary_acc, dedup_posts, count=24, creator_id=cid)
     analytics_profile = analytics.get_analytics_profile(cid)
 
     return {
