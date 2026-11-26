@@ -5293,9 +5293,11 @@ function renderStudioWorkspace() {
                 }).join("")}
                 ${_studioSfxCues.map((sc, i) => {
                   const sMeta = (_studioProj.available_sounds || []).find(x => x.id === sc.track_id);
-                  const sDur = Number(sc.duration || sMeta?.duration || 2.0);
-                  const wPx = Math.max(76, Math.round(sDur * pxPerSec));
-                  const leftPx = Math.max(2, Math.min(Math.max(2, canvasW - wPx), Math.round(Number(sc.time || 0) * pxPerSec)));
+                  const rawDur = Number(sc.duration || sMeta?.duration || 2.0);
+                  const leftPx = Math.max(2, Math.min(Math.max(2, canvasW - 84), Math.round(Number(sc.time || 0) * pxPerSec)));
+                  const maxVisW = Math.max(76, canvasW - leftPx - 4);
+                  const sDur = Math.min(rawDur, Math.max(0.2, Math.round((maxVisW / Math.max(1, pxPerSec)) * 10) / 10));
+                  const wPx = Math.min(maxVisW, Math.max(76, Math.round(sDur * pxPerSec)));
                   const isCueSel = _studioSelCue && _studioSelCue.kind === "sfx" && _studioSelCue.idx === i;
                   return `
                     <div data-cue-kind="sfx" data-cue-idx="${i}" onpointerdown="studioStartCueDrag(event, 'sfx', ${i})" style="position:absolute;left:${leftPx}px;width:${wPx}px;top:4px;bottom:4px;z-index:${isCueSel ? 13 : 6};background:linear-gradient(135deg,#EC4899,#8B5CF6);color:#FFFFFF;border-radius:6px;padding:0 12px 0 7px;display:inline-flex;align-items:center;justify-content:space-between;gap:5px;font-size:10px;font-weight:800;cursor:grab;border:2px solid ${isCueSel ? '#FFFFFF' : 'transparent'};box-shadow:${isCueSel ? '0 0 0 2px #00F0FF, 0 4px 12px rgba(0,240,255,0.4)' : '0 2px 8px rgba(236,72,153,0.35)'};white-space:nowrap;overflow:hidden;user-select:none" title="Drag body to move | Drag right edge to resize (${esc(sMeta?.title || sc.track_id)} · ${sDur.toFixed(1)}s)">
@@ -5912,11 +5914,11 @@ window.studioStartSfxTrim = function(e, idx) {
   const cue = _studioSfxCues[idx];
   if (!cue) return;
   _studioSelCue = { kind: "sfx", idx };
-  const sMeta = (_studioProj?.available_sounds || []).find(x => x.id === cue.track_id);
-  const maxDur = Math.max(0.5, Number(sMeta?.duration || 30) || 30);
-  const origDur = Number(cue.duration || sMeta?.duration || 2.0);
   const { totalDur } = _studioTimelineMap();
-  const { pxPerSec } = _studioScaleInfo(totalDur);
+  const { pxPerSec, canvasW } = _studioScaleInfo(totalDur);
+  const sMeta = (_studioProj?.available_sounds || []).find(x => x.id === cue.track_id);
+  const maxDur = Math.max(0.5, Math.min(Number(sMeta?.duration || 60) || 60, totalDur));
+  const origDur = Math.min(maxDur, Number(cue.duration || sMeta?.duration || 2.0));
   const startX = e.clientX;
   const pill = e.currentTarget.parentElement;
 
@@ -5925,7 +5927,9 @@ window.studioStartSfxTrim = function(e, idx) {
     const nd = round2(Math.max(0.2, Math.min(maxDur, origDur + dx / Math.max(4, pxPerSec))));
     cue.duration = nd;
     if (pill) {
-      pill.style.width = `${Math.max(76, Math.round(nd * pxPerSec))}px`;
+      const leftPx = parseFloat(pill.style.left) || 2;
+      const maxVisW = Math.max(76, canvasW - leftPx - 4);
+      pill.style.width = `${Math.min(maxVisW, Math.max(76, Math.round(nd * pxPerSec)))}px`;
       const lbl = pill.querySelector(".cue-time-lbl");
       if (lbl) lbl.textContent = `${Number(cue.time || 0).toFixed(1)}s·${nd.toFixed(1)}s`;
     }
