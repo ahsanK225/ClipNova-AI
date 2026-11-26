@@ -5274,43 +5274,75 @@ function renderStudioWorkspace() {
                 ` : ""}
               </div>
 
-              <!-- Track 2: Effects & Meme SFX Cues (CapCut Style: Click to Select, Hold & Drag Left/Right!) -->
-              <div class="studio-track-row" id="studio_track_vfx" style="height:36px;width:${canvasW}px;background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.28);position:relative;border-radius:8px;overflow:hidden" title="Hold &amp; drag any VFX or Meme SFX pill left/right to move it; click to select">
-                <div style="position:absolute;left:8px;top:10px;font-size:10px;font-weight:700;color:#FBBF24;z-index:1;pointer-events:none;opacity:${(_studioVfxCues.length || _studioSfxCues.length) ? '0.35' : '0.9'}">
-                  ⚡ Effects &amp; 💥 Meme SFX (${_studioVfxCues.length + _studioSfxCues.length} placed — hold &amp; drag to move)
-                </div>
-                ${_studioVfxCues.map((vc, i) => {
+              <!-- Track 2: Dedicated VFX Effects Track (Multi-Lane CapCut Style) -->
+              ${(() => {
+                const vfxEnds = [];
+                const vfxPlaced = _studioVfxCues.map((vc, i) => {
                   const leftPx = Math.max(2, Math.min(Math.max(2, canvasW - 115), Math.round(Number(vc.time || 0) * pxPerSec)));
-                  const vMeta = (_studioProj.available_vfx || []).find(x => x.id === vc.type);
-                  const isCueSel = _studioSelCue && _studioSelCue.kind === "vfx" && _studioSelCue.idx === i;
-                  return `
-                    <div data-cue-kind="vfx" data-cue-idx="${i}" onpointerdown="studioStartCueDrag(event, 'vfx', ${i})" style="position:absolute;left:${leftPx}px;top:4px;bottom:4px;z-index:${isCueSel ? 12 : 5};background:linear-gradient(135deg,#F59E0B,#D97706);color:#020617;border-radius:6px;padding:0 7px;display:inline-flex;align-items:center;gap:5px;font-size:10px;font-weight:800;cursor:grab;border:2px solid ${isCueSel ? '#FFFFFF' : 'transparent'};box-shadow:${isCueSel ? '0 0 0 2px #00F0FF, 0 4px 12px rgba(0,240,255,0.4)' : '0 2px 8px rgba(245,158,11,0.35)'};white-space:nowrap;user-select:none" title="Hold &amp; drag to move | Click to select (${esc(vMeta?.name || vc.type)} @ ${Number(vc.time || 0).toFixed(1)}s)">
-                      <span>${esc(vMeta?.name || vc.type)}</span>
-                      <span class="cue-time-lbl" style="opacity:0.78;font-family:monospace">${Number(vc.time || 0).toFixed(1)}s</span>
-                      <button type="button" onpointerdown="event.stopPropagation()" onclick="event.stopPropagation();studioRemoveVfxCue(${i})" style="background:none;border:none;color:#020617;font-weight:900;cursor:pointer;padding:0 2px;font-size:11px" title="Remove effect">×</button>
+                  const wPx = 112;
+                  let lane = vfxEnds.findIndex(endPx => endPx <= leftPx - 4);
+                  if (lane < 0) { lane = vfxEnds.length; vfxEnds.push(0); }
+                  vfxEnds[lane] = leftPx + wPx;
+                  return { vc, i, leftPx, lane };
+                });
+                const vfxH = Math.max(1, vfxEnds.length) * 32 + 6;
+                return `
+                  <div class="studio-track-row" id="studio_track_vfx" style="height:${vfxH}px;width:${canvasW}px;background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.28);position:relative;border-radius:8px;overflow:hidden" title="Hold &amp; drag any VFX pill left/right to move it">
+                    <div style="position:absolute;left:8px;top:9px;font-size:10px;font-weight:700;color:#FBBF24;z-index:1;pointer-events:none;opacity:${_studioVfxCues.length ? '0.35' : '0.9'}">
+                      ⚡ VFX Effects (${_studioVfxCues.length} placed)
                     </div>
-                  `;
-                }).join("")}
-                ${_studioSfxCues.map((sc, i) => {
+                    ${vfxPlaced.map(({ vc, i, leftPx, lane }) => {
+                      const vMeta = (_studioProj.available_vfx || []).find(x => x.id === vc.type);
+                      const isCueSel = _studioSelCue && _studioSelCue.kind === "vfx" && _studioSelCue.idx === i;
+                      return `
+                        <div data-cue-kind="vfx" data-cue-idx="${i}" onpointerdown="studioStartCueDrag(event, 'vfx', ${i})" style="position:absolute;left:${leftPx}px;top:${lane * 32 + 4}px;height:26px;z-index:${isCueSel ? 12 : 5};background:linear-gradient(135deg,#F59E0B,#D97706);color:#020617;border-radius:6px;padding:0 7px;display:inline-flex;align-items:center;gap:5px;font-size:10px;font-weight:800;cursor:grab;border:2px solid ${isCueSel ? '#FFFFFF' : 'transparent'};box-shadow:${isCueSel ? '0 0 0 2px #00F0FF, 0 4px 12px rgba(0,240,255,0.4)' : '0 2px 8px rgba(245,158,11,0.35)'};white-space:nowrap;user-select:none" title="Hold &amp; drag to move | Click to select (${esc(vMeta?.name || vc.type)} @ ${Number(vc.time || 0).toFixed(1)}s)">
+                          <span>${esc(vMeta?.name || vc.type)}</span>
+                          <span class="cue-time-lbl" style="opacity:0.78;font-family:monospace">${Number(vc.time || 0).toFixed(1)}s</span>
+                          <button type="button" onpointerdown="event.stopPropagation()" onclick="event.stopPropagation();studioRemoveVfxCue(${i})" style="background:none;border:none;color:#020617;font-weight:900;cursor:pointer;padding:0 2px;font-size:11px" title="Remove effect">×</button>
+                        </div>
+                      `;
+                    }).join("")}
+                  </div>
+                `;
+              })()}
+
+              <!-- Track 3: Dedicated Multi-Lane Audio / Meme SFX Tracks (CapCut Auto-Stacking Lanes!) -->
+              ${(() => {
+                const sfxEnds = [];
+                const sfxPlaced = _studioSfxCues.map((sc, i) => {
                   const sMeta = (_studioProj.available_sounds || []).find(x => x.id === sc.track_id);
                   const rawDur = Number(sc.duration || sMeta?.duration || 2.0);
                   const leftPx = Math.max(2, Math.min(Math.max(2, canvasW - 84), Math.round(Number(sc.time || 0) * pxPerSec)));
                   const maxVisW = Math.max(76, canvasW - leftPx - 4);
                   const sDur = Math.min(rawDur, Math.max(0.2, Math.round((maxVisW / Math.max(1, pxPerSec)) * 10) / 10));
                   const wPx = Math.min(maxVisW, Math.max(76, Math.round(sDur * pxPerSec)));
-                  const isCueSel = _studioSelCue && _studioSelCue.kind === "sfx" && _studioSelCue.idx === i;
-                  return `
-                    <div data-cue-kind="sfx" data-cue-idx="${i}" onpointerdown="studioStartCueDrag(event, 'sfx', ${i})" style="position:absolute;left:${leftPx}px;width:${wPx}px;top:4px;bottom:4px;z-index:${isCueSel ? 13 : 6};background:linear-gradient(135deg,#EC4899,#8B5CF6);color:#FFFFFF;border-radius:6px;padding:0 12px 0 7px;display:inline-flex;align-items:center;justify-content:space-between;gap:5px;font-size:10px;font-weight:800;cursor:grab;border:2px solid ${isCueSel ? '#FFFFFF' : 'transparent'};box-shadow:${isCueSel ? '0 0 0 2px #00F0FF, 0 4px 12px rgba(0,240,255,0.4)' : '0 2px 8px rgba(236,72,153,0.35)'};white-space:nowrap;overflow:hidden;user-select:none" title="Drag body to move | Drag right edge to resize (${esc(sMeta?.title || sc.track_id)} · ${sDur.toFixed(1)}s)">
-                      <span style="overflow:hidden;text-overflow:ellipsis">${esc(sMeta?.emoji || "🔊")} ${esc(sMeta?.title || sc.track_id)}</span>
-                      <span style="display:inline-flex;align-items:center;gap:3px;flex-shrink:0">
-                        <span class="cue-time-lbl" style="opacity:0.85;font-family:monospace">${Number(sc.time || 0).toFixed(1)}s·${sDur.toFixed(1)}s</span>
-                        <button type="button" onpointerdown="event.stopPropagation()" onclick="event.stopPropagation();studioRemoveSfxCue(${i})" style="background:none;border:none;color:#FFFFFF;font-weight:900;cursor:pointer;padding:0 2px;font-size:11px" title="Remove SFX">×</button>
-                      </span>
-                      <div onpointerdown="studioStartSfxTrim(event, ${i})" title="Drag right edge to make sound shorter or longer" style="position:absolute;right:0;top:0;bottom:0;width:8px;background:rgba(255,255,255,0.45);cursor:ew-resize;border-radius:0 4px 4px 0"></div>
+                  let lane = sfxEnds.findIndex(endPx => endPx <= leftPx - 4);
+                  if (lane < 0) { lane = sfxEnds.length; sfxEnds.push(0); }
+                  sfxEnds[lane] = leftPx + wPx;
+                  return { sc, i, sMeta, sDur, leftPx, wPx, lane };
+                });
+                const sfxH = Math.max(1, sfxEnds.length) * 34 + 6;
+                return `
+                  <div class="studio-track-row" id="studio_track_sfx" style="height:${sfxH}px;width:${canvasW}px;background:rgba(236,72,153,0.08);border:1px solid rgba(236,72,153,0.28);position:relative;border-radius:8px;overflow:hidden" title="CapCut Multi-Lane Audio: Overlapping sounds automatically stack into separate lanes">
+                    <div style="position:absolute;left:8px;top:10px;font-size:10px;font-weight:700;color:#F472B6;z-index:1;pointer-events:none;opacity:${_studioSfxCues.length ? '0.35' : '0.9'}">
+                      🔊 Sound &amp; SFX Tracks (${_studioSfxCues.length} placed · ${Math.max(1, sfxEnds.length)} lane${sfxEnds.length > 1 ? 's' : ''})
                     </div>
-                  `;
-                }).join("")}
-              </div>
+                    ${sfxPlaced.map(({ sc, i, sMeta, sDur, leftPx, wPx, lane }) => {
+                      const isCueSel = _studioSelCue && _studioSelCue.kind === "sfx" && _studioSelCue.idx === i;
+                      return `
+                        <div data-cue-kind="sfx" data-cue-idx="${i}" onpointerdown="studioStartCueDrag(event, 'sfx', ${i})" style="position:absolute;left:${leftPx}px;width:${wPx}px;top:${lane * 34 + 4}px;height:28px;z-index:${isCueSel ? 13 : 6};background:repeating-linear-gradient(90deg,rgba(255,255,255,0.12) 0 2px,transparent 2px 5px),linear-gradient(135deg,#EC4899,#8B5CF6);color:#FFFFFF;border-radius:6px;padding:0 12px 0 8px;display:inline-flex;align-items:center;justify-content:space-between;gap:5px;font-size:10px;font-weight:800;cursor:grab;border:2px solid ${isCueSel ? '#FFFFFF' : 'rgba(255,255,255,0.2)'};box-shadow:${isCueSel ? '0 0 0 2px #00F0FF, 0 4px 12px rgba(0,240,255,0.4)' : '0 2px 8px rgba(236,72,153,0.35)'};white-space:nowrap;overflow:hidden;user-select:none" title="Drag body to move | Drag right edge to trim (${esc(sMeta?.title || sc.track_id)} · ${sDur.toFixed(1)}s)">
+                          <span style="overflow:hidden;text-overflow:ellipsis">${esc(sMeta?.emoji || "🔊")} ${esc(sMeta?.title || sc.track_id)}</span>
+                          <span style="display:inline-flex;align-items:center;gap:3px;flex-shrink:0">
+                            <span class="cue-time-lbl" style="opacity:0.9;font-family:monospace">${Number(sc.time || 0).toFixed(1)}s·${sDur.toFixed(1)}s</span>
+                            <button type="button" onpointerdown="event.stopPropagation()" onclick="event.stopPropagation();studioRemoveSfxCue(${i})" style="background:none;border:none;color:#FFFFFF;font-weight:900;cursor:pointer;padding:0 2px;font-size:11px" title="Remove SFX">×</button>
+                          </span>
+                          <div onpointerdown="studioStartSfxTrim(event, ${i})" title="Drag right edge to make sound shorter or longer" style="position:absolute;right:0;top:0;bottom:0;width:8px;background:rgba(255,255,255,0.55);cursor:ew-resize;border-radius:0 4px 4px 0"></div>
+                        </div>
+                      `;
+                    }).join("")}
+                  </div>
+                `;
+              })()}
 
               <!-- Track 3: Subtitle Words -->
               <div class="studio-track-row" id="studio_track_subtitles" style="width:${canvasW}px" title="Subtitles Track">
