@@ -762,6 +762,30 @@ def link_preview(request: Request, url: str = ""):
         raise HTTPException(422, "Couldn't open that video. Check the link is public and complete.")
 
 
+def _resolve_or_create_creator(creator_id: str | None, seen: dict | None, url: str, fallback_uploader: str = "") -> str | None:
+    """Return an explicit creator ID or auto-match/create one from link metadata."""
+    if creator_id:
+        if not creators.get(creator_id):
+            raise HTTPException(404, "No such creator")
+        return creator_id
+    up_name = ((seen or {}).get("uploader") or fallback_uploader or "").strip()
+    if not up_name and seen is None and url:
+        try:
+            info = media.info(url)
+            up_name = (info.get("uploader") or "").strip()
+        except Exception:
+            up_name = ""
+    if not up_name:
+        return None
+    low = up_name.lower()
+    matched = next((cr for cr in creators.all_creators() if cr.get("name", "").strip().lower() == low), None)
+    if matched:
+        return matched["id"]
+    ch_url = ((seen or {}).get("channel_url") or (seen or {}).get("uploader_url") or url or "").strip()
+    created = creators.create({"name": up_name, "channel": ch_url})
+    return created["id"]
+
+
 @app.post("/api/jobs")
 def create_from_link(body: dict = Body(...)):
     _need_verified()
@@ -784,16 +808,16 @@ def create_from_link(body: dict = Body(...)):
         except Exception:
             seen = None
     if seen and seen.get("is_live"):
-        c = creators.get(creator) if creator else None
+        cid = _resolve_or_create_creator(creator, seen, url, str(body.get("uploader") or ""))
+        c = creators.get(cid) if cid else None
         if not c:
-            up_name = (seen.get("uploader") or "").strip() or "Live Streamer"
-            c = next((cr for cr in creators.all_creators() if cr.get("name", "").strip().lower() == up_name.lower()), None)
-            if not c:
-                c = creators.create({"name": up_name, "channel": url})
+            c = creators.create({"name": "Live Streamer", "channel": url})
         try:
             return jobs.public(live.start_session(c, url))
         except ValueError as e:
             raise HTTPException(400, str(e))
+    if not creator:
+        creator = _resolve_or_create_creator(None, seen, url, str(body.get("uploader") or ""))
     try:
         with _create_lock:
             _job_slots()
@@ -846,6 +870,17 @@ def create_from_file(file: UploadFile = File(...), options: str = Form("{}"), cr
     finally:
         tmp.unlink(missing_ok=True)
     job["source"]["path"] = str(dest)
+    if job.get("options", {}).get("manual_only"):
+        try:
+            info = media.probe(dest)
+            job.update(source_path=str(dest), width=info["width"], height=info["height"], duration=info["duration"],
+                       status="done", stage="Ready for manual clipping", progress=1.0)
+            if media.save_thumb(jobs.job_dir(job["id"]), video=dest):
+                job["thumb"] = True
+            jobs.save(job)
+            return jobs.public(job)
+        except Exception:
+            pass
     jobs.enqueue(job)
     return jobs.public(job)
 
@@ -1010,6 +1045,17 @@ def upload_finish(upid: str):
         shutil.rmtree(d, ignore_errors=True)
     _disk.pop(ctx.uid(), None)
     job["source"]["path"] = str(dest)
+    if job.get("options", {}).get("manual_only"):
+        try:
+            info = media.probe(dest)
+            job.update(source_path=str(dest), width=info["width"], height=info["height"], duration=info["duration"],
+                       status="done", stage="Ready for manual clipping", progress=1.0)
+            if media.save_thumb(jobs.job_dir(job["id"]), video=dest):
+                job["thumb"] = True
+            jobs.save(job)
+            return jobs.public(job)
+        except Exception:
+            pass
     jobs.enqueue(job)
     return jobs.public(job)
 
@@ -1019,6 +1065,86 @@ def upload_cancel(upid: str):
     _up_get(upid)
     shutil.rmtree(_up_root() / f"up-{upid}", ignore_errors=True)
     return {"ok": True}
+
+
+def _find_job_source(job: dict) -> Path | None:
+    sp = job.get("source_path") or (job.get("source") or {}).get("path")
+    if sp and Path(sp).is_file():
+        return Path(sp)
+    d = jobs.job_dir(job["id"])
+    for ext in VIDEO_TYPES:
+        cand = d / f"source{ext}"
+        if cand.is_file():
+            return cand
+    return None
+
+
+@app.get("/api/jobs/{jid}/source")
+def job_source_video(jid: str):
+    job = _job_or_404(jid)
+    src = _find_job_source(job)
+    if not src:
+        raise HTTPException(404, "Source video is not downloaded yet.")
+    return FileResponse(src, media_type="video/mp4", headers={"Cache-Control": "private, no-store"})
+
+
+@app.post("/api/jobs/{jid}/manual_clip")
+def create_manual_clip(jid: str, body: dict = Body(...)):
+    """Queue a custom manual clip cut from any uploaded or downloaded job video."""
+    job = _job_or_404(jid)
+    src = _find_job_source(job)
+    if not src:
+        raise HTTPException(409, "Source video is not ready on disk yet. Wait for download to finish.")
+    if not job.get("source_path"):
+        job["source_path"] = str(src)
+    if not job.get("duration"):
+        try:
+            info = media.probe(src)
+            job.update(width=info["width"], height=info["height"], duration=info["duration"])
+        except Exception:
+            pass
+    try:
+        import math
+        start = float(body.get("start", 0))
+        end = float(body.get("end", 0))
+    except (TypeError, ValueError):
+        raise HTTPException(400, "Start and end timestamps must be numbers.")
+    if not (math.isfinite(start) and math.isfinite(end)) or start < 0 or end <= start:
+        raise HTTPException(400, "End time must be after start time.")
+    dur = float(job.get("duration") or 0)
+    if dur > 0:
+        end = min(end, dur)
+    length = end - start
+    if length < 3.0:
+        raise HTTPException(400, "Manual clip must be at least 3 seconds long.")
+    if length > 300.0:
+        raise HTTPException(400, "Manual clip cannot exceed 5 minutes (300 seconds).")
+    o = job.get("options") or {}
+    cid = f"manual_{os.urandom(3).hex()}"
+    hook = creators.clean_hook(body.get("hook") or "") if body.get("hook") else (o.get("hook_text") or "")
+    title = str(body.get("title") or "").strip()[:100] or f"Manual Clip ({int(start // 60)}:{int(start % 60):02d}–{int(end // 60)}:{int(end % 60):02d})"
+    clip = {
+        "id": cid,
+        "start": round(start, 2),
+        "end": round(end, 2),
+        "payoff_at": round(start + length * 0.65, 2),
+        "title": title,
+        "seo_title": title,
+        "hook": hook,
+        "style": body.get("style") or o.get("style", "bounce"),
+        "layout": body.get("layout") or o.get("layout", "split_half"),
+        "captions": bool(body["captions"]) if "captions" in body else bool(o.get("captions", True)),
+        "source": "manual",
+        "clip_type": "manual",
+        "trigger_label": "Hand clip",
+        "reason": f"Manually clipped ({start:.1f}s – {end:.1f}s)",
+        "status": "queued",
+        "version": 0,
+    }
+    job.setdefault("clips", []).append(clip)
+    jobs.save(job)
+    jobs._q.put(("clip", jid, cid))
+    return {"ok": True, "clip_id": cid, "job": jobs.public(job)}
 
 
 @app.post("/api/jobs/{jid}/clips/{cid}/render")
@@ -2037,11 +2163,15 @@ def get_creator_frame(cid: str, request: Request, t: float = 2.0, cb: str = ""):
                 return Response(content=b, media_type="image/jpeg",
                                 headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
 
-    # 2. Check for recent clips or videos in creator workspace
+    # 2. Check for recent source clips or videos in creator workspace (avoid already-rendered 9:16 clips)
     c_root = creators.root(cid)
     recent_vids = sorted(c_root.glob("live/*/clips/*.src.mp4"), key=lambda p: p.stat().st_mtime, reverse=True)
     recent_vids += sorted(c_root.glob("videos/*.mp4"), key=lambda p: p.stat().st_mtime, reverse=True)
-    recent_vids += sorted(c_root.glob("live/*/clips/*.mp4"), key=lambda p: p.stat().st_mtime, reverse=True)
+    for j in sorted(jobs.all_jobs(), key=lambda x: x.get("created", 0), reverse=True):
+        if j.get("creator") == cid:
+            sp = _find_job_source(j)
+            if sp:
+                recent_vids.append(sp)
     for vid in recent_vids[:5]:
         b = jobs._extract_frame_bytes(vid, t)
         if not b and abs(t - 1.0) > 0.1:
@@ -2116,22 +2246,20 @@ def get_job_frame(jid: str, cid: str = None, t: float = 2.0, cb: str = ""):
         t = 2.0
 
     jdir = Path(job.get("dir", ""))
-    # If a specific clip id is passed, prioritize extracting directly from that clip's source!
+    clip_start = 0.0
     if cid:
+        clp = next((x for x in (job.get("clips") or []) if x.get("id") == cid), None)
+        if clp:
+            clip_start = float(clp.get("start") or 0.0)
         c_src = jdir / "clips" / f"{cid}.src.mp4"
         if c_src.is_file():
             b = jobs._extract_frame_bytes(c_src, min(2.0, t)) or jobs._extract_frame_bytes(c_src, 0.5)
             if b:
                 return Response(content=b, media_type="image/jpeg",
                                 headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
-        c_cover = jdir / "clips" / f"{cid}.jpg"
-        if c_cover.is_file() and c_cover.stat().st_size > 1000:
-            return FileResponse(c_cover, media_type="image/jpeg",
-                                headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
 
-    src = Path(job.get("source_path") or job.get("src") or "")
+    src = _find_job_source(job) or Path("")
     if not src.is_file():
-        jdir = Path(job.get("dir", ""))
         segs = sorted((jdir / "buffer").glob("*.ts"), key=lambda p: p.stat().st_mtime, reverse=True)
         if not segs:
             segs = sorted((jdir / "buffer").glob("*.mp4"), key=lambda p: p.stat().st_mtime, reverse=True)
@@ -2142,14 +2270,20 @@ def get_job_frame(jid: str, cid: str = None, t: float = 2.0, cb: str = ""):
             if recent_vids:
                 src = recent_vids[0]
     if src.is_file():
-        b = jobs._extract_frame_bytes(src, max(0.0, t))
+        probe_t = max(0.0, clip_start + t)
+        b = jobs._extract_frame_bytes(src, probe_t)
         if not b and abs(t - 1.0) > 0.1:
-            b = jobs._extract_frame_bytes(src, 1.0)
+            b = jobs._extract_frame_bytes(src, max(0.0, clip_start + 1.0))
         if not b:
             b = jobs._extract_frame_bytes(src, 0.2)
         if b:
             return Response(content=b, media_type="image/jpeg",
                             headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
+    if cid:
+        c_cover = jdir / "clips" / f"{cid}.jpg"
+        if c_cover.is_file() and c_cover.stat().st_size > 1000:
+            return FileResponse(c_cover, media_type="image/jpeg",
+                                headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
     jdir = Path(job.get("dir", ""))
     for c in sorted((jdir / "clips").glob("*.jpg")):
         if c.is_file() and c.stat().st_size > 1000:

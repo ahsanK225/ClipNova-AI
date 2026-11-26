@@ -1,6 +1,30 @@
 ﻿# Changelog
 All notable project changes are documented here.
 
+## [2026-11-26] — Multi-Clip Mouse Timeline & Split Editor (`PeakCut/web/index.html`)
+
+### Added
+- **Interactive Multi-Clip Timeline Editor (`openVodClipper`)**:
+  - Added a visual mouse-driven timeline track (`#vc_timeline`) with draggable playhead, draggable segment body, left/right edge trim handles, `✂️ Split at Playhead`, `➕ Add Clip`, per-clip hook text, staged clips list (`#vc_seg_list`), and batch `🚀 Cut & Render All Clips` submission.
+
+## [2026-11-26] — Custom Layout Studio Source Frame & 9:16 Preview Accuracy Fix
+
+### Fixed
+- **Source Frame Priority (`PeakCut/studio/server.py`)**:
+  - Updated `get_job_frame()` and `get_creator_frame()` to always extract from the true source video (`{cid}.src.mp4`, `job["source_path"]`, or `videos/*.mp4`) before falling back to rendered 9:16 clip thumbnails (`{cid}.jpg`).
+- **1:1 Box-to-Mobile Preview Mapping (`PeakCut/web/index.html`)**:
+  - Updated `clsDrawPhonePreview()` to scale 1920×1080 crop coordinates to actual source media dimensions (`natW × natH`) and synced `#cls_canvas_container` aspect ratio to the loaded source media so dragged Gameplay/Facecam boxes match the 9:16 preview without black-bar offset or distortion.
+
+## [2026-11-26] — Manual Clipping on Uploaded Videos & Auto-Creator on Home Links
+
+### Added
+- **Instant Manual Clipping Mode (`manual_only`) & VOD Clipper Modal (`PeakCut/studio/jobs.py`, `PeakCut/studio/server.py`, `PeakCut/web/index.html`)**:
+  - Added `manual_only` option to `jobs.clean_options()` and `_run_job()` so uploaded videos and links can skip speech model downloads and AI scanning to become immediately ready for manual clipping.
+  - Added `GET /api/jobs/{jid}/source` to stream source video with Range support and `POST /api/jobs/{jid}/manual_clip` to queue custom manual clips from any uploaded or downloaded job.
+  - Added `✂️ Manual Only` button in the upload/link composer (`makeClips(true)`), kept `✂️ Manual Cut` visible on job cards even while AI processing is running on uploaded files, and added the `#vod_clipper_dlg` timeline clipper modal (`openVodClipper()`).
+- **Auto-Create / Match Creator for Home Links (`PeakCut/studio/server.py`, `PeakCut/web/index.html`)**:
+  - Added `_resolve_or_create_creator()` in `POST /api/jobs` so video links submitted from Home without a selected creator automatically match an existing Creator or create a new Creator from uploader/channel metadata instead of landing in "All videos" (`creator=None`).
+
 ## [2026-11-25] — 7-Day Week Grid Open Slots Fix (`count=21`)
 
 ### Fixed

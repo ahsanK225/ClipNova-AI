@@ -128,7 +128,7 @@ def clean_options(options) -> dict:
                 raise ValueError("Captions must be on or off.")
             out[k] = v
             continue
-        if k in ("outro_cta", "trim_silence", "streamer_only_captions"):
+        if k in ("outro_cta", "trim_silence", "streamer_only_captions", "manual_only"):
             out[k] = bool(v)
             continue
         if k in ("hook_text", "description_text"):     # kept even when empty: it clears the creator's own text for this video
@@ -1311,18 +1311,20 @@ def _run_job(job):
     face = False       # where the webcam is in the source, found once; False means not looked for yet
     usage.set_context(job["creator"], job["title"] or src.get("name"))
     resuming = bool(job.pop("resume", False)) and (d / "words.json").is_file()
+    manual_only = bool(o.get("manual_only"))
     if resuming:   # after a restart: keep the transcript parts, clips and AI answers already made, and carry on
         _set(job, status="running", stage="Picking up where it stopped", error=None)
     else:
-        _set(job, status="running", stage="Getting the audio", progress=0.03, error=None, clips=[], ai={}, done_blocks=0)
+        _set(job, status="running", stage="Preparing video" if manual_only else "Getting the audio", progress=0.03, error=None, clips=[], ai={}, done_blocks=0)
     speech = o.get("lang") if fetch_model.known(o.get("lang")) else fetch_model.DEFAULT   # the language spoken
-    if speech == fetch_model.DEFAULT and not transcribe.model_ready() and not transcribe.REMOTE:
-        _set(job, stage="Getting the speech model (one time, about 480 MB)")
-        fetch_model.ensure()
-        _set(job, stage="Getting the audio")
-    could_borrow = src["type"] == "url" and config.YT_TRANSCRIPT and media.is_youtube(src["url"])
-    if speech != fetch_model.DEFAULT and not transcribe.REMOTE and not could_borrow and fetch_model.status(speech) == "missing":
-        fetch_model.ensure(speech, start=False)      # says what to do, before any time is spent on the download
+    if not manual_only:
+        if speech == fetch_model.DEFAULT and not transcribe.model_ready() and not transcribe.REMOTE:
+            _set(job, stage="Getting the speech model (one time, about 480 MB)")
+            fetch_model.ensure()
+            _set(job, stage="Getting the audio")
+        could_borrow = src["type"] == "url" and config.YT_TRANSCRIPT and media.is_youtube(src["url"])
+        if speech != fetch_model.DEFAULT and not transcribe.REMOTE and not could_borrow and fetch_model.status(speech) == "missing":
+            fetch_model.ensure(speech, start=False)      # says what to do, before any time is spent on the download
     fetch = ThreadPoolExecutor(1)
     video = None
     if src["type"] == "url":
@@ -1352,6 +1354,15 @@ def _run_job(job):
         if not job.get("thumb") and media.save_thumb(d, url=src["url"]):
             _set(job, thumb=True)
         usage.set_context(job["creator"], meta["title"])
+        if manual_only:
+            _set(job, stage="Downloading video for manual clipping", progress=0.25)
+            vfile = media.download(src["url"], d, int(o["quality"]))
+            info = media.probe(vfile)
+            _set(job, source_path=str(vfile), width=info["width"], height=info["height"],
+                 duration=info["duration"], status="done", stage="Ready for manual clipping",
+                 progress=1.0, took=round(time.time() - t0))
+            fetch.shutdown(wait=False)
+            return
         span = (o["range_end"] or meta["duration"]) - (o["range_start"] or 0)
         pieces = span > LONG_VIDEO or meta["duration"] <= 0
         if not pieces:  # shorter video: fetch all of it in the background while the audio is worked on
@@ -1372,6 +1383,10 @@ def _run_job(job):
         _set(job, source_path=str(audio_file), width=info["width"], height=info["height"], duration=info["duration"])
         if not job.get("thumb") and media.save_thumb(d, video=audio_file):
             _set(job, thumb=True)
+        if manual_only:
+            _set(job, status="done", stage="Ready for manual clipping", progress=1.0, took=round(time.time() - t0))
+            fetch.shutdown(wait=False)
+            return
     wav = d / "audio.wav"
     media.extract_audio(audio_file, wav)
     audio = media.load_audio(wav)

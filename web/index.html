@@ -2491,9 +2491,10 @@ function drawAdd(variant) {
     <div class="att" id="att"><div><div class="att-in" id="attIn"></div></div></div>
     <div class="composer-bar">
       <button type="button" class="chip" data-act="pickfile">${ic("up")}Upload video</button>
-      ${c ? "" : picker("o_creator", "File under creator", [{v:"", label:"No creator", icon:"user"}, ...S.creators.map(x => ({v:x.id, label:x.name, img:x.profile?.pic && x.profile.channel === x.channel ? avatarUrl(x) : ""}))], "")}
+      ${c ? "" : picker("o_creator", "File under creator", [{v:"", label:"Auto-create creator from link", icon:"user"}, ...S.creators.map(x => ({v:x.id, label:x.name, img:x.profile?.pic && x.profile.channel === x.channel ? avatarUrl(x) : ""}))], "")}
       <button type="button" class="chip" data-act="toggleopts" aria-expanded="false">${ic("sliders")}Options</button>
       <span class="grow"></span><span class="hint">or drop a video file here</span>
+      <button type="button" class="btn ghost" id="manualGoBtn" onclick="makeClips(true)" title="Upload or download video and cut your own manual clips without waiting for AI" style="border:1px solid rgba(56,189,248,0.4);color:#38BDF8">✂️ Manual Only</button>
       <button class="btn primary" id="goBtn">${ic("scissors")}Make clips</button>
     </div>
     <div class="composer-opts" inert><div class="og">
@@ -2900,8 +2901,9 @@ async function sendBig(f, who, options) {
   };
   try {
     await Promise.all([worker(), worker()]);
-    await send(`/api/upload/${s.id}/finish`, {});
+    const fin = await send(`/api/upload/${s.id}/finish`, {});
     f.pct = 100; drawAtt();
+    return fin;
   } catch (e) {
     next = s.parts;                                   // stop the other sender
     api(`/api/upload/${s.id}`, {method: "DELETE"}).catch(() => {});
@@ -2917,7 +2919,10 @@ function sendFile(f, who, options) {
     x.upload.onprogress = e => { if (e.lengthComputable) { f.pct = Math.round(e.loaded / e.total * 100); drawAtt(); } };
     x.onload = () => {
       if (x.status === 401) { location.href = "/login"; return; }
-      if (x.status >= 200 && x.status < 300) return ok();
+      if (x.status >= 200 && x.status < 300) {
+        let parsed = null; try { parsed = JSON.parse(x.responseText); } catch {}
+        return ok(parsed);
+      }
       let d = "Upload failed"; try { d = JSON.parse(x.responseText).detail || d; } catch {}
       fail(new Error(typeof d === "string" ? d : "Upload failed"));
     };
@@ -2936,7 +2941,7 @@ function langNote(A, lang) {
     ${onlyYT ? `<button type="button" class="btn sm" data-act="langgo" data-v="${esc(lang)}">Make clips with YouTube's captions</button>` : ""}
     <button type="button" class="btn sm ghost" data-act="langno">Cancel</button></span></span></div>`);
 }
-async function makeClips() {
+async function makeClips(manualOnly = false) {
   const A = att();
   if (A.busy) return;
   const typed = $("#url")?.value.trim();
@@ -2952,20 +2957,29 @@ async function makeClips() {
     return;
   }
   const lang = $("#o_lang")?.value || "en", sp = speechLangs()[lang];
-  if (sp && sp.state === "missing" && A.langOk !== lang) return langNote(A, lang);
+  if (!manualOnly && sp && sp.state === "missing" && A.langOk !== lang) return langNote(A, lang);
   $("#langnote")?.remove();
   A.busy = true; drawAtt();
-  let started = 0, failed = 0;
+  let started = 0, failed = 0, lastJob = null, resolvedCreator = "";
   const who = targetCreator(), opts = jobOptions();
+  if (manualOnly) opts.manual_only = true;
   for (const l of A.links.filter(x => x.state === "ok")) {
     l.sending = true; drawAtt();
-    try { await send("/api/jobs", {url: l.url, options: opts, creator: who}); l.state = "done"; started++; }
+    try {
+      const res = await send("/api/jobs", {url: l.url, options: opts, creator: who, uploader: l.uploader || ""});
+      l.state = "done"; started++;
+      if (res) { lastJob = res; if (!resolvedCreator && res.creator) resolvedCreator = res.creator; }
+    }
     catch (e) { l.state = "bad"; l.msg = e.message; failed++; }
     l.sending = false; drawAtt();
   }
   for (const f of A.files) {
     f.state = "up"; f.pct = 0; drawAtt();
-    try { await sendFile(f, who, opts); f.state = "done"; started++; }
+    try {
+      const res = await sendFile(f, who, opts);
+      f.state = "done"; started++;
+      if (res) { lastJob = res; if (!resolvedCreator && res.creator) resolvedCreator = res.creator; }
+    }
     catch (e) { f.state = "error"; f.err = e.message; failed++; }
     drawAtt();
   }
@@ -2973,8 +2987,20 @@ async function makeClips() {
   A.files = A.files.filter(f => { if (f.state === "done") { URL.revokeObjectURL(f.src); return false; } return true; });
   A.busy = false; drawAtt();
   if (started) {
-    toast(`${started === 1 ? "Your video is" : started + " videos are"} being clipped now.`, "ok");
-    if (!failed && S.view === "overview") go(who ? "c:" + who : "library"); else tick();
+    if (resolvedCreator && !who) {
+      try { S.creators = await api("/api/creators"); } catch {}
+    }
+    const destCreator = who || resolvedCreator;
+    if (manualOnly && lastJob?.id && (lastJob.source_path || lastJob.status === "done")) {
+      toast("Video ready! Opening Manual Clipper…", "ok");
+      if (!failed && S.view === "overview") await go(destCreator ? "c:" + destCreator : "library"); else await tick();
+      openVodClipper(lastJob.id);
+    } else {
+      toast(manualOnly
+        ? "Video queued for manual clipping! Click ✂️ Manual Cut as soon as download finishes."
+        : `${started === 1 ? "Your video is" : started + " videos are"} being clipped now.`, "ok");
+      if (!failed && S.view === "overview") go(destCreator ? "c:" + destCreator : "library"); else tick();
+    }
   } else if (failed) toast("Nothing was started. The reason is shown on the video.", "bad");
 }
 
@@ -3385,6 +3411,7 @@ function jobHtml(j, visibleClips, forceExpand) {
         </div>
       </div>
       <div class="row" style="flex-wrap:nowrap;gap:6px;align-items:center">
+        ${(j.source_path || j.source?.type === "file" || j.status === "done" || j.status === "error") ? `<button type="button" class="btn sm ghost" onclick="openVodClipper('${j.id}')" title="Cut your own custom manual clips from this video" style="font-size:11px;padding:4px 9px;border-radius:8px;border-color:rgba(56,189,248,0.45);color:#38BDF8;font-weight:700">✂️ Manual Cut</button>` : ""}
         ${busy ? "" : `
           ${clips.length ? `<button type="button" class="btn sm" data-act="toggle_job_collapse" data-j="${j.id}" title="${isCollapsed ? 'Expand folder' : 'Fold folder'}" style="${isCollapsed ? 'background:linear-gradient(135deg,rgba(0,240,255,0.16),rgba(0,136,255,0.08));border:1px solid rgba(0,240,255,0.35);color:var(--accent,#00F0FF);font-weight:700' : 'background:var(--bg-2);border:1px solid var(--line)'};font-size:11px;display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:8px;cursor:pointer">
             <span>${isCollapsed ? '📁' : '📂'}</span>
@@ -3402,6 +3429,383 @@ function jobHtml(j, visibleClips, forceExpand) {
     ${j.error ? `<div class="err">${esc(j.error)}<button class="rep" data-act="report" data-ctx="${esc("Video failed: " + (j.title || j.source.name || "") + " | " + j.error)}">Report this</button></div>` : ""}${j.ai?.note ? `<p class="sub">${esc(j.ai.note)}</p>` : ""}
     ${(clips.length && !isCollapsed) ? `<div class="grid" style="margin-top:12px">${_sortClipsNewestFirst(j, clips).map(c => clipHtml(j, c)).join("")}</div>` : ""}`;
 }
+
+function _fmtSec(sec) {
+  const s = Math.max(0, Number(sec) || 0);
+  const m = Math.floor(s / 60), r = Math.floor(s % 60);
+  return `${m}:${String(r).padStart(2, "0")}`;
+}
+
+window.openVodClipper = function(jid) {
+  const j = (S.jobs || []).find(x => x.id === jid);
+  let dlg = $("#vod_clipper_dlg");
+  if (!dlg) {
+    dlg = document.createElement("dialog");
+    dlg.id = "vod_clipper_dlg";
+    dlg.style.cssText = "max-width:940px;width:96vw;max-height:92vh;background:#0F172A;color:#F8FAFC;border:1px solid rgba(56,189,248,0.35);border-radius:16px;padding:0;overflow:hidden;box-shadow:0 24px 60px rgba(0,0,0,0.75);display:flex;flex-direction:column";
+    document.body.appendChild(dlg);
+  }
+  let totalDur = Math.max(10, Number(j?.duration) || 30);
+  const defEnd = Math.min(totalDur, 30);
+  const SEG_COLORS = ["#38BDF8", "#F472B6", "#34D399", "#FB923C", "#A78BFA", "#FBBF24"];
+  let segCounter = 1;
+  const segments = [{ id: segCounter++, start: 0, end: Math.max(3, Math.round(defEnd * 10) / 10), hook: "" }];
+  let activeIdx = 0;
+
+  dlg.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 18px;border-bottom:1px solid rgba(255,255,255,0.08);background:#0B1120;flex-shrink:0">
+      <div>
+        <div style="font-size:15px;font-weight:700;color:#38BDF8">✂️ Multi-Clip Timeline Editor</div>
+        <div style="font-size:12px;color:#94A3B8;margin-top:2px">${esc(j?.title || j?.source?.name || "Uploaded Video")}</div>
+      </div>
+      <button type="button" class="btn sm ghost" id="vc_close">✕ Close</button>
+    </div>
+    <div style="padding:14px 18px;display:flex;flex-direction:column;gap:12px;overflow-y:auto;flex:1">
+      <div style="background:#000;border-radius:12px;overflow:hidden;position:relative">
+        <video id="vc_vid" src="/api/jobs/${esc(jid)}/source" controls preload="metadata" style="width:100%;max-height:310px;display:block;background:#000"></video>
+      </div>
+
+      <!-- Visual Mouse Timeline Track -->
+      <div style="background:#0B1120;border:1px solid rgba(255,255,255,0.1);border-radius:12px;padding:10px 12px;user-select:none">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;font-size:11px;color:#94A3B8">
+          <span>🖱️ <b>Timeline:</b> Drag clip edges to trim, drag bar to move, or click track to scrub</span>
+          <span id="vc_playhead_lbl" style="color:#38BDF8;font-weight:700;font-variant-numeric:tabular-nums">0:00 / ${_fmtSec(totalDur)}</span>
+        </div>
+        <div id="vc_ruler" style="display:flex;justify-content:space-between;font-size:10px;color:#64748B;font-variant-numeric:tabular-nums;margin-bottom:4px"></div>
+        <div id="vc_timeline" style="position:relative;height:52px;background:#020617;border:1px solid rgba(255,255,255,0.12);border-radius:8px;overflow:hidden;cursor:crosshair">
+          <div id="vc_segs_layer" style="position:absolute;inset:0"></div>
+          <div id="vc_playhead" style="position:absolute;top:0;bottom:0;left:0%;width:2px;background:#EF4444;z-index:20;pointer-events:none;box-shadow:0 0 8px rgba(239,68,68,0.8)">
+            <div style="position:absolute;top:0;left:-5px;width:12px;height:10px;background:#EF4444;border-radius:2px 2px 6px 6px"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Editor Controls Bar -->
+      <div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;justify-content:space-between;background:rgba(15,23,42,0.8);border:1px solid rgba(255,255,255,0.08);padding:8px 12px;border-radius:10px">
+        <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+          <button type="button" class="btn sm ghost" id="vc_m5">-5s</button>
+          <button type="button" class="btn sm ghost" id="vc_p5">+5s</button>
+          <button type="button" class="btn sm" id="vc_set_in" style="background:rgba(34,197,94,0.18);border:1px solid rgba(34,197,94,0.45);color:#4ADE80;font-weight:700">[ Set Start</button>
+          <button type="button" class="btn sm" id="vc_set_out" style="background:rgba(249,115,22,0.18);border:1px solid rgba(249,115,22,0.45);color:#FB923C;font-weight:700">Set End ]</button>
+          <button type="button" class="btn sm" id="vc_split_btn" style="background:rgba(239,68,68,0.2);border:1px solid rgba(239,68,68,0.5);color:#FCA5A5;font-weight:700">✂️ Split at Playhead</button>
+          <button type="button" class="btn sm" id="vc_add_btn" style="background:rgba(56,189,248,0.18);border:1px solid rgba(56,189,248,0.45);color:#38BDF8;font-weight:700">➕ Add Clip</button>
+        </div>
+        <div id="vc_range_lbl" style="font-size:12px;font-weight:700;color:#E2E8F0;font-variant-numeric:tabular-nums"></div>
+      </div>
+
+      <!-- Selected Clip Fine-Tune Inputs -->
+      <div style="display:grid;grid-template-columns:1fr 1fr 2fr;gap:10px;align-items:end">
+        <label style="font-size:11.5px;color:#94A3B8;display:flex;flex-direction:column;gap:4px">
+          Active Clip Start (sec)
+          <input id="vc_start" type="number" min="0" step="0.5" value="0" style="padding:7px 10px;border-radius:8px;border:1px solid rgba(255,255,255,0.14);background:#020617;color:#F8FAFC">
+        </label>
+        <label style="font-size:11.5px;color:#94A3B8;display:flex;flex-direction:column;gap:4px">
+          Active Clip End (sec)
+          <input id="vc_end" type="number" min="3" step="0.5" value="${Math.round(defEnd)}" style="padding:7px 10px;border-radius:8px;border:1px solid rgba(255,255,255,0.14);background:#020617;color:#F8FAFC">
+        </label>
+        <label style="font-size:11.5px;color:#94A3B8;display:flex;flex-direction:column;gap:4px">
+          Active Clip Hook Text (optional)
+          <input id="vc_hook" type="text" maxlength="60" placeholder="e.g. WAIT FOR THE END..." style="padding:7px 10px;border-radius:8px;border:1px solid rgba(255,255,255,0.14);background:#020617;color:#F8FAFC">
+        </label>
+      </div>
+
+      <!-- Staged Clips List -->
+      <div style="background:#0B1120;border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:10px 12px">
+        <div style="font-size:11.5px;font-weight:700;color:#CBD5E1;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center">
+          <span>🎬 Staged Clips to Cut (<span id="vc_count_lbl">1</span>)</span>
+          <span style="font-size:11px;color:#64748B">Click any clip to select & edit</span>
+        </div>
+        <div id="vc_seg_list" style="display:flex;flex-direction:column;gap:6px;max-height:145px;overflow-y:auto"></div>
+      </div>
+
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding-top:4px">
+        <label style="display:flex;align-items:center;gap:8px;font-size:12.5px;color:#CBD5E1;cursor:pointer">
+          <input type="checkbox" id="vc_caps" ${j?.options?.captions === false ? "" : "checked"}>
+          Generate Captions
+        </label>
+        <div style="display:flex;gap:8px;align-items:center">
+          <span id="vc_status" style="font-size:12px;color:#38BDF8"></span>
+          <button type="button" class="btn primary" id="vc_cut_btn">🚀 Cut & Render All Clips (1)</button>
+        </div>
+      </div>
+    </div>
+  `;
+
+  const vid = dlg.querySelector("#vc_vid");
+  const tl = dlg.querySelector("#vc_timeline");
+  const segsLayer = dlg.querySelector("#vc_segs_layer");
+  const playhead = dlg.querySelector("#vc_playhead");
+  const phLbl = dlg.querySelector("#vc_playhead_lbl");
+  const ruler = dlg.querySelector("#vc_ruler");
+  const sEl = dlg.querySelector("#vc_start");
+  const eEl = dlg.querySelector("#vc_end");
+  const hEl = dlg.querySelector("#vc_hook");
+  const lbl = dlg.querySelector("#vc_range_lbl");
+  const stEl = dlg.querySelector("#vc_status");
+  const segListEl = dlg.querySelector("#vc_seg_list");
+  const cutBtn = dlg.querySelector("#vc_cut_btn");
+
+  const renderRuler = () => {
+    ruler.innerHTML = [0, 0.25, 0.5, 0.75, 1].map(f => `<span>${_fmtSec(totalDur * f)}</span>`).join("");
+  };
+
+  const syncPlayhead = () => {
+    const t = Math.max(0, Math.min(totalDur, vid.currentTime || 0));
+    playhead.style.left = `${(t / Math.max(1, totalDur)) * 100}%`;
+    phLbl.textContent = `${_fmtSec(t)} / ${_fmtSec(totalDur)}`;
+  };
+
+  const syncInputs = () => {
+    const seg = segments[activeIdx];
+    if (!seg) return;
+    sEl.value = seg.start.toFixed(1);
+    eEl.value = seg.end.toFixed(1);
+    hEl.value = seg.hook || "";
+    lbl.textContent = `Clip #${activeIdx + 1}: ${_fmtSec(seg.start)} – ${_fmtSec(seg.end)} (${(seg.end - seg.start).toFixed(1)}s)`;
+  };
+
+  const renderTimeline = () => {
+    segsLayer.innerHTML = segments.map((seg, idx) => {
+      const col = SEG_COLORS[idx % SEG_COLORS.length];
+      const leftPct = (seg.start / Math.max(1, totalDur)) * 100;
+      const widthPct = Math.max(1.5, ((seg.end - seg.start) / Math.max(1, totalDur)) * 100);
+      const isAct = idx === activeIdx;
+      return `
+        <div data-seg-idx="${idx}" style="position:absolute;top:4px;bottom:4px;left:${leftPct}%;width:${widthPct}%;background:${col}33;border:2px solid ${isAct ? '#FFFFFF' : col};border-radius:6px;cursor:grab;display:flex;align-items:center;justify-content:center;overflow:hidden;box-shadow:${isAct ? '0 0 12px ' + col + '88' : 'none'}">
+          <div data-drag="l" data-seg-idx="${idx}" title="Drag to trim Start" style="position:absolute;left:0;top:0;bottom:0;width:8px;background:${col};cursor:ew-resize;opacity:0.9"></div>
+          <span style="font-size:10.5px;font-weight:800;color:#fff;text-shadow:0 1px 3px #000;pointer-events:none;white-space:nowrap;padding:0 10px">#${idx + 1} (${(seg.end - seg.start).toFixed(0)}s)</span>
+          <div data-drag="r" data-seg-idx="${idx}" title="Drag to trim End" style="position:absolute;right:0;top:0;bottom:0;width:8px;background:${col};cursor:ew-resize;opacity:0.9"></div>
+        </div>`;
+    }).join("");
+
+    dlg.querySelector("#vc_count_lbl").textContent = String(segments.length);
+    cutBtn.textContent = `🚀 Cut & Render ${segments.length === 1 ? "Clip" : `All Clips (${segments.length})`}`;
+
+    segListEl.innerHTML = segments.map((seg, idx) => {
+      const col = SEG_COLORS[idx % SEG_COLORS.length];
+      const isAct = idx === activeIdx;
+      return `
+        <div data-pick-seg="${idx}" style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 10px;border-radius:8px;background:${isAct ? 'rgba(56,189,248,0.14)' : 'rgba(255,255,255,0.03)'};border:1px solid ${isAct ? col : 'rgba(255,255,255,0.07)'};cursor:pointer">
+          <div style="display:flex;align-items:center;gap:8px;min-width:0">
+            <span style="width:10px;height:10px;border-radius:50%;background:${col};flex-shrink:0"></span>
+            <span style="font-size:12px;font-weight:700;color:#F8FAFC">Clip #${idx + 1}</span>
+            <span style="font-size:11.5px;color:#94A3B8;font-variant-numeric:tabular-nums">${_fmtSec(seg.start)} – ${_fmtSec(seg.end)} (${(seg.end - seg.start).toFixed(1)}s)</span>
+            ${seg.hook ? `<span style="font-size:11px;color:#38BDF8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">"${esc(seg.hook)}"</span>` : ""}
+          </div>
+          <div style="display:flex;gap:5px;flex-shrink:0">
+            <button type="button" class="btn sm ghost" data-play-seg="${idx}" style="padding:2px 7px;font-size:11px" title="Preview this clip">▶</button>
+            ${segments.length > 1 ? `<button type="button" class="btn sm ghost" data-del-seg="${idx}" style="padding:2px 7px;font-size:11px;color:#F87171" title="Remove">🗑</button>` : ""}
+          </div>
+        </div>`;
+    }).join("");
+    syncInputs();
+  };
+
+  // Timeline mouse drag (scrub playhead, move segment, trim left/right edges)
+  let dragState = null;
+  tl.addEventListener("mousedown", e => {
+    const rect = tl.getBoundingClientRect();
+    const clickSec = Math.max(0, Math.min(totalDur, ((e.clientX - rect.left) / rect.width) * totalDur));
+    const edgeEl = e.target.closest("[data-drag]");
+    const segEl = e.target.closest("[data-seg-idx]");
+    if (edgeEl) {
+      const idx = Number(edgeEl.dataset.segIdx);
+      activeIdx = idx;
+      dragState = { mode: edgeEl.dataset.drag, idx, origStart: segments[idx].start, origEnd: segments[idx].end, startX: e.clientX };
+      renderTimeline();
+      return;
+    }
+    if (segEl) {
+      const idx = Number(segEl.dataset.segIdx);
+      activeIdx = idx;
+      dragState = { mode: "move", idx, origStart: segments[idx].start, origEnd: segments[idx].end, startX: e.clientX };
+      vid.currentTime = clickSec;
+      syncPlayhead();
+      renderTimeline();
+      return;
+    }
+    dragState = { mode: "scrub" };
+    vid.currentTime = clickSec;
+    syncPlayhead();
+  });
+
+  const onMouseMove = e => {
+    if (!dragState) return;
+    const rect = tl.getBoundingClientRect();
+    const dxSec = ((e.clientX - (dragState.startX || 0)) / rect.width) * totalDur;
+    if (dragState.mode === "scrub") {
+      const t = Math.max(0, Math.min(totalDur, ((e.clientX - rect.left) / rect.width) * totalDur));
+      vid.currentTime = t;
+      syncPlayhead();
+      return;
+    }
+    const seg = segments[dragState.idx];
+    if (!seg) return;
+    if (dragState.mode === "l") {
+      seg.start = Math.max(0, Math.min(seg.end - 3, Math.round((dragState.origStart + dxSec) * 10) / 10));
+      vid.currentTime = seg.start;
+    } else if (dragState.mode === "r") {
+      seg.end = Math.min(totalDur, Math.max(seg.start + 3, Math.round((dragState.origEnd + dxSec) * 10) / 10));
+      vid.currentTime = seg.end;
+    } else if (dragState.mode === "move") {
+      const len = dragState.origEnd - dragState.origStart;
+      let ns = Math.max(0, Math.min(totalDur - len, dragState.origStart + dxSec));
+      seg.start = Math.round(ns * 10) / 10;
+      seg.end = Math.round((ns + len) * 10) / 10;
+    }
+    syncPlayhead();
+    renderTimeline();
+  };
+  const onMouseUp = () => { dragState = null; };
+  window.addEventListener("mousemove", onMouseMove);
+  window.addEventListener("mouseup", onMouseUp);
+
+  segListEl.addEventListener("click", e => {
+    const delBtn = e.target.closest("[data-del-seg]");
+    if (delBtn) {
+      const idx = Number(delBtn.dataset.delSeg);
+      segments.splice(idx, 1);
+      activeIdx = Math.max(0, Math.min(activeIdx, segments.length - 1));
+      renderTimeline();
+      return;
+    }
+    const playBtn = e.target.closest("[data-play-seg]");
+    if (playBtn) {
+      const idx = Number(playBtn.dataset.playSeg);
+      activeIdx = idx;
+      vid.currentTime = segments[idx].start;
+      vid.play().catch(() => {});
+      renderTimeline();
+      return;
+    }
+    const row = e.target.closest("[data-pick-seg]");
+    if (row) {
+      activeIdx = Number(row.dataset.pickSeg);
+      vid.currentTime = segments[activeIdx].start;
+      syncPlayhead();
+      renderTimeline();
+    }
+  });
+
+  vid.addEventListener("loadedmetadata", () => {
+    if (vid.duration && isFinite(vid.duration)) {
+      totalDur = vid.duration;
+      if (segments.length === 1 && segments[0].end > totalDur) {
+        segments[0].end = Math.max(3, Math.round(Math.min(totalDur, 30) * 10) / 10);
+      }
+      renderRuler();
+      renderTimeline();
+      syncPlayhead();
+    }
+  });
+  vid.addEventListener("timeupdate", syncPlayhead);
+
+  sEl.addEventListener("input", () => {
+    const seg = segments[activeIdx]; if (!seg) return;
+    seg.start = Math.max(0, Math.min(seg.end - 1, Number(sEl.value) || 0));
+    renderTimeline();
+  });
+  eEl.addEventListener("input", () => {
+    const seg = segments[activeIdx]; if (!seg) return;
+    seg.end = Math.min(totalDur, Math.max(seg.start + 1, Number(eEl.value) || 0));
+    renderTimeline();
+  });
+  hEl.addEventListener("input", () => {
+    const seg = segments[activeIdx]; if (!seg) return;
+    seg.hook = hEl.value;
+    renderTimeline();
+  });
+
+  dlg.querySelector("#vc_m5").onclick = () => { vid.currentTime = Math.max(0, (vid.currentTime || 0) - 5); syncPlayhead(); };
+  dlg.querySelector("#vc_p5").onclick = () => { vid.currentTime = Math.min(totalDur, (vid.currentTime || 0) + 5); syncPlayhead(); };
+  dlg.querySelector("#vc_set_in").onclick = () => {
+    const seg = segments[activeIdx]; if (!seg) return;
+    const t = Math.round(Math.max(0, vid.currentTime || 0) * 10) / 10;
+    seg.start = t;
+    if (seg.end <= t + 3) seg.end = Math.min(totalDur, Math.round((t + 20) * 10) / 10);
+    renderTimeline();
+  };
+  dlg.querySelector("#vc_set_out").onclick = () => {
+    const seg = segments[activeIdx]; if (!seg) return;
+    const t = Math.round(Math.max(3, vid.currentTime || 0) * 10) / 10;
+    seg.end = t;
+    if (seg.start >= t - 3) seg.start = Math.max(0, Math.round((t - 15) * 10) / 10);
+    renderTimeline();
+  };
+
+  dlg.querySelector("#vc_split_btn").onclick = () => {
+    const t = Math.round((vid.currentTime || 0) * 10) / 10;
+    const hitIdx = segments.findIndex(s => t >= s.start + 3 && t <= s.end - 3);
+    if (hitIdx >= 0) {
+      const orig = segments[hitIdx];
+      const right = { id: segCounter++, start: t, end: orig.end, hook: orig.hook };
+      orig.end = t;
+      segments.splice(hitIdx + 1, 0, right);
+      activeIdx = hitIdx + 1;
+      toast(`Split into Clip #${hitIdx + 1} & Clip #${hitIdx + 2} at ${_fmtSec(t)}!`, "ok");
+    } else {
+      const ns = Math.max(0, Math.min(totalDur - 3, t));
+      const ne = Math.min(totalDur, Math.round((ns + 15) * 10) / 10);
+      segments.push({ id: segCounter++, start: ns, end: ne, hook: "" });
+      activeIdx = segments.length - 1;
+      toast(`Added Clip #${segments.length} at ${_fmtSec(ns)}!`, "ok");
+    }
+    renderTimeline();
+  };
+
+  dlg.querySelector("#vc_add_btn").onclick = () => {
+    const last = segments[segments.length - 1];
+    let ns = last ? Math.min(totalDur - 5, last.end + 1) : 0;
+    if (ns >= totalDur - 3) ns = Math.max(0, Math.round((vid.currentTime || 0) * 10) / 10);
+    const ne = Math.min(totalDur, Math.round((ns + 15) * 10) / 10);
+    if (ne - ns < 3) { toast("Video end reached! Drag an existing clip or Split at playhead.", "bad"); return; }
+    segments.push({ id: segCounter++, start: ns, end: ne, hook: "" });
+    activeIdx = segments.length - 1;
+    vid.currentTime = ns;
+    syncPlayhead();
+    renderTimeline();
+  };
+
+  const cleanup = () => {
+    window.removeEventListener("mousemove", onMouseMove);
+    window.removeEventListener("mouseup", onMouseUp);
+    vid.pause();
+    dlg.close();
+  };
+  dlg.querySelector("#vc_close").onclick = cleanup;
+
+  cutBtn.onclick = async () => {
+    const valid = segments.filter(s => s.end - s.start >= 3);
+    if (!valid.length) { toast("Every clip must be at least 3 seconds long.", "bad"); return; }
+    cutBtn.disabled = true;
+    let queued = 0;
+    try {
+      const caps = dlg.querySelector("#vc_caps").checked;
+      for (let i = 0; i < valid.length; i++) {
+        stEl.textContent = `Queueing clip ${i + 1}/${valid.length}…`;
+        await send(`/api/jobs/${jid}/manual_clip`, {
+          start: valid[i].start,
+          end: valid[i].end,
+          hook: (valid[i].hook || "").trim(),
+          captions: caps,
+        });
+        queued++;
+      }
+      stEl.textContent = `✅ ${queued} clip${queued > 1 ? "s" : ""} queued for rendering!`;
+      toast(`${queued} manual clip${queued > 1 ? "s" : ""} queued!`, "ok");
+      tick();
+    } catch (err) {
+      stEl.textContent = "";
+      toast(err.message || "Could not queue manual clips.", "bad");
+    } finally {
+      cutBtn.disabled = false;
+    }
+  };
+
+  renderRuler();
+  renderTimeline();
+  dlg.showModal();
+};
 /* ---- selecting several videos and clips: delete or download them together */
 const sel = () => (S.sel = S.sel || new Set());
 function selParts() {
@@ -9058,12 +9462,21 @@ function clsDrawPhonePreview() {
     return;
   }
 
+  const natW = src.videoWidth || src.naturalWidth || 1920;
+  const natH = src.videoHeight || src.naturalHeight || 1080;
+  const toNat = ([x, y, w, h]) => [
+    Math.max(0, x * natW / 1920),
+    Math.max(0, y * natH / 1080),
+    Math.max(1, w * natW / 1920),
+    Math.max(1, h * natH / 1080),
+  ];
+
   if (CLS.mode === "split") {
     const ratio = CLS.split_ratio || 0.35;
     const camH = Math.round(H * ratio);
     const gameH = H - camH;
-    const [fx, fy, fw, fh] = CLS.facecam;
-    const [gx, gy, gw, gh] = CLS.gameplay;
+    const [fx, fy, fw, fh] = toNat(CLS.facecam);
+    const [gx, gy, gw, gh] = toNat(CLS.gameplay);
 
     drawCover(ctx, src, fx, fy, fw, fh, 0, 0, W, camH);
     drawCover(ctx, src, gx, gy, gw, gh, 0, camH, W, gameH);
@@ -9075,8 +9488,8 @@ function clsDrawPhonePreview() {
       ctx.fillRect(0, camH - 1, W, 2);
     }
   } else if (CLS.mode === "pip") {
-    const [fx, fy, fw, fh] = CLS.facecam;
-    const [gx, gy, gw, gh] = CLS.gameplay;
+    const [fx, fy, fw, fh] = toNat(CLS.facecam);
+    const [gx, gy, gw, gh] = toNat(CLS.gameplay);
     drawCover(ctx, src, gx, gy, gw, gh, 0, 0, W, H);
 
     const pipW = Math.round(W * 0.40);
@@ -9098,10 +9511,10 @@ function clsDrawPhonePreview() {
     ctx.lineWidth = 2.5;
     ctx.strokeRect(px, py, pipW, pipH);
   } else if (CLS.mode === "crop") {
-    const [gx, gy, gw, gh] = CLS.gameplay;
+    const [gx, gy, gw, gh] = toNat(CLS.gameplay);
     drawCover(ctx, src, gx, gy, gw, gh, 0, 0, W, H);
   } else if (CLS.mode === "frame") {
-    const [gx, gy, gw, gh] = CLS.gameplay;
+    const [gx, gy, gw, gh] = toNat(CLS.gameplay);
     const pct = Math.max(30, Math.min(100, Number(CLS.mobile_height) || 65));
     const bgStyle = CLS.bg_style === "black" ? "black" : "blur";
     const boxH = pct >= 98 ? H : Math.max(120, Math.round(H * pct / 100));
@@ -9622,8 +10035,8 @@ function openCustomLayoutStudio(context) {
           </div>
 
           <div id="cls_canvas_container" style="position:relative;width:100%;aspect-ratio:16/9;background:#050505;border:2px solid #33261F;border-radius:12px;overflow:hidden;box-shadow:0 8px 24px rgba(0,0,0,0.6);user-select:none">
-            <img id="cls_source_img" src="${CLS.frameUrl}" style="width:100%;height:100%;object-fit:contain;display:block;pointer-events:none" alt="Stream Frame">
-            <video id="cls_source_video" playsinline preload="auto" crossorigin="anonymous" style="width:100%;height:100%;object-fit:contain;display:none;pointer-events:none"></video>
+            <img id="cls_source_img" src="${CLS.frameUrl}" style="width:100%;height:100%;object-fit:fill;display:block;pointer-events:none" alt="Stream Frame">
+            <video id="cls_source_video" playsinline preload="auto" crossorigin="anonymous" style="width:100%;height:100%;object-fit:fill;display:none;pointer-events:none"></video>
 
             <!-- Photoshop Dark Mask Overlay with Cutouts -->
             <canvas id="cls_mask_canvas" width="1920" height="1080" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:8"></canvas>
@@ -9905,18 +10318,46 @@ function openCustomLayoutStudio(context) {
   if (CLS.ctx?.type === "clip" && CLS.ctx?.jid && CLS.ctx?.cid) {
     const video = $("#cls_source_video");
     if (video) {
+      const clpObj = jobOf(CLS.ctx.jid)?.clips.find(x => x.id === CLS.ctx.cid);
+      const fallbackSrc = `/api/jobs/${CLS.ctx.jid}/source`;
+      let triedFallback = false;
       video.src = `/media/${CLS.ctx.jid}/${CLS.ctx.cid}.src.mp4`;
       CLS.video = video;
       CLS.videoLoaded = false;
       CLS.isPlaying = false;
       video.onloadeddata = () => {
         CLS.videoLoaded = true;
+        if (triedFallback && clpObj && typeof clpObj.start === "number" && video.currentTime < 0.2) {
+          try { video.currentTime = Math.max(0, clpObj.start); } catch {}
+        }
         const img = $("#cls_source_img");
         if (img) img.style.display = "none";
         video.style.display = "block";
+        const box = $("#cls_canvas_container");
+        if (box && video.videoWidth && video.videoHeight) {
+          const narrow = (video.videoWidth / video.videoHeight) < 1.72;
+          box.style.aspectRatio = `${video.videoWidth} / ${video.videoHeight}`;
+          box.style.maxHeight = narrow ? "420px" : "";
+          box.style.width = narrow ? "auto" : "100%";
+          box.style.maxWidth = "100%";
+          box.style.margin = "0 auto";
+        }
+        clsUpdateBoxesDOM();
         clsDrawMask();
         clsDrawPhonePreview();
-        clsUpdateScrubberTime(0, video.duration);
+        clsUpdateScrubberTime(video.currentTime || 0, video.duration);
+      };
+      video.onerror = () => {
+        if (!triedFallback) {
+          triedFallback = true;
+          video.src = fallbackSrc;
+          return;
+        }
+        CLS.videoLoaded = false;
+        CLS.video = null;
+        video.style.display = "none";
+        const img = $("#cls_source_img");
+        if (img) img.style.display = "block";
       };
       video.ontimeupdate = () => {
         clsDrawPhonePreview();
@@ -9949,6 +10390,15 @@ function openCustomLayoutStudio(context) {
   CLS.img.crossOrigin = "anonymous";
   CLS.img.onload = () => {
     CLS.imgLoaded = true;
+    const box = $("#cls_canvas_container");
+    if (box && !CLS.videoLoaded && CLS.img.naturalWidth && CLS.img.naturalHeight) {
+      const narrow = (CLS.img.naturalWidth / CLS.img.naturalHeight) < 1.72;
+      box.style.aspectRatio = `${CLS.img.naturalWidth} / ${CLS.img.naturalHeight}`;
+      box.style.maxHeight = narrow ? "420px" : "";
+      box.style.width = narrow ? "auto" : "100%";
+      box.style.maxWidth = "100%";
+      box.style.margin = "0 auto";
+    }
     clsUpdateBoxesDOM();
     clsDrawMask();
     clsDrawPhonePreview();
