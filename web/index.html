@@ -5473,9 +5473,15 @@ function renderStudioDrawerContent() {
             <h4 style="margin:0;font-size:14px;color:#F8FAFC">⚡ CapCut-Style Effects &amp; VFX</h4>
             <p style="margin:2px 0 0;font-size:11.5px;color:#94A3B8">Playhead par effects drop karein — live preview aur final MP4 export dono mein render honge.</p>
           </div>
-          <span class="pill" style="font-size:11px;padding:3px 10px;border-radius:999px;background:rgba(245,158,11,0.16);color:#FBBF24;border:1px solid rgba(245,158,11,0.35);font-weight:800">
-            ⚡ ${_studioVfxCues.length} placed
-          </span>
+          <div style="display:flex;align-items:center;gap:6px">
+            <label class="btn sm" style="background:rgba(245,158,11,0.12);border:1px solid rgba(245,158,11,0.45);color:#FBBF24;font-weight:800;cursor:pointer;font-size:10.5px;padding:4px 9px" title="Google se download ki hui VFX (.mp4, .mov, .webm, .gif) upload karein">
+              📤 Upload My VFX
+              <input id="studio_custom_vfx_input" type="file" accept="video/*,.mp4,.mov,.webm,.gif" style="display:none" onchange="studioUploadCustomVfx(this)">
+            </label>
+            <span class="pill" style="font-size:11px;padding:3px 10px;border-radius:999px;background:rgba(245,158,11,0.16);color:#FBBF24;border:1px solid rgba(245,158,11,0.35);font-weight:800">
+              ⚡ ${_studioVfxCues.length} placed
+            </span>
+          </div>
         </div>
         <div id="studio_vfx_grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(225px,1fr));gap:8px;max-height:245px;overflow-y:auto;padding-right:2px">
           ${vfxPresets.map(v => `
@@ -5523,9 +5529,9 @@ function renderStudioDrawerContent() {
             <p style="margin:2px 0 0;font-size:11.5px;color:#94A3B8">Playhead par viral meme sounds (Vine Boom, Bruh, Metal Pipe, Airhorn) drop karein ya BGM lagayein.</p>
           </div>
           <div style="display:flex;align-items:center;gap:6px">
-            <label class="btn sm" style="background:rgba(0,240,255,0.12);border:1px solid rgba(0,240,255,0.4);color:#00F0FF;font-weight:800;cursor:pointer;font-size:10.5px;padding:4px 9px" title="Apne PC se .mp3 ya .wav sound upload karein">
-              📤 Upload My Sound
-              <input id="studio_custom_sfx_input" type="file" accept="audio/*,.mp3,.wav,.m4a,.ogg" style="display:none" onchange="studioUploadCustomSfx(this)">
+            <label class="btn sm" style="background:rgba(0,240,255,0.12);border:1px solid rgba(0,240,255,0.4);color:#00F0FF;font-weight:800;cursor:pointer;font-size:10.5px;padding:4px 9px" title="Audio (.mp3/.wav) ya Video (.mp4/.mov/.webm) upload karein — video se sirf sound extract hoga">
+              📤 Upload Sound / Video
+              <input id="studio_custom_sfx_input" type="file" accept="audio/*,video/*,.mp3,.wav,.m4a,.ogg,.mp4,.mov,.mkv,.webm" style="display:none" onchange="studioUploadCustomSfx(this)">
             </label>
             <span class="pill" style="font-size:11px;padding:3px 10px;border-radius:999px;background:rgba(236,72,153,0.16);color:#F472B6;border:1px solid rgba(236,72,153,0.35);font-weight:800">
               🔊 ${_studioSfxCues.length} SFX placed
@@ -5748,6 +5754,20 @@ function studioTriggerVfx(vfxId) {
       flash.style.opacity = (n % 2 === 0) ? "0.7" : "0";
       if (++n >= 6) { clearInterval(iv); flash.style.opacity = "0"; }
     }, 65);
+  } else if (String(vfxId).startsWith("custom_") && pBox) {
+    const meta = (_studioProj?.available_vfx || []).find(v => v.id === vfxId);
+    if (meta?.url) {
+      let ov = $("#studio_custom_vfx_overlay");
+      if (ov) ov.remove();
+      const isGif = meta.ext === ".gif";
+      ov = document.createElement(isGif ? "img" : "video");
+      ov.id = "studio_custom_vfx_overlay";
+      ov.src = meta.url;
+      ov.style.cssText = "position:absolute;inset:0;width:100%;height:100%;object-fit:cover;pointer-events:none;z-index:8;mix-blend-mode:screen";
+      if (!isGif) { ov.muted = true; ov.playsInline = true; ov.play().catch(() => {}); }
+      pBox.appendChild(ov);
+      setTimeout(() => { try { ov.remove(); } catch {} }, Math.min(4000, (meta.duration || 2) * 1000));
+    }
   }
 }
 
@@ -5843,6 +5863,35 @@ window.studioStartCueDrag = function(e, kind, idx) {
   };
   window.addEventListener("pointermove", onMove);
   window.addEventListener("pointerup", onUp);
+};
+
+window.studioUploadCustomVfx = async function(input) {
+  if (!input?.files || !input.files[0]) return;
+  const file = input.files[0];
+  const formData = new FormData();
+  formData.append("file", file);
+  toast(`⏳ Uploading VFX ${file.name}…`, "ok");
+  try {
+    const res = await fetch("/api/vfx/upload", { method: "POST", body: formData });
+    const data = await res.json();
+    if (data.ok && data.vfx) {
+      if (_studioProj) {
+        _studioProj.available_vfx = _studioProj.available_vfx || [];
+        if (!_studioProj.available_vfx.some(v => v.id === data.vfx.id)) {
+          _studioProj.available_vfx.unshift(data.vfx);
+        }
+      }
+      studioTriggerVfx(data.vfx.id);
+      renderStudioWorkspace();
+      toast(`✨ "${data.vfx.name}" uploaded! Click ➕ Add @ Playhead to place it.`, "ok", 4000);
+    } else {
+      toast("VFX upload failed: " + (data.detail || "Server error"), "bad");
+    }
+  } catch (err) {
+    toast("VFX upload error: " + err.message, "bad");
+  } finally {
+    input.value = "";
+  }
 };
 
 window.studioUploadCustomSfx = async function(input) {

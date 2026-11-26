@@ -198,37 +198,61 @@ def get_track_path(track_id: str) -> Path | None:
 
 
 def save_upload(filename: str, content: bytes) -> dict[str, Any]:
-    """Validates and saves custom audio file (< 30MB). Returns track info."""
+    """Validates and saves custom audio file, or extracts audio from an uploaded video (< 100MB)."""
+    import subprocess
+    import tempfile
+
     ensure_dirs()
     ext = Path(filename).suffix.lower()
-    if ext not in (".mp3", ".wav", ".m4a", ".ogg", ".aac"):
-        raise ValueError("Unsupported audio format. Please upload MP3, WAV, M4A, OGG, or AAC.")
+    audio_exts = (".mp3", ".wav", ".m4a", ".ogg", ".aac")
+    video_exts = (".mp4", ".mov", ".mkv", ".webm", ".avi")
+    if ext not in audio_exts and ext not in video_exts:
+        raise ValueError("Unsupported format. Upload MP3/WAV/M4A/OGG/AAC audio or MP4/MOV/MKV/WebM video.")
 
-    if len(content) > 30 * 1024 * 1024:
-        raise ValueError("Audio file is too large (maximum 30MB).")
+    is_video = ext in video_exts
+    max_mb = 100 if is_video else 30
+    if len(content) > max_mb * 1024 * 1024:
+        raise ValueError(f"File is too large (maximum {max_mb}MB).")
 
     # Sanitize base stem
     stem = re.sub(r"[^\w\-]", "_", Path(filename).stem)[:40].strip("_") or "audio"
-    target_name = f"{stem}{ext}"
+    save_ext = ".mp3" if is_video else ext
+    target_name = f"{stem}{save_ext}"
     target_path = USER_AUDIO_DIR / target_name
 
     # Avoid overwrite collision if file with same name exists
     counter = 1
     while target_path.exists():
-        target_name = f"{stem}_{counter}{ext}"
+        target_name = f"{stem}_{counter}{save_ext}"
         target_path = USER_AUDIO_DIR / target_name
         counter += 1
 
-    target_path.write_bytes(content)
+    if is_video:
+        with tempfile.NamedTemporaryFile(suffix=ext, delete=False) as tf:
+            tf.write(content)
+            tmp_vid = Path(tf.name)
+        try:
+            res = subprocess.run(
+                ["ffmpeg", "-y", "-v", "error", "-i", str(tmp_vid), "-vn", "-acodec", "libmp3lame", "-q:a", "2", str(target_path)],
+                capture_output=True, text=True, timeout=60,
+            )
+            if res.returncode != 0 or not target_path.is_file() or target_path.stat().st_size < 100:
+                target_path.unlink(missing_ok=True)
+                raise ValueError("Could not extract audio from this video (no audio track found).")
+        finally:
+            tmp_vid.unlink(missing_ok=True)
+    else:
+        target_path.write_bytes(content)
+
     track_id = f"custom_{target_path.stem}"
     display_title = target_path.stem.replace("_", " ").replace("-", " ").title()
 
     return {
         "id": track_id,
         "title": display_title,
-        "emoji": "📁",
+        "emoji": "🎬" if is_video else "📁",
         "category": "custom",
-        "desc": f"Custom uploaded audio ({target_path.name})",
+        "desc": f"Extracted from video ({Path(filename).name})" if is_video else f"Custom uploaded audio ({target_path.name})",
         "duration": 0,
         "filename": target_path.name,
         "url": f"/api/audio/track/{track_id}"

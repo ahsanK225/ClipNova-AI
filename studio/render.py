@@ -1082,6 +1082,36 @@ def _render_in(work: Path, src: Path, out_dir: Path, name: str, start, end, layo
     af_chain = ",".join(af_filters)
     vf_extra = (f",{VIDEO_FILTERS[video_filter]}" if (video_filter and video_filter in VIDEO_FILTERS) else "") + _vfx_ffmpeg_chain(vfx_cues)
 
+    def _custom_vfx_chain(s_args, in_lbl="[v_base]", out_lbl="[v]"):
+        from . import vfx as _vfx_mod
+        cues = [vc for vc in (vfx_cues or [])[:8] if isinstance(vc, dict) and str(vc.get("type") or "").startswith("custom_")]
+        resolved = []
+        for vc in cues:
+            vp = _vfx_mod.resolve_path(str(vc.get("type") or ""))
+            if vp and vp.is_file():
+                resolved.append((vc, vp))
+        if not resolved:
+            return None
+        parts = []
+        cur_v = in_lbl
+        for idx, (vc, vp) in enumerate(resolved):
+            inp_idx = len([x for x in s_args if x == "-i"])
+            t0 = max(0.0, float(vc.get("time") or 0.0))
+            vdur = _vfx_mod._probe_duration(vp)
+            if vp.suffix.lower() == ".gif":
+                s_args += ["-ignore_loop", "0", "-itsoffset", f"{t0:.3f}", "-i", str(vp.resolve())]
+            else:
+                s_args += ["-itsoffset", f"{t0:.3f}", "-i", str(vp.resolve())]
+            v_lbl = f"[cvfx{idx}]"
+            nxt_v = out_lbl if idx == len(resolved) - 1 else f"[vcv{idx}]"
+            parts.append(
+                f"[{inp_idx}:v]scale={W}:{H}:force_original_aspect_ratio=increase,"
+                f"crop={W}:{H},format=rgba,colorkey=0x000000:0.12:0.15{v_lbl};"
+                f"{cur_v}{v_lbl}overlay=0:0:enable='between(t,{t0:.2f},{t0 + vdur:.2f})':eof_action=pass{nxt_v}"
+            )
+            cur_v = nxt_v
+        return ";" + ";".join(parts)
+
     total_out_dur = dur
     if segments and len(segments) >= 1:
         seek_args = []
@@ -1107,7 +1137,9 @@ def _render_in(work: Path, src: Path, out_dir: Path, name: str, start, end, layo
 
         fc = concat_fc + _filter(layout, fg_h, face, facecam_pos=facecam_pos, facecam_delay=facecam_delay,
                      facecam_offset_y=facecam_offset_y, game_offset_x=game_offset_x, zoom=zoom,
-                     custom_layout=custom_layout, vin="v_raw") + f"[v0]ass={name}.ass:fontsdir='{FONTS_DIR}'{vf_extra}[v]{audio_filter}"
+                     custom_layout=custom_layout, vin="v_raw") + f"[v0]ass={name}.ass:fontsdir='{FONTS_DIR}'{vf_extra}"
+        cv = _custom_vfx_chain(seek_args, "[v_base]", "[v]")
+        fc += (f"[v_base]{cv}" if cv else "[v]") + audio_filter
         base = ["ffmpeg", "-y", "-v", "error"] + seek_args + [
                 "-filter_complex", fc, "-map", "[v]", "-map", "[a]",
                 "-avoid_negative_ts", "make_zero",
@@ -1125,7 +1157,9 @@ def _render_in(work: Path, src: Path, out_dir: Path, name: str, start, end, layo
 
         fc = concat_fc + _filter(layout, fg_h, face, facecam_pos=facecam_pos, facecam_delay=facecam_delay,
                      facecam_offset_y=facecam_offset_y, game_offset_x=game_offset_x, zoom=zoom,
-                     custom_layout=custom_layout, vin="v_raw") + f"[v0]ass={name}.ass:fontsdir='{FONTS_DIR}'{vf_extra}[v]{audio_filter}"
+                     custom_layout=custom_layout, vin="v_raw") + f"[v0]ass={name}.ass:fontsdir='{FONTS_DIR}'{vf_extra}"
+        cv = _custom_vfx_chain(seek_args, "[v_base]", "[v]")
+        fc += (f"[v_base]{cv}" if cv else "[v]") + audio_filter
         base = ["ffmpeg", "-y", "-v", "error"] + seek_args + [
                 "-filter_complex", fc, "-map", "[v]", "-map", "[a]",
                 "-avoid_negative_ts", "make_zero",
@@ -1137,7 +1171,9 @@ def _render_in(work: Path, src: Path, out_dir: Path, name: str, start, end, layo
         if has_mix:
             fc = _filter(layout, fg_h, face, facecam_pos=facecam_pos, facecam_delay=facecam_delay,
                          facecam_offset_y=facecam_offset_y, game_offset_x=game_offset_x, zoom=zoom,
-                         custom_layout=custom_layout) + f"[v0]ass={name}.ass:fontsdir='{FONTS_DIR}'{vf_extra}[v]{audio_filter}"
+                         custom_layout=custom_layout) + f"[v0]ass={name}.ass:fontsdir='{FONTS_DIR}'{vf_extra}"
+            cv = _custom_vfx_chain(seek_args, "[v_base]", "[v]")
+            fc += (f"[v_base]{cv}" if cv else "[v]") + audio_filter
             base = ["ffmpeg", "-y", "-v", "error"] + seek_args + [
                     "-filter_complex", fc, "-map", "[v]", "-map", "[a]",
                     "-avoid_negative_ts", "make_zero",
@@ -1146,7 +1182,9 @@ def _render_in(work: Path, src: Path, out_dir: Path, name: str, start, end, layo
         else:
             fc = _filter(layout, fg_h, face, facecam_pos=facecam_pos, facecam_delay=facecam_delay,
                          facecam_offset_y=facecam_offset_y, game_offset_x=game_offset_x, zoom=zoom,
-                         custom_layout=custom_layout) + f"[v0]ass={name}.ass:fontsdir='{FONTS_DIR}'{vf_extra}[v]"
+                         custom_layout=custom_layout) + f"[v0]ass={name}.ass:fontsdir='{FONTS_DIR}'{vf_extra}"
+            cv = _custom_vfx_chain(seek_args, "[v_base]", "[v]")
+            fc += f"[v_base]{cv}" if cv else "[v]"
             base = ["ffmpeg", "-y", "-v", "error"] + seek_args + [
                     "-filter_complex", fc, "-map", "[v]", "-map", "0:a:0",
                     "-af", af_chain,

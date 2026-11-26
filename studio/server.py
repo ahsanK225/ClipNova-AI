@@ -1763,7 +1763,7 @@ def get_studio_project(jid: str, cid: str):
         },
         "available_sounds": audio.list_tracks(),
         "available_filters": filters,
-        "available_vfx": vfx_presets,
+        "available_vfx": vfx_presets + __import__("studio.vfx", fromlist=["list_custom"]).list_custom(),
         "available_stickers": stickers
     }
 
@@ -1959,6 +1959,29 @@ async def audio_upload(file: UploadFile = File(...)):
         return {"ok": True, "track": track}
     except ValueError as err:
         raise HTTPException(400, str(err))
+
+
+@app.post("/api/vfx/upload")
+async def vfx_upload(file: UploadFile = File(...)):
+    from . import vfx
+    if not file.filename:
+        raise HTTPException(400, "No file provided.")
+    content = await file.read()
+    try:
+        item = vfx.save_upload(file.filename, content)
+        return {"ok": True, "vfx": item}
+    except ValueError as err:
+        raise HTTPException(400, str(err))
+
+
+@app.get("/api/vfx/file/{vid}")
+def vfx_file(vid: str):
+    from . import vfx
+    p = vfx.resolve_path(vid)
+    if not p or not p.is_file():
+        raise HTTPException(404, "VFX file not found")
+    mt = "image/gif" if p.suffix.lower() == ".gif" else ("video/webm" if p.suffix.lower() == ".webm" else "video/mp4")
+    return FileResponse(p, media_type=mt, headers={"Cache-Control": "public, max-age=604800"})
 
 
 # ================================================================ creators and live recording

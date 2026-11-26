@@ -1,6 +1,15 @@
 ﻿# Changelog
 All notable project changes are documented here.
 
+## [2026-11-26] — Video-to-Sound Extraction & Custom VFX Uploads
+
+### Added
+- **Extract Sound/Music from Video (`PeakCut/studio/audio.py`, `PeakCut/web/index.html`)**:
+  - Updated `audio.save_upload()` to accept video files (`.mp4`, `.mov`, `.mkv`, `.webm`, `.avi` up to 100MB) and extract only the audio track via `ffmpeg` (`libmp3lame`) into the user's soundboard/BGM library.
+- **Custom VFX Upload & Overlay Rendering (`PeakCut/studio/vfx.py`, `PeakCut/studio/server.py`, `PeakCut/studio/render.py`, `PeakCut/web/index.html`)**:
+  - Added `studio/vfx.py`, `POST /api/vfx/upload`, and `GET /api/vfx/file/{vid}` for user-uploaded `.mp4`, `.mov`, `.webm`, and `.gif` VFX overlays.
+  - Added `📤 Upload My VFX` button in Studio's Effects & VFX tab, live `mix-blend-mode: screen` preview in `studioTriggerVfx()`, and FFmpeg colorkey + timed `overlay` rendering in `render.py`.
+
 ## [2026-11-26] — Multi-Clip Mouse Timeline & Split Editor (`PeakCut/web/index.html`)
 
 ### Added
