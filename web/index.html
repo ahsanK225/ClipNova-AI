@@ -5602,8 +5602,8 @@ function renderStudioDrawerContent() {
 
   if (_studioDrawerTab === "audio") {
     const sounds = _studioProj.available_sounds || [];
-    const sfxList = sounds.filter(s => s.category === "meme" || s.category === "custom");
-    const bgmList = sounds.filter(s => s.category !== "meme");
+    const sfxList = sounds.filter(s => s.category === "custom");
+    const bgmList = sounds.filter(s => s.category === "none" || s.category === "custom");
     return `
       <div style="display:flex;flex-direction:column;gap:12px">
         <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px">
@@ -5627,7 +5627,7 @@ function renderStudioDrawerContent() {
         </div>
 
         <div id="studio_meme_sfx_grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(215px,1fr));gap:8px;max-height:175px;overflow-y:auto;padding-right:2px">
-          ${sfxList.map(s => `
+          ${sfxList.length ? sfxList.map(s => `
             <div style="background:#131B2E;border:1px solid #1E293B;border-radius:10px;padding:8px 10px;display:flex;flex-direction:column;gap:6px">
               <div style="display:flex;align-items:center;justify-content:space-between;gap:6px">
                 <b style="font-size:12px;color:#F8FAFC;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(s.emoji || "🔊")} ${esc(s.title || s.name || s.id)}</b>
@@ -5645,7 +5645,7 @@ function renderStudioDrawerContent() {
                 </button>
               </div>
             </div>
-          `).join("")}
+          `).join("") : `<div style="grid-column:1/-1;padding:16px;text-align:center;font-size:12px;color:#94A3B8;background:#0F172A;border:1px dashed #334155;border-radius:10px">📁 Abhi koi sound import nahi hua — upar <b>Import Folder</b> ya <b>Upload Sound / Video</b> se apne sounds add karein!</div>`}
         </div>
 
         <div style="background:#0F172A;border:1px solid #1E293B;border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:10px">
