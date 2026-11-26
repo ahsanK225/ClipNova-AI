@@ -931,10 +931,22 @@ def render_clip(src: Path, out_dir: Path, name: str, clip: dict, words: list, sr
         teaser_enabled = False
         teaser_dur = 0.0
     else:
-        active_words = words if clip.get("captions", True) else []
-        if active_words and clip.get("streamer_only_captions"):
-            speech_win = facecam.detect_speech_windows(src, start, end, face, src_w, src_h)
-            active_words = filter_streamer_words(active_words, speech_win)
+        active_words = words if (clip.get("captions", True) or clip.get("streamer_only_captions")) else []
+        if active_words and clip.get("streamer_only_captions") and not clip.get("manual_words"):
+            det_face = face
+            if layout == "custom" and isinstance(custom_layout, dict) and custom_layout.get("facecam") and src_w > 0 and src_h > 0:
+                cf = custom_layout["facecam"]
+                if len(cf) == 4:
+                    det_face = [
+                        int(round(float(cf[0]) * src_w / 1920.0)),
+                        int(round(float(cf[1]) * src_h / 1080.0)),
+                        int(round(float(cf[2]) * src_w / 1920.0)),
+                        int(round(float(cf[3]) * src_h / 1080.0)),
+                    ]
+            speech_win = facecam.detect_speech_windows(src, start, end, det_face, src_w, src_h)
+            filtered = filter_streamer_words(active_words, speech_win)
+            if filtered and (len(active_words) < 4 or len(filtered) >= max(2, int(len(active_words) * 0.2))):
+                active_words = filtered
 
         ass = build_ass(active_words, start, end, clip.get("hook", ""), clip.get("style", "bounce"),
                         clip.get("highlight_words", []), hook_y, cap_y, hook_style,
