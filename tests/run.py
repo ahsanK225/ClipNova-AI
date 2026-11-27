@@ -80,7 +80,8 @@ def main() -> int:
                 ("phase 2 upgrades: word editor, multi-frame live AI, full-cam check, UI filter", ["tests/test_phase2_upgrades.py"]),
                 ("phase 3 upgrades: YT/Kick chat feeds, community UX, silence trim, delta sync, modular split", ["tests/test_phase3_upgrades.py"]),
                 ("nextgen upgrade: Google GenAI SDK, free-tier policy, 2-pass multimodal, dedupe & unified Shorts UI", ["tests/test_nextgen_upgrade.py"]),
-                ("youtube agent intelligence: hook formulas, title pairing lint, retention leaks, EDL & chapters", ["tests/test_yt_intel.py", BASE])]
+                ("youtube agent intelligence: hook formulas, title pairing lint, retention leaks, EDL & chapters", ["tests/test_yt_intel.py", BASE]),
+                ("signature brand editing: mid-clip jump cuts, real FFmpeg zoom/shake VFX, custom SFX & watermark", ["tests/test_auto_edit.py"])]
         for name, args in runs:
             print(f"\n=== {name} ===", flush=True)
             r = subprocess.run([sys.executable, *args], cwd=ROOT, env=env, capture_output=True, text=True, encoding="utf-8", errors="replace")

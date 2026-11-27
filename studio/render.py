@@ -413,7 +413,7 @@ def filter_streamer_words(words: list, speech_windows: list[tuple[float, float]]
     return out
 
 
-def build_ass(words, start, end, hook, style_name, highlight, hook_y, cap_y, hook_style=None, outro_cta=True, outro_text=None, hook_w=None, hook_font_size=None, hook_x=None, teaser_dur=0.0) -> str:
+def build_ass(words, start, end, hook, style_name, highlight, hook_y, cap_y, hook_style=None, outro_cta=True, outro_text=None, hook_w=None, hook_font_size=None, hook_x=None, teaser_dur=0.0, brand_watermark: str | None = None) -> str:
     st = STYLES.get(style_name, STYLES["bounce"])
     cfg = HOOK_STYLES.get(hook_style or "")
     if not cfg:
@@ -451,6 +451,13 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     ev = _hook_events(_clean(hook), dur, hook_y, style_name, hook_style, max_w=hook_w, font_size=hook_font_size, x=hook_x, highlight=strong, teaser_dur=teaser_dur)
     if outro_cta and dur >= 5.0:
         ev.extend(_outro_events(dur, outro_text, y=1680))
+    wm_clean = _clean(brand_watermark or "").strip() if brand_watermark else ""
+    if wm_clean and dur >= 2.0:
+        # Subtle corner channel watermark inside safe margin (avoids right-side YouTube icons & bottom captions)
+        ev.append(
+            f"Dialogue: 2,{_ts(0.0)},{_ts(dur)},Hook,,0,0,0,,"
+            f"{{\\an4\\pos(52,1585)\\fs22\\b1\\1c&H00FFFFFF&\\1a&H7A&\\bord1.5\\3c&H00000000&\\3a&H88&\\shad1}}{wm_clean}"
+        )
     f = _Font.get(st["font"])
 
     # Robust Timeline Normalization:
@@ -772,8 +779,8 @@ def _encode_with_fallback(base: list[str], out_target: str, *, cwd=None, preset_
         if _amf_ok is not False and "h264_amf" in avail:
             encoders.append(("amf", [
                 "nv12", "-c:v", "h264_amf", "-usage", "high_quality", "-quality", "quality",
-                "-rc", "cqp", "-qp_i", "14" if preset_2k else "15", "-qp_p", "15" if preset_2k else "16",
-                "-qp_b", "16" if preset_2k else "18", "-profile:v", "high",
+                "-rc", "cqp", "-qp_i", "17" if preset_2k else "18", "-qp_p", "18" if preset_2k else "19",
+                "-qp_b", "19" if preset_2k else "21", "-profile:v", "high",
                 *([] if preset_2k else ["-level", "4.2"]), "-g", "60",
                 "-color_primaries", "bt709", "-color_trc", "bt709", "-colorspace", "bt709", "-color_range", "tv",
             ]))
@@ -829,6 +836,7 @@ def scale_to_2k(src: Path, dst: Path) -> None:
 
 
 VIDEO_FILTERS = {
+    "brand_pop": "eq=contrast=1.08:saturation=1.16:gamma=1.02,unsharp=5:5:0.45:3:3:0.0",
     "vibrant": "eq=saturation=1.3:contrast=1.1",
     "cinematic": "eq=contrast=1.15:brightness=-0.03",
     "moody": "eq=contrast=1.2:brightness=-0.08",
@@ -927,7 +935,8 @@ def render_clip(src: Path, out_dir: Path, name: str, clip: dict, words: list, sr
         ass = build_ass(remapped, 0.0, max(0.1, cum_t), clip.get("hook", ""), clip.get("style", "bounce"),
                         clip.get("highlight_words", []), hook_y, cap_y, hook_style,
                         outro_cta=clip.get("outro_cta", True), outro_text=clip.get("outro_text"),
-                        hook_w=hook_w, hook_font_size=hook_fs, hook_x=hook_x, teaser_dur=0.0)
+                        hook_w=hook_w, hook_font_size=hook_fs, hook_x=hook_x, teaser_dur=0.0,
+                        brand_watermark=clip.get("brand_watermark"))
         teaser_enabled = False
         teaser_dur = 0.0
     else:
@@ -951,7 +960,8 @@ def render_clip(src: Path, out_dir: Path, name: str, clip: dict, words: list, sr
         ass = build_ass(active_words, start, end, clip.get("hook", ""), clip.get("style", "bounce"),
                         clip.get("highlight_words", []), hook_y, cap_y, hook_style,
                         outro_cta=clip.get("outro_cta", True), outro_text=clip.get("outro_text"),
-                        hook_w=hook_w, hook_font_size=hook_fs, hook_x=hook_x, teaser_dur=teaser_dur)
+                        hook_w=hook_w, hook_font_size=hook_fs, hook_x=hook_x, teaser_dur=teaser_dur,
+                        brand_watermark=clip.get("brand_watermark"))
     # The clip is made in a short work folder and moved into place afterwards. The caption step of ffmpeg cannot
     # open files whose full path is longer than 260 characters on Windows, which a data folder deep inside other
     # folders easily reaches. Inside the work folder every name is short and relative (a drive colon would also
@@ -978,8 +988,48 @@ def render_clip(src: Path, out_dir: Path, name: str, clip: dict, words: list, sr
         shutil.rmtree(work, ignore_errors=True)
 
 
+def _vfx_motion_chain(vfx_cues) -> str:
+    """Build single-pass real FFmpeg zoom/shake motion filter BEFORE subtitle burn-in so captions stay crisp."""
+    if not isinstance(vfx_cues, list) or not vfx_cues:
+        return ""
+    z_terms = []
+    sx_terms = []
+    sy_terms = []
+    for vc in vfx_cues[:20]:
+        if not isinstance(vc, dict):
+            continue
+        vt = str(vc.get("type") or "")
+        try:
+            t0 = max(0.0, float(vc.get("time", 0.0)))
+        except (ValueError, TypeError):
+            continue
+        if vt == "zoom_punch":
+            d = 0.42
+            z_terms.append(f"if(between(t,{t0:.2f},{t0+d:.2f}),0.16*sin((t-{t0:.2f})/{d:.2f}*PI),0)")
+        elif vt == "slow_zoom":
+            d = 2.60
+            z_terms.append(f"if(between(t,{t0:.2f},{t0+d:.2f}),0.10*(t-{t0:.2f})/{d:.2f},0)")
+        elif vt == "shake":
+            d = 0.40
+            z_terms.append(f"if(between(t,{t0:.2f},{t0+d:.2f}),0.09,0)")
+            sx_terms.append(f"if(between(t,{t0:.2f},{t0+d:.2f}),sin(t*58)*iw*0.024,0)")
+            sy_terms.append(f"if(between(t,{t0:.2f},{t0+d:.2f}),cos(t*49)*ih*0.018,0)")
+    if not z_terms:
+        return ""
+    z_expr = "+".join(z_terms)
+    x_off = ("+" + "+".join(sx_terms)) if sx_terms else ""
+    y_off = ("+" + "+".join(sy_terms)) if sy_terms else ""
+    return (
+        f"[v0]crop=w='trunc(max(iw*0.72,min(iw,iw/(1+({z_expr}))))/2)*2'"
+        f":h='trunc(max(ih*0.72,min(ih,ih/(1+({z_expr}))))/2)*2'"
+        f":x='max(0,min(iw-ow,(iw-ow)/2{x_off}))'"
+        f":y='max(0,min(ih-oh,(ih-oh)/2{y_off}))'"
+        f",scale={W}:{H}:eval=frame,setsar=1[vm];[vm]"
+    )
+
+
 def _vfx_ffmpeg_chain(vfx_cues) -> str:
-    """Build timed FFmpeg video filter expressions for placed VFX cues."""
+    """Build timed FFmpeg color/impact expressions for placed VFX cues (flash, wasted, rage, glitch)."""
     if not isinstance(vfx_cues, list) or not vfx_cues:
         return ""
     parts = []
@@ -999,9 +1049,6 @@ def _vfx_ffmpeg_chain(vfx_cues) -> str:
             parts.append(f"colorchannelmixer=rr=1.55:gg=0.62:bb=0.62:enable='between(t,{t0:.2f},{t0+0.80:.2f})'")
         elif vt in ("glitch", "strobe"):
             parts.append(f"negate=enable='between(t,{t0:.2f},{t0+0.16:.2f})'")
-        elif vt in ("shake", "zoom_punch", "slow_zoom"):
-            dur_fx = 1.0 if vt == "slow_zoom" else 0.40
-            parts.append(f"eq=contrast=1.24:saturation=1.28:enable='between(t,{t0:.2f},{t0+dur_fx:.2f})'")
     return ("," + ",".join(parts)) if parts else ""
 
 
@@ -1124,6 +1171,7 @@ def _render_in(work: Path, src: Path, out_dir: Path, name: str, start, end, layo
             out_f.append(f"{VIDEO_FILTERS[ft]}:enable='between(t,{t0:.2f},{t0 + fd:.2f})'")
         return ("," + ",".join(out_f)) if out_f else ""
 
+    vf_motion = _vfx_motion_chain(vfx_cues) or "[v0]"
     vf_extra = (f",{VIDEO_FILTERS[video_filter]}" if (video_filter and video_filter in VIDEO_FILTERS) else "") + _filter_cues_chain(filter_cues) + _vfx_ffmpeg_chain(vfx_cues)
 
     def _custom_vfx_chain(s_args, in_lbl="[v_base]", out_lbl="[v]"):
@@ -1181,7 +1229,7 @@ def _render_in(work: Path, src: Path, out_dir: Path, name: str, start, end, layo
 
         fc = concat_fc + _filter(layout, fg_h, face, facecam_pos=facecam_pos, facecam_delay=facecam_delay,
                      facecam_offset_y=facecam_offset_y, game_offset_x=game_offset_x, zoom=zoom,
-                     custom_layout=custom_layout, vin="v_raw") + f"[v0]ass={name}.ass:fontsdir='{FONTS_DIR}'{vf_extra}"
+                     custom_layout=custom_layout, vin="v_raw") + f"{vf_motion}ass={name}.ass:fontsdir='{FONTS_DIR}'{vf_extra}"
         cv = _custom_vfx_chain(seek_args, "[v_base]", "[v]")
         fc += (f"[v_base]{cv}" if cv else "[v]") + audio_filter
         base = ["ffmpeg", "-y", "-v", "error"] + seek_args + [
@@ -1201,7 +1249,7 @@ def _render_in(work: Path, src: Path, out_dir: Path, name: str, start, end, layo
 
         fc = concat_fc + _filter(layout, fg_h, face, facecam_pos=facecam_pos, facecam_delay=facecam_delay,
                      facecam_offset_y=facecam_offset_y, game_offset_x=game_offset_x, zoom=zoom,
-                     custom_layout=custom_layout, vin="v_raw") + f"[v0]ass={name}.ass:fontsdir='{FONTS_DIR}'{vf_extra}"
+                     custom_layout=custom_layout, vin="v_raw") + f"{vf_motion}ass={name}.ass:fontsdir='{FONTS_DIR}'{vf_extra}"
         cv = _custom_vfx_chain(seek_args, "[v_base]", "[v]")
         fc += (f"[v_base]{cv}" if cv else "[v]") + audio_filter
         base = ["ffmpeg", "-y", "-v", "error"] + seek_args + [
@@ -1215,7 +1263,7 @@ def _render_in(work: Path, src: Path, out_dir: Path, name: str, start, end, layo
         if has_mix:
             fc = _filter(layout, fg_h, face, facecam_pos=facecam_pos, facecam_delay=facecam_delay,
                          facecam_offset_y=facecam_offset_y, game_offset_x=game_offset_x, zoom=zoom,
-                         custom_layout=custom_layout) + f"[v0]ass={name}.ass:fontsdir='{FONTS_DIR}'{vf_extra}"
+                         custom_layout=custom_layout) + f"{vf_motion}ass={name}.ass:fontsdir='{FONTS_DIR}'{vf_extra}"
             cv = _custom_vfx_chain(seek_args, "[v_base]", "[v]")
             fc += (f"[v_base]{cv}" if cv else "[v]") + audio_filter
             base = ["ffmpeg", "-y", "-v", "error"] + seek_args + [
@@ -1226,7 +1274,7 @@ def _render_in(work: Path, src: Path, out_dir: Path, name: str, start, end, layo
         else:
             fc = _filter(layout, fg_h, face, facecam_pos=facecam_pos, facecam_delay=facecam_delay,
                          facecam_offset_y=facecam_offset_y, game_offset_x=game_offset_x, zoom=zoom,
-                         custom_layout=custom_layout) + f"[v0]ass={name}.ass:fontsdir='{FONTS_DIR}'{vf_extra}"
+                         custom_layout=custom_layout) + f"{vf_motion}ass={name}.ass:fontsdir='{FONTS_DIR}'{vf_extra}"
             cv = _custom_vfx_chain(seek_args, "[v_base]", "[v]")
             fc += f"[v_base]{cv}" if cv else "[v]"
             base = ["ffmpeg", "-y", "-v", "error"] + seek_args + [

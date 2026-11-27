@@ -14,7 +14,7 @@ import traceback
 import uuid
 from pathlib import Path
 
-from . import ai, brain, config, creators, ctx, facecam, fetch_model, games, hashtags, load, media, quality, render, roman, safe, transcribe, usage, yt_intel
+from . import ai, auto_edit, brain, config, creators, ctx, facecam, fetch_model, games, hashtags, load, media, quality, render, roman, safe, transcribe, usage, yt_intel
 
 
 def resolve_uploader_name(job: dict) -> str:
@@ -126,7 +126,8 @@ on_clip_ready: list = []   # callbacks (job, clip), run once when a clip first f
 DEFAULTS = {"max_clips": 6, "min_len": 15, "max_len": 60, "style": "bounce", "layout": "split_half", "quality": 1080,
             "range_start": None, "range_end": None, "captions": True, "facecam_pos": "top-right",
             "audio_delay": 0.0, "facecam_delay": 0.0, "hook_style": "neon", "outro_cta": True, "outro_text": "",
-            "hook_text": "", "description_text": "", "trim_silence": False, "streamer_only_captions": False, "lang": "en"}
+            "hook_text": "", "description_text": "", "trim_silence": False, "streamer_only_captions": False, "lang": "en",
+            "brand_style": "viral_gaming", "auto_tighten": True, "auto_sfx": True, "brand_watermark": ""}
 
 
 LIMITS = {"max_clips": (1, 20), "min_len": (5, 120), "max_len": (10, 180), "quality": (360, 1080)}
@@ -141,8 +142,15 @@ def clean_options(options) -> dict:
                 raise ValueError("Captions must be on or off.")
             out[k] = v
             continue
-        if k in ("outro_cta", "trim_silence", "streamer_only_captions", "manual_only"):
+        if k in ("outro_cta", "trim_silence", "streamer_only_captions", "manual_only", "auto_tighten", "auto_sfx"):
             out[k] = bool(v)
+            continue
+        if k == "brand_style":
+            bs = str(v or "").strip().lower()
+            out[k] = bs if bs in auto_edit.BRAND_PROFILES else DEFAULTS["brand_style"]
+            continue
+        if k == "brand_watermark":
+            out[k] = creators.clean_hook(v)[:32]
             continue
         if k in ("hook_text", "description_text"):     # kept even when empty: it clears the creator's own text for this video
             out[k] = creators.clean_hook(v) if k == "hook_text" else creators.clean_description(v)
@@ -1059,6 +1067,11 @@ def render_one(job, clip, words):
         if use_caps is None:
             use_caps = True
         clip["captions"] = bool(use_caps)
+
+        try:
+            auto_edit.apply_brand_edit(clip, job, cr, src, words or [])
+        except Exception:
+            pass
 
         local = dict(clip, start=clip["start"] - off, end=clip["end"] - off, hook=roman.to_roman(clip.get("hook") or ""))
         near = _caption_words(job, clip, words, off, src=src, local_start=local["start"], local_end=local["end"]) if use_caps else []

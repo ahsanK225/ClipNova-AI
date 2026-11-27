@@ -1,6 +1,21 @@
 ﻿# Changelog
 All notable project changes are documented here.
 
+## [2026-11-27] — Signature Viral Brand Auto-Editing Engine
+
+### Added
+- **Brand Auto-Edit Director (`PeakCut/studio/auto_edit.py`)**:
+  - Built signature brand editing profiles (`viral_gaming`, `chaos_meme`, `cinematic`, `clean`, `off`) applied automatically in `jobs.render_one()` while preserving manual Studio timeline overrides (`vfx_cues`, `sfx_cues`, `video_filter`, `segments`).
+  - Added `tighten_clip_segments()` (adapted from `ytb-edit-kit`'s `tighten.py` concept) to turn mid-clip dead-air gaps (`>0.85s`) into snappy jump cuts while remapping subtitles 1:1.
+  - Added `detect_climax_times()` (FFmpeg `astats` RMS energy + transcript excitement markers) and `pick_custom_sfx_tracks()` to place punchy SFX exclusively from the user's custom Sounds folder on climax beats.
+- **Real FFmpeg Motion VFX, `brand_pop` Grade & Watermark (`PeakCut/studio/render.py`, `PeakCut/studio/server.py`)**:
+  - Replaced placeholder contrast-only `zoom_punch` / `slow_zoom` / `shake` with `_vfx_motion_chain()` using single-pass dynamic FFmpeg `crop` + `scale=1080:1920:eval=frame` BEFORE ASS burn-in so captions and hook banners stay sharp.
+  - Added `brand_pop` crisp color + `unsharp` filter (`render.py` + Studio filter catalog) and optional `@handle` corner `brand_watermark` in `build_ass()`.
+- **Creator Brand Controls (`PeakCut/studio/creators.py`, `PeakCut/studio/jobs.py`, `PeakCut/web/index.html`)**:
+  - Added `brand_style`, `auto_tighten`, `auto_sfx`, and `brand_watermark` controls in Creator Setup (`#cform`) and job option cleaning.
+- **Test Suite (`PeakCut/tests/test_auto_edit.py`, `PeakCut/tests/run.py`)**:
+  - Added 37th suite verifying mid-clip jump cuts, custom-only SFX selection, Studio manual preservation, and real FFmpeg MP4 rendering with `zoom_punch`, `shake`, `flash`, `brand_pop`, and `brand_watermark`.
+
 ## [2026-11-27] — Topbar Tab Pill Height & Twitch Player Reload Button
 
 ### Fixed

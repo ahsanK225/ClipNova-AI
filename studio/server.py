@@ -1696,6 +1696,7 @@ def get_studio_project(jid: str, cid: str):
     
     filters = [
         {"id": "normal", "name": "Normal (Standard)", "css": "none"},
+        {"id": "brand_pop", "name": "✨ Brand Pop (Crisp)", "css": "contrast(1.08) saturate(1.16) brightness(1.02)", "ffmpeg": "eq=contrast=1.08:saturation=1.16:gamma=1.02,unsharp=5:5:0.45:3:3:0.0"},
         {"id": "vibrant", "name": "🔥 Vibrant Viral", "css": "saturate(1.3) contrast(1.1)", "ffmpeg": "eq=saturation=1.3:contrast=1.1"},
         {"id": "cinematic", "name": "🎬 Cinematic Film", "css": "contrast(1.15) brightness(0.95) sepia(0.1)", "ffmpeg": "eq=contrast=1.15:brightness=-0.03"},
         {"id": "moody", "name": "🌑 Moody Dark", "css": "contrast(1.2) brightness(0.9)", "ffmpeg": "eq=contrast=1.2:brightness=-0.08"},

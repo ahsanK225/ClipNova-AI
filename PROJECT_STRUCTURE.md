@@ -44,6 +44,7 @@ F:\Games\GTA 6 CLIPPING\
 │   │   ├── ai.py                           # Gemini multimodal vision (see_json), multi-key pool rotation, per-key live health testing & OpenRouter free models
 │   │   ├── asr.py                          # Speech recognition & word-level timing (sherpa-onnx)
 │   │   ├── audio.py                        # Audio engine: background music, viral meme sounds library, path security & safe uploads
+│   │   ├── auto_edit.py                    # Signature brand auto-editor (mid-clip jump cuts, climax RMS beats, real motion VFX & custom SFX placement)
 │   │   ├── brain.py                        # Universal grounding (anti-hallucination), multimodal scene analysis, dual AI judges & SEO
 │   │   ├── chat_feeds.py                   # Unified live chat feeds: Twitch IRC, YouTube InnerTube continuation poller & Kick v2 API (403-safe)
 │   │   ├── config.py                       # App configuration & environment parsing
@@ -73,7 +74,7 @@ F:\Games\GTA 6 CLIPPING\
 │   │   ├── server.py                       # FastAPI application, Gate, delta sync (/api/sync), static asset routes & mounted APIRouters
 │   │   ├── storage.py                      # Local file, clip & recording management
 │   │   └── yt_intel.py                     # Zero-dependency YouTube intelligence engine (21 hook formulas, title/cover pairing linter, retention CSV analyzer, dead-air/retake EDL, validated chapters, outlier ranker)
-│   ├── tests\                              # Test suite (36 comprehensive suites in run.py + standalone suites)
+│   ├── tests\                              # Test suite (37 comprehensive suites in run.py + standalone suites)
 │   │   ├── run.py                          # Master test runner (automated verification across 35 suites)
 │   │   ├── test_phase1_upgrades.py         # Phase 1 tests: atomic .bak recovery, GPU AMF/CPU fallback, ASR cache reuse, route dedup & yt_tags
 │   │   ├── test_phase2_upgrades.py         # Phase 2 tests: caption word editor API, multi-frame live AI, Roman Urdu pack, full-cam check & UI filter bar

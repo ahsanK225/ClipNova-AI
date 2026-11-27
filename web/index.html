@@ -7207,6 +7207,26 @@ function drawCreatorForm() {
       <div class="fields"><label class="sw span"><input type="checkbox" data-k="captions" data-caption-toggle ${c.captions === false ? "" : "checked"}>Generate captions</label>
         <label class="sw span"><input type="checkbox" data-k="streamer_only_captions" ${c.streamer_only_captions ? "checked" : ""} onchange="dirty(true);if(this.checked){const cap=this.closest('#cform')?.querySelector('[data-k=captions]');if(cap&&!cap.checked){cap.checked=true;cap.dispatchEvent(new Event('change',{bubbles:true}));}}"><span>🎙️ Streamer-Only Captions<small>Only show captions when the streamer speaks on facecam — skips in-game NPC dialogue &amp; cutscenes.</small></span></label>
         <label class="sw span"><input type="checkbox" data-k="trim_silence" ${c.trim_silence ? "checked" : ""}><span>Trim dead-air silence<small>Automatically trim &gt;2s quiet openings or trailing pauses without shifting subtitle sync.</small></span></label>
+        <div class="span" style="background:linear-gradient(135deg, rgba(16,185,129,0.08), rgba(0,240,255,0.06));border:1px solid rgba(0,240,255,0.28);border-radius:14px;padding:12px 14px;margin:4px 0">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+            <b style="font-size:13px;color:#00F0FF">🎬 Signature Viral Editing Brand</b>
+            <span style="font-size:10.5px;color:#94A3B8">Auto jump-cuts, real zoom/shake beats, color pop &amp; custom Sounds SFX</span>
+          </div>
+          <div class="two">
+            <label class="f" style="margin:0">Editing Brand Style<select data-k="brand_style">
+              <option value="viral_gaming" ${(!c.brand_style || c.brand_style === "viral_gaming") ? "selected" : ""}>🔥 Viral Gaming Signature (Zoom + Shake + Color Pop)</option>
+              <option value="chaos_meme" ${c.brand_style === "chaos_meme" ? "selected" : ""}>💀 Unhinged Meme Energy (Fast Cuts + Shake + Flash)</option>
+              <option value="cinematic" ${c.brand_style === "cinematic" ? "selected" : ""}>🎬 Cinematic Storyteller (Slow Zoom + Film Grade)</option>
+              <option value="clean" ${c.brand_style === "clean" ? "selected" : ""}>✨ Clean Minimal Pro (Tight Pauses + Crisp Color)</option>
+              <option value="off" ${c.brand_style === "off" ? "selected" : ""}>Raw / Manual Studio Only (No Auto-FX)</option>
+            </select></label>
+            <label class="f" style="margin:0">Channel Watermark Tag<input data-k="brand_watermark" value="${esc(c.brand_watermark || '')}" placeholder="e.g. @TheParadoxFiles (optional)" maxlength="32"></label>
+          </div>
+          <div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:8px">
+            <label class="sw" style="margin:0;font-size:12px"><input type="checkbox" data-k="auto_tighten" ${c.auto_tighten === false ? "" : "checked"}><span>✂️ Auto Mid-Clip Jump Cuts<small>Cuts dead pauses (&gt;0.85s) inside clips while keeping captions 1:1 synced.</small></span></label>
+            <label class="sw" style="margin:0;font-size:12px"><input type="checkbox" data-k="auto_sfx" ${c.auto_sfx === false ? "" : "checked"}><span>🔊 Auto Climax SFX (My Sounds Folder)<small>Drops your custom uploaded sound effects on the loudest reaction beat.</small></span></label>
+          </div>
+        </div>
         <label class="f">Caption style<select data-k="style" data-caption-style ${c.captions === false ? "disabled" : ""}>${opts(S.status.styles, c.style)}</select></label>
         <label class="f">Hook banner style<select data-k="hook_style">
           <option value="viral_yellow" ${c.hook_style === "viral_yellow" ? "selected" : ""}>⚡ Viral Floating (Yellow Punch) [No Box]</option>
