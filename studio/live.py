@@ -682,19 +682,19 @@ class Session:
                 # Use reaction loudness peak from judge 2 (sig)
                 trigger_t = float(match[0].get("start", c["start"] + 12.0))
 
-            max_short = min(max(35.0, float(st.get("max_len") or 40.0)), 45.0)
+            max_short = min(max(30.0, float(st.get("max_len") or 35.0)), 35.0)
             if trigger_t is not None:
-                # Golden timeline: trigger at ~11s into clip, followed by 25-28s post-roll reaction (~36-40s Short)
-                pre_r = 11.0
-                post_r = max(20.0, min(28.0, max_short - pre_r))
+                # Strict 30s Shorts timeline: ~9-10s lead-in + ~20-21s reaction (up to 32-35s max if payoff runs longer)
+                pre_r = 9.0
+                post_r = max(18.0, min(21.0, max_short - pre_r))
                 c["start"] = max(ws, round(trigger_t - pre_r, 2))
                 c["end"] = min(now, round(trigger_t + post_r, 2))
                 c["trigger_t"] = trigger_t
             else:
-                # Expand short snippets cleanly into 32-40s Shorts window with reaction aftermath
+                # Expand short snippets cleanly into ~30s Shorts window (max 32-35s)
                 c_dur = c["end"] - c["start"]
-                if c_dur < 32.0:
-                    expand = min(min(40.0, max_short) - c_dur, 18.0)
+                if c_dur < 28.0:
+                    expand = min(min(30.0, max_short) - c_dur, 12.0)
                     c["start"] = max(ws, round(c["start"] - expand * 0.3, 2))
                     c["end"] = min(now, round(c["end"] + expand * 0.7, 2))
             if c["end"] - c["start"] > max_short:
@@ -805,8 +805,8 @@ class Session:
         is_ohnepixel = "ohnepixel" in creator_val or "ohnepixel" in uploader_val or "ohnepixel" in channel_val
         is_master_pack = str(self.settings.get("trigger_words", "")).strip() == creators.MASTER_TRIGGER_WORDS.strip()
 
-        # Golden Retention Timeline: trigger occurs within first 10-15s (target 12s), followed by 25-30s reaction
-        pre_roll, post_roll = 12.0, 28.0
+        # Strict ~30s Shorts Timeline: 10s setup + 20s reaction (max 32-35s when overlapping)
+        pre_roll, post_roll = 10.0, 20.0
 
         if is_ohnepixel or is_master_pack:
             g = self._game()
@@ -825,8 +825,8 @@ class Session:
                         break
 
                 if match_t >= earliest_new - 8.0:
-                    max_short = min(max(35.0, float(self.settings.get("max_len") or 40.0)), 45.0)
-                    # Merge overlapping triggers within 15 seconds while keeping YouTube Short length (<= 40-45s)
+                    max_short = min(max(30.0, float(self.settings.get("max_len") or 35.0)), 35.0)
+                    # Merge overlapping triggers within 15 seconds while keeping strict YouTube Short length (<= 35s)
                     if match_t - self.last_trigger <= 15.0 and self.manual:
                         self.manual[-1]["end"] = max(self.manual[-1]["end"], match_t + post_roll)
                         if self.manual[-1]["end"] - self.manual[-1]["start"] > max_short:
@@ -879,8 +879,8 @@ class Session:
                 if window == parts or window_no_apos == parts_no_apos:
                     t = window_words[i]["s"]
                     if t >= earliest_new - 6.0:
-                        # Candidate merging if within 15s while keeping YouTube Short length (<= 40-45s)
-                        max_short = min(max(35.0, float(self.settings.get("max_len") or 40.0)), 45.0)
+                        # Candidate merging if within 15s while keeping strict YouTube Short length (<= 35s)
+                        max_short = min(max(30.0, float(self.settings.get("max_len") or 35.0)), 35.0)
                         if t - self.last_trigger <= 15.0 and self.manual:
                             self.manual[-1]["end"] = max(self.manual[-1]["end"], t + post_roll)
                             if self.manual[-1]["end"] - self.manual[-1]["start"] > max_short:
@@ -902,11 +902,59 @@ class Session:
     def _manual_step(self):
         ready = []
         for m in self.manual:
-            is_btn = m.get("source") == "manual" or (m.get("trigger_type") in (None, "manual") and m.get("why") in (None, "Hand", "Hand clip"))
+            is_btn = m.get("source") in ("manual", "copilot") or (m.get("trigger_type") in (None, "manual") and m.get("why") in (None, "Hand", "Hand clip"))
             vid_ready = m["end"] <= (self.seg_clock or (self.samples / SR))
             if self.ended or (vid_ready if is_btn else m["end"] <= self.t_done):
                 ready.append(m)
         for req in ready:
+            if req.get("source") == "copilot":
+                meta = dict(req.get("copilot_meta") or {})
+                self.manual.remove(req)
+                c_start = round(req["start"], 2)
+                c_end = round(min(req["end"], max(self.seg_clock or 0.0, self.samples / SR) or req["end"]), 2)
+                if c_end - c_start < 5.0:
+                    continue
+                tags_in = meta.get("seo_tags") or meta.get("tags") or []
+                if isinstance(tags_in, str):
+                    tags_in = [t.strip() for t in tags_in.split(",") if t.strip()]
+                ht_in = meta.get("hashtags") or []
+                if isinstance(ht_in, str):
+                    ht_in = [t.lstrip("#").strip() for t in re.split(r"[\s,]+", ht_in) if t.strip()]
+                title_val = str(meta.get("title") or "").strip()[:100]
+                seo_t = str(meta.get("seo_title") or title_val).strip()[:100]
+                if seo_t and "#shorts" not in seo_t.lower():
+                    seo_t = f"{seo_t} #Shorts"[:100].strip()
+                c = {
+                    "start": c_start,
+                    "end": c_end,
+                    "score": max(0, min(100, int(float(meta.get("score", 88) or 88)))),
+                    "category": str(meta.get("category") or "funny").lower().strip(),
+                    "hook": str(meta.get("hook") or "").strip()[:120],
+                    "hooks": [str(x).strip()[:80] for x in (meta.get("hooks") or []) if str(x).strip()][:5],
+                    "title": title_val,
+                    "titles": [str(x).strip()[:100] for x in (meta.get("titles") or []) if str(x).strip()][:4],
+                    "seo_title": seo_t,
+                    "description": str(meta.get("description") or "").strip()[:2000],
+                    "hashtags": ht_in[:10],
+                    "seo_tags": [str(t).strip() for t in tags_in if str(t).strip()][:20],
+                    "pinned_comment": str(meta.get("pinned_comment") or "").strip()[:500],
+                    "reason": str(meta.get("reason") or "Hand-picked & SEO-optimized by Antigravity Live Co-Pilot.")[:200],
+                    "source": "copilot",
+                    "clip_type": "copilot",
+                    "trigger_label": "Co-Pilot",
+                    "analysis_mode": "antigravity_copilot",
+                    "analysis_model": str(meta.get("model") or "antigravity-copilot"),
+                    "priority": "HIGH PRIORITY",
+                }
+                if meta.get("highlight_words"):
+                    c["highlight_words"] = [str(w).strip() for w in meta["highlight_words"] if str(w).strip()][:8]
+                edited = [k for k in ("hook", "title", "seo_title", "description", "hashtags", "seo_tags", "pinned_comment") if c.get(k)]
+                if edited:
+                    c["edited_fields"] = edited
+                    c["seo_for"] = [c_start, c_end]
+                    c["seo_stale"] = False
+                self._add_clip(c)
+                continue
             text = " ".join(w["w"] for w in self.words if req["start"] <= w["s"] <= req["end"])
             usage.set_context(self.job["creator"], self.job["title"] or "Live stream")
 
@@ -958,7 +1006,7 @@ class Session:
             c_start = round(req["start"], 2)
             c_end = round(min(req["end"], self.samples / SR), 2)
             if not is_button:
-                max_short = min(max(35.0, float(self.settings.get("max_len") or 40.0)), 45.0)
+                max_short = min(max(30.0, float(self.settings.get("max_len") or 35.0)), 35.0)
                 if c_end - c_start > max_short:
                     c_start = round(max(0.0, c_end - max_short), 2)
             c.update(
@@ -1237,6 +1285,152 @@ class Session:
         self._verdict({"t": round(end), "wall_t": time.time(), "transcript": round(seconds),
                        "reaction": None, "trigger": "Hand clip", "model": ai.last_active_model()},
                       f"✂️ Manual clip queued: cutting last {round(seconds)}s now…")
+
+    def clip_copilot(self, start: float, end: float, meta: dict | None = None) -> dict:
+        """Queue an exact [start, end] clip (20-35s Shorts) picked by an external Co-Pilot agent with custom SEO."""
+        meta = dict(meta or {})
+        s = max(0.0, float(start))
+        e = float(end)
+        if e <= s + 4.9:
+            raise ValueError("Clip must be at least 5 seconds long.")
+        max_short = 60.0 if meta.get("allow_long") else 35.0
+        if e - s > max_short:
+            s = round(max(0.0, e - max_short), 2)
+        with self.lock:
+            avail = max(self.seg_clock or 0.0, self.samples / SR)
+            if avail > 5.0 and s >= avail:
+                raise ValueError(f"Requested start ({s:.1f}s) is ahead of recorded stream ({avail:.1f}s).")
+            if not meta.get("force"):
+                for k in self.job.get("clips", []):
+                    if max(0.0, min(e, float(k.get("end", 0))) - max(s, float(k.get("start", 0)))) >= 10.0:
+                        raise ValueError(f"Overlaps existing clip {k.get('id')} ({k.get('start'):.1f}-{k.get('end'):.1f}s).")
+                for m in self.manual:
+                    if max(0.0, min(e, float(m.get("end", 0))) - max(s, float(m.get("start", 0)))) >= 10.0:
+                        raise ValueError("Overlaps another clip already queued for rendering.")
+            self.manual.append({
+                "start": round(s, 2),
+                "end": round(e, 2),
+                "source": "copilot",
+                "why": "Antigravity Co-Pilot",
+                "copilot_meta": meta,
+            })
+        self._verdict(
+            {"t": round(e), "wall_t": time.time(), "transcript": round(e - s), "reaction": int(meta.get("score") or 90),
+             "trigger": "Co-Pilot", "model": str(meta.get("model") or "antigravity-copilot")},
+            f"🤖 Co-Pilot clipped {round(s, 1)}–{round(e, 1)}s ({round(e - s, 1)}s): {str(meta.get('hook') or meta.get('title') or 'Viral moment')[:45]}",
+        )
+        return {"ok": True, "jid": self.job["id"], "creator": self.job.get("creator"), "start": round(s, 2), "end": round(e, 2), "dur": round(e - s, 2)}
+
+    def copilot_snapshot(self, window_sec: float = 240.0, max_frames: int = 6) -> dict:
+        """Return live transcript + audio/chat spikes + extracted frame paths for an Antigravity Co-Pilot watcher."""
+        with self.lock:
+            elapsed = round(self.samples / SR, 2)
+            t_done = round(self.t_done, 2)
+            buf_start = round(self.segments[0][1], 2) if self.segments else 0.0
+            buf_end = round(self.segments[-1][2], 2) if self.segments else 0.0
+            win_end = max(t_done, buf_end, elapsed)
+            win_start = max(buf_start, win_end - max(30.0, float(window_sec)))
+            words_slice = [dict(w) for w in self.words if win_start <= w["s"] <= win_end]
+            db_arr = np.array(self.db, dtype=np.float32) if len(self.db) >= 5 else None
+            chat_copy = dict(self.chat) if (self.chat_on or self.chat_total) else {}
+            recent_chat = list(self.recent_chat_msgs)[-12:]
+            segs_copy = list(self.segments)
+            clips_summary = [
+                {
+                    "id": k.get("id"),
+                    "start": k.get("start"),
+                    "end": k.get("end"),
+                    "dur": round(float(k.get("end", 0)) - float(k.get("start", 0)), 2),
+                    "status": k.get("status"),
+                    "score": k.get("score"),
+                    "hook": k.get("hook"),
+                    "title": k.get("title"),
+                    "source": k.get("source"),
+                    "analysis_mode": k.get("analysis_mode"),
+                }
+                for k in self.job.get("clips", [])[-20:]
+            ]
+        z = brain.loud_zscore(db_arr) if db_arr is not None else None
+        lo_i, hi_i = max(0, int(win_start)), int(win_end) + 1
+        loud_spikes = []
+        if z is not None and len(z) > lo_i:
+            sub_z = z[lo_i:min(len(z), hi_i)]
+            top_idx = np.argsort(-sub_z)[:8]
+            for idx in top_idx:
+                val = float(sub_z[idx])
+                if val >= 1.2:
+                    loud_spikes.append({"t": round(float(lo_i + idx), 1), "z": round(val, 2)})
+            loud_spikes.sort(key=lambda x: x["t"])
+        chat_spikes = []
+        if chat_copy:
+            pts = [(t, chat_copy.get(t, 0)) for t in range(lo_i, hi_i) if chat_copy.get(t, 0) > 0]
+            if pts:
+                avg_c = max(1.0, sum(c for _, c in pts) / max(1, (hi_i - lo_i)))
+                pts.sort(key=lambda x: -x[1])
+                for t_s, cnt in pts[:6]:
+                    if cnt >= max(3, int(avg_c * 2.0)):
+                        chat_spikes.append({"t": round(float(t_s), 1), "msgs": cnt})
+                chat_spikes.sort(key=lambda x: x["t"])
+
+        def _is_chat_hot(s_a, e_b):
+            return any(s_a - 2 <= cs["t"] <= e_b + 2 for cs in chat_spikes)
+
+        lines = brain.make_lines(words_slice, loud=z, chat=_is_chat_hot if chat_spikes else None)
+        transcript_lines = [
+            f"[{l['s']:.1f}-{l['e']:.1f}] {'[LOUD] ' if l.get('loud') else ''}{'[CHAT] ' if l.get('chat') else ''}{l.get('text', '')}"
+            for l in lines
+        ]
+
+        frame_paths = []
+        n_frames = max(0, min(10, int(max_frames or 0)))
+        if n_frames > 0 and segs_copy and (buf_end > buf_start + 1.0):
+            fdir = config.TMP_DIR / "copilot" / str(self.job["id"])
+            fdir.mkdir(parents=True, exist_ok=True)
+            for old in fdir.glob("frame_*.jpg"):
+                old.unlink(missing_ok=True)
+            # Prioritize spike timestamps first, then fill evenly across visible buffer window
+            f_lo = max(buf_start + 0.5, win_start)
+            f_hi = max(f_lo + 1.0, buf_end - 0.5)
+            cand_ts = []
+            for sp in loud_spikes[:3]:
+                if f_lo <= sp["t"] <= f_hi and all(abs(sp["t"] - x) >= 6.0 for x in cand_ts):
+                    cand_ts.append(sp["t"])
+            step = max(2.0, (f_hi - f_lo) / max(1, n_frames))
+            t_cur = f_lo + step * 0.5
+            while len(cand_ts) < n_frames and t_cur <= f_hi:
+                if all(abs(t_cur - x) >= 5.0 for x in cand_ts):
+                    cand_ts.append(round(t_cur, 1))
+                t_cur += step
+            cand_ts = sorted(cand_ts[:n_frames])
+            for idx, ts in enumerate(cand_ts, 1):
+                seg = next((sg for sg in segs_copy if sg[1] <= ts <= sg[2]), None) or min(segs_copy, key=lambda sg: abs(((sg[1] + sg[2]) / 2.0) - ts))
+                if seg[0].is_file():
+                    blob = jobs._extract_frame_bytes(seg[0], max(0.0, ts - seg[1]))
+                    if blob:
+                        fp = fdir / f"frame_{idx:02d}_{ts:.1f}s.jpg"
+                        fp.write_bytes(blob)
+                        frame_paths.append({"t": ts, "path": str(fp)})
+
+        return {
+            "jid": self.job["id"],
+            "creator": self.job.get("creator"),
+            "title": self.job.get("title"),
+            "uploader": self.job.get("uploader"),
+            "game": self._game(),
+            "channel": getattr(self, "channel", None) or (self.job.get("source") or {}).get("url"),
+            "elapsed": elapsed,
+            "t_done": t_done,
+            "buffer_start": buf_start,
+            "buffer_end": buf_end,
+            "buffer_sec": round(max(0.0, buf_end - buf_start), 1),
+            "pending_queue": len(self.manual),
+            "loudness_spikes": loud_spikes,
+            "chat_spikes": chat_spikes,
+            "recent_chat": recent_chat,
+            "transcript": transcript_lines,
+            "frames": frame_paths,
+            "clips": clips_summary,
+        }
 
     def _publish(self):
         elapsed = self.samples / SR

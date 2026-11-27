@@ -1,6 +1,19 @@
 ﻿# Changelog
 All notable project changes are documented here.
 
+## [2026-11-27] — Strict 30–35s Rage/Mistake/Masti Shorts & Antigravity Live Co-Pilot Bridge
+
+### Added
+- **Antigravity Live Co-Pilot Bridge (`PeakCut/studio/live.py`, `PeakCut/studio/server.py`, `PeakCut/scripts/live_copilot.py`)**:
+  - Added `Session.copilot_snapshot()` + `GET /api/live/copilot` returning live transcripts, audio loudness spikes, chat velocity spikes, existing clip spans, and sampled buffer frames (`data/tmp/copilot/<jid>/frame_*.jpg`).
+  - Added `Session.clip_copilot()` + upgraded `POST /api/live/{jid}/clip` to accept exact `[start, end]` timestamps (`<= 35s` cap) plus custom Antigravity-authored `hook`, `title`, `description`, `seo_tags`, `hashtags`, and `pinned_comment` (preserving custom SEO without redundant PeakCut AI calls).
+  - Created `PeakCut/scripts/live_copilot.py` (`watch`, `start`, `clip`, `seo`) for lightweight background monitoring & clip/SEO injection from a dedicated Antigravity chat.
+
+### Changed
+- **Strict 30s Target (32–35s Hard Max) & Streamer Rage/Mistake/Masti Focus (`PeakCut/studio/creators.py`, `PeakCut/studio/jobs.py`, `PeakCut/studio/live.py`, `PeakCut/studio/brain.py`, `PeakCut/studio/ohnepixel.py`, `PeakCut/web/index.html`)**:
+  - Updated `min_len=20`, `max_len=35`, trigger timing to `10s pre-roll + 20s post-roll` (`30.0s`), merge cap `<= 35s`, and AI/keyword focus on streamer rage (`gussa`), silly mistakes/fails, and masti/trolling.
+  - Updated `tests/test_trigger_timeline.py` (7/7) and `tests/test_auto_edit.py` (18/18) for strict `30–35s` bounds and Co-Pilot validation.
+
 ## [2026-11-27] — Clean 30–40s YouTube Shorts Restoration & FFmpeg/SFX Fix
 
 ### Fixed

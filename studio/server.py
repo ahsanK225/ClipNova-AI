@@ -2518,15 +2518,30 @@ def stop_live(jid: str):
     return {"ok": True}
 
 
+@app.get("/api/live/copilot")
+def live_copilot_feed(creator: str = "", jid: str = "", window: float = 240.0, frames: int = 6):
+    """Live stream snapshot feed for Antigravity Co-Pilot (active buffer transcripts, spikes, frames & clips)."""
+    sessions = []
+    for s in live.active_mine():
+        if jid and s.job.get("id") != jid:
+            continue
+        if creator and s.job.get("creator") != creator:
+            continue
+        sessions.append(s.copilot_snapshot(window_sec=window, max_frames=frames))
+    return {"ok": True, "count": len(sessions), "sessions": sessions}
+
+
 @app.post("/api/live/{jid}/clip")
 def clip_now(jid: str, body: dict = Body(...)):
     s = live.mine(jid)
     if not s or s.ended:
         raise HTTPException(404, "This recording has already ended")
-    _throttle("clipnow:" + ctx.uid(), 6, 60, "Give it a moment: your last clips are still being made.")
-    if len(s.manual) >= 3:
+    _throttle("clipnow:" + ctx.uid(), 12, 60, "Give it a moment: your last clips are still being made.")
+    if len(s.manual) >= 5:
         raise HTTPException(429, "Give it a moment: your last clips are still being made.")
     try:
+        if "start" in body and "end" in body and body.get("start") is not None and body.get("end") is not None:
+            return s.clip_copilot(float(body["start"]), float(body["end"]), body)
         s.clip_last(max(5, min(180, float(body.get("seconds", 30)))))
     except (ValueError, TypeError) as e:
         raise HTTPException(400, str(e))

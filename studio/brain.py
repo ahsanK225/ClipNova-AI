@@ -44,10 +44,10 @@ Lines marked (CHAT) are where the live chat suddenly got much busier, which usua
 Video title: {title}
 Channel: {uploader}
 
-Pick up to {n} moments that would work as standalone viral YouTube Shorts (30-40s sweet spot) for someone who has never seen the stream:
-1. ACCIDENTS, FAILS & WILD REACTIONS: Streamer crashing/getting blown up/dying hilariously, unexpected accidents or physics bugs, uncontrollable laughter, sudden shock, intense shouting, chaotic panic.
-2. MAZAQ / HUMOR: Funny moments, witty jokes, hilarious roasts, trolling, comedic fails, playful banter, streamer laughing uncontrollably.
-3. CLUTCH & GAMEPLAY PAYOFFS: Insane gameplay clutch plays, crazy escapes, unexpected plot twists where the streamer reacts strongly.
+Pick up to {n} moments that would work as standalone viral ~30s YouTube Shorts for someone who has never seen the stream:
+1. GUSSA / RAGE & WILD REACTIONS: Streamer getting mad/tilted, yelling at teammates or the game, mic-peaking panic, jumpscares, jaw-drop shock, or crashing out mid-game.
+2. MISTAKES, ACCIDENTS & FAILS: Streamer pressing the wrong button, accidentally blowing themselves/team up, choking an easy fight, losing loot, ridiculous physics bugs, or embarrassing slip-ups.
+3. MASTI / HUMOR & BANTER: Funny goofing around, trolling friends/NPCs/chat, savage roasts, silly voices, and uncontrollable laughter ("hahaha", "can't breathe").
 """
 
 LIVE_NOTE = """
@@ -58,12 +58,12 @@ Most checks should return []. Only return a moment you would stop scrolling for.
 
 RULES = """
 Rules:
-- Each clip MUST stay strictly within {min_len} to {max_len} seconds (NEVER exceed {max_len}s or 55s — these are YouTube Shorts!). Use the [seconds] values for start and end.
-- GOLDEN RETENTION TIMELINE RULE (30-40s YOUTUBE SHORTS SWEET SPOT):
-  * The trigger phrase, accident/crash, laugh burst, or punchline MUST occur within the FIRST 8 to 14 seconds of the clip (target ~10-12s)! Never let the viewer wait 20+ seconds for the hook—they will swipe away.
-  * LEAD-IN / SETUP: Start 8 to 12 seconds before the accident/trigger so the viewer sees quick context leading into the moment.
-  * POST-TRIGGER REACTION & AFTERMATH: Always include 20 to 28 seconds after the trigger/accident so the viewer sees the full reaction, unstoppable laughter, screaming, and aftermath.
-  * Total clip duration MUST aim for 30 to 40 seconds (and NEVER exceed {max_len} seconds), capturing the complete accident + reaction cleanly as one continuous clip.
+- Each clip MUST target ~30 seconds and stay strictly within {min_len} to {max_len} seconds (NEVER exceed {max_len}s or 35s unless an essential payoff takes up to 32-35s). Use the [seconds] values for start and end.
+- STRICT 30s SHORTS RETENTION TIMELINE RULE:
+  * Put the trigger, mistake, rage moment, accident, or joke within the FIRST 7 to 12 seconds (target ~9-10s)!
+  * LEAD-IN / SETUP: Start 7 to 10 seconds before the moment so the viewer immediately gets context without waiting.
+  * POST-TRIGGER REACTION & PAYOFF: Keep 18 to 23 seconds right after the moment for the rage, laughter, embarrassment, or funny aftermath.
+  * Ideal duration is **28 to 31 seconds** (only extend to **32-35s** when an unmissable punchline finishes right at the end). Keep it ONE clean continuous clip!
 - Start on the setup line, not mid-sentence. End right after the full payoff or reaction, on the last word of a
   complete sentence: never in the middle of a sentence or a thought. The clip must make sense on its own.
 - Do not pick intros, sponsor reads, "like and subscribe", or dead air.

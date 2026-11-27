@@ -75,8 +75,8 @@ check(manual_clip["vfx_cues"] == [] and manual_clip["sfx_cues"] == [] and manual
 # Clean defaults check: never auto-insert bruh/SFX or random mid-clip jump cuts unless opted in
 check(creators.DEFAULTS["brand_style"] == "off" and creators.DEFAULTS["auto_tighten"] is False and creators.DEFAULTS["auto_sfx"] is False,
       "creators.DEFAULTS keeps continuous clean clips with zero auto SFX or jump-cuts by default")
-check(creators.DEFAULTS["min_len"] == 20 and creators.DEFAULTS["max_len"] == 40 and jobs.DEFAULTS["max_len"] == 40,
-      "Default clip window targets 30-40s YouTube Shorts (max_len=40)")
+check(creators.DEFAULTS["min_len"] == 20 and creators.DEFAULTS["max_len"] == 35 and jobs.DEFAULTS["max_len"] == 35,
+      "Default clip window targets strict ~30-35s YouTube Shorts (max_len=35)")
 clean_default_clip = {"id": "c_clean", "start": 0.0, "end": 35.0, "hook": "CAR CRASH REACTION 😭", "style": "bounce"}
 res_off = auto_edit.apply_brand_edit(clean_default_clip, {"options": {}}, {}, None, words)
 check(res_off["applied"] is False and "segments" not in clean_default_clip and "sfx_cues" not in clean_default_clip,
