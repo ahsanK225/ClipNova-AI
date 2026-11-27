@@ -23,7 +23,7 @@ MASTER_TRIGGER_WORDS = (
     "yeh clip banta hai, viral clip hai, isko save karo, ye save karo, bhai save karo"
 )
 
-DEFAULTS = {"name": "", "channel": "", "style": "bounce", "layout": "split_half", "captions": True, "min_len": 15, "max_len": 60,
+DEFAULTS = {"name": "", "channel": "", "style": "bounce", "layout": "split_half", "captions": True, "min_len": 20, "max_len": 40,
             "max_clips": 6, "min_score": 80, "auto_watch": False, "buffer_min": 20, "live_per_hour": 25, "ai_every_min": 3, "ai_only_on_spike": True, "auto_jump_pct": 60,
             "plan": "free", "decide_mode": "both", "must_clip_min": 0, "min_gap_min": 2,
             "game": "", "quality": 1080, "hook_text": "", "description_text": "",
@@ -34,7 +34,7 @@ DEFAULTS = {"name": "", "channel": "", "style": "bounce", "layout": "split_half"
             "custom_layout": {"enabled": False, "mode": "split", "facecam": [0, 0, 480, 360], "gameplay": [0, 0, 1920, 1080], "split_ratio": 0.35, "pip_pos": "top-right", "pip_size": 380, "divider": True},
             "custom_presets": {}, "winner_insights": {},
             "post_cleanup": "ask", "trim_silence": False, "streamer_only_captions": False, "lang": "en",
-            "brand_style": "viral_gaming", "auto_tighten": True, "auto_sfx": True, "brand_watermark": ""}
+            "brand_style": "off", "auto_tighten": False, "auto_sfx": False, "brand_watermark": ""}
 PLATFORMS = ("youtube", "twitch", "kick")
 
 

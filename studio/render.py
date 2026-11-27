@@ -1215,7 +1215,7 @@ def _render_in(work: Path, src: Path, out_dir: Path, name: str, start, end, layo
             ss = max(0.0, float(seg.get("start", 0.0)))
             sd = max(0.2, float(seg.get("end", ss + 1.0)) - ss)
             total_out_dur += sd
-            seek_args += ["-ss", f"{ss:.3f}", "-i", sp, "-t", f"{sd:.3f}"]
+            seek_args += ["-ss", f"{ss:.3f}", "-t", f"{sd:.3f}", "-i", sp]
             sw = int(seg.get("src_w") or target_w or 1920)
             sh = int(seg.get("src_h") or target_h or 1080)
             scale_pad = ""
@@ -1241,8 +1241,8 @@ def _render_in(work: Path, src: Path, out_dir: Path, name: str, start, end, layo
         t_dur = min(float(teaser_dur), dur * 0.45)
         t_start = float(teaser_start if teaser_start is not None else (end - t_dur))
         seek_args = [
-            "-ss", f"{t_start:.3f}", "-i", str(Path(src).resolve()), "-t", f"{t_dur:.3f}",
-            "-ss", f"{start:.3f}", "-i", str(Path(src).resolve()), "-t", f"{dur:.3f}",
+            "-ss", f"{t_start:.3f}", "-t", f"{t_dur:.3f}", "-i", str(Path(src).resolve()),
+            "-ss", f"{start:.3f}", "-t", f"{dur:.3f}", "-i", str(Path(src).resolve()),
         ]
         concat_fc = f"[0:v]setpts=PTS-STARTPTS,fps={config.OUT_FPS}[tv];[0:a:0]asetpts=PTS-STARTPTS[ta];[1:v]setpts=PTS-STARTPTS,fps={config.OUT_FPS}[mv];[1:a:0]asetpts=PTS-STARTPTS[ma];[tv][ta][mv][ma]concat=n=2:v=1:a=1[v_raw][a_raw];"
         audio_filter, _ = _mix_audio_inputs(seek_args, "a_raw", 2, bgm_path, bgm_vol_f, bgm_offset_f, sfx_cues, af_chain, video_volume=video_volume)
@@ -1258,7 +1258,7 @@ def _render_in(work: Path, src: Path, out_dir: Path, name: str, start, end, layo
                 "-fps_mode", "cfr",
                 "-c:a", "aac", "-b:a", "160k", "-ar", "48000"]
     else:
-        seek_args = ["-ss", f"{start:.3f}", "-i", str(Path(src).resolve()), "-t", f"{dur:.3f}"]
+        seek_args = ["-ss", f"{start:.3f}", "-t", f"{dur:.3f}", "-i", str(Path(src).resolve())]
         audio_filter, has_mix = _mix_audio_inputs(seek_args, "0:a:0", 1, bgm_path, bgm_vol_f, bgm_offset_f, sfx_cues, af_chain, video_volume=video_volume)
         if has_mix:
             fc = _filter(layout, fg_h, face, facecam_pos=facecam_pos, facecam_delay=facecam_delay,

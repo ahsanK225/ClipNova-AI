@@ -682,18 +682,23 @@ class Session:
                 # Use reaction loudness peak from judge 2 (sig)
                 trigger_t = float(match[0].get("start", c["start"] + 12.0))
 
+            max_short = min(max(35.0, float(st.get("max_len") or 40.0)), 45.0)
             if trigger_t is not None:
-                # Golden timeline: trigger at ~12s into clip, followed by 28s post-roll reaction
-                c["start"] = max(ws, round(trigger_t - 12.0, 2))
-                c["end"] = min(now, round(trigger_t + 28.0, 2))
+                # Golden timeline: trigger at ~11s into clip, followed by 25-28s post-roll reaction (~36-40s Short)
+                pre_r = 11.0
+                post_r = max(20.0, min(28.0, max_short - pre_r))
+                c["start"] = max(ws, round(trigger_t - pre_r, 2))
+                c["end"] = min(now, round(trigger_t + post_r, 2))
                 c["trigger_t"] = trigger_t
             else:
-                # Fallback expansion preserving golden duration (~40-42s) with post-roll reaction bias
+                # Expand short snippets cleanly into 32-40s Shorts window with reaction aftermath
                 c_dur = c["end"] - c["start"]
-                if c_dur < 38.0:
-                    expand = min(42.0 - c_dur, 20.0)
+                if c_dur < 32.0:
+                    expand = min(min(40.0, max_short) - c_dur, 18.0)
                     c["start"] = max(ws, round(c["start"] - expand * 0.3, 2))
                     c["end"] = min(now, round(c["end"] + expand * 0.7, 2))
+            if c["end"] - c["start"] > max_short:
+                c["start"] = round(max(ws, c["end"] - max_short), 2)
             self._add_clip(c)
             self._verdict(verdict, f"Clipped ({mm['priority']}): " + why[:40])
             added += 1
@@ -820,11 +825,12 @@ class Session:
                         break
 
                 if match_t >= earliest_new - 8.0:
-                    # Merge overlapping triggers within 15 seconds
+                    max_short = min(max(35.0, float(self.settings.get("max_len") or 40.0)), 45.0)
+                    # Merge overlapping triggers within 15 seconds while keeping YouTube Short length (<= 40-45s)
                     if match_t - self.last_trigger <= 15.0 and self.manual:
                         self.manual[-1]["end"] = max(self.manual[-1]["end"], match_t + post_roll)
-                        if self.manual[-1]["end"] - self.manual[-1]["start"] > 60.0:
-                            self.manual[-1]["start"] = max(0.0, self.manual[-1]["end"] - 60.0)
+                        if self.manual[-1]["end"] - self.manual[-1]["start"] > max_short:
+                            self.manual[-1]["start"] = max(0.0, self.manual[-1]["end"] - max_short)
                         self.last_trigger = match_t
                     elif match_t - self.last_trigger > 15.0:
                         self.last_trigger = match_t
@@ -873,11 +879,12 @@ class Session:
                 if window == parts or window_no_apos == parts_no_apos:
                     t = window_words[i]["s"]
                     if t >= earliest_new - 6.0:
-                        # Candidate merging if within 15s
+                        # Candidate merging if within 15s while keeping YouTube Short length (<= 40-45s)
+                        max_short = min(max(35.0, float(self.settings.get("max_len") or 40.0)), 45.0)
                         if t - self.last_trigger <= 15.0 and self.manual:
                             self.manual[-1]["end"] = max(self.manual[-1]["end"], t + post_roll)
-                            if self.manual[-1]["end"] - self.manual[-1]["start"] > 60.0:
-                                self.manual[-1]["start"] = max(0.0, self.manual[-1]["end"] - 60.0)
+                            if self.manual[-1]["end"] - self.manual[-1]["start"] > max_short:
+                                self.manual[-1]["start"] = max(0.0, self.manual[-1]["end"] - max_short)
                             self.last_trigger = t
                         elif t - self.last_trigger > 20.0:
                             self.last_trigger = t
@@ -948,9 +955,15 @@ class Session:
                      "description": "", "hashtags": [], "highlight_words": []}
 
             self.manual.remove(req)
+            c_start = round(req["start"], 2)
+            c_end = round(min(req["end"], self.samples / SR), 2)
+            if not is_button:
+                max_short = min(max(35.0, float(self.settings.get("max_len") or 40.0)), 45.0)
+                if c_end - c_start > max_short:
+                    c_start = round(max(0.0, c_end - max_short), 2)
             c.update(
-                start=round(req["start"], 2),
-                end=round(min(req["end"], self.samples / SR), 2),
+                start=c_start,
+                end=c_end,
                 score=mm.get("score", 70),
                 priority=mm.get("priority", "HIGH PRIORITY"),
                 breakdown=mm.get("breakdown") or {},

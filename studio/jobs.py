@@ -123,11 +123,11 @@ _by_user: dict = {}                       # user -> {job id: job}: listing one p
 _lock = threading.RLock()
 on_clip_ready: list = []   # callbacks (job, clip), run once when a clip first finishes
 
-DEFAULTS = {"max_clips": 6, "min_len": 15, "max_len": 60, "style": "bounce", "layout": "split_half", "quality": 1080,
+DEFAULTS = {"max_clips": 6, "min_len": 20, "max_len": 40, "style": "bounce", "layout": "split_half", "quality": 1080,
             "range_start": None, "range_end": None, "captions": True, "facecam_pos": "top-right",
             "audio_delay": 0.0, "facecam_delay": 0.0, "hook_style": "neon", "outro_cta": True, "outro_text": "",
             "hook_text": "", "description_text": "", "trim_silence": False, "streamer_only_captions": False, "lang": "en",
-            "brand_style": "viral_gaming", "auto_tighten": True, "auto_sfx": True, "brand_watermark": ""}
+            "brand_style": "off", "auto_tighten": False, "auto_sfx": False, "brand_watermark": ""}
 
 
 LIMITS = {"max_clips": (1, 20), "min_len": (5, 120), "max_len": (10, 180), "quality": (360, 1080)}

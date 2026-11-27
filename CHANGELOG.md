@@ -1,6 +1,23 @@
 ﻿# Changelog
 All notable project changes are documented here.
 
+## [2026-11-27] — Clean 30–40s YouTube Shorts Restoration & FFmpeg/SFX Fix
+
+### Fixed
+- **Disabled Automatic `"bruh"` SFX & Random Jump Cuts (`PeakCut/studio/auto_edit.py`, `PeakCut/studio/creators.py`, `PeakCut/studio/jobs.py`, `PeakCut/web/index.html`)**:
+  - Set defaults to `brand_style="off"`, `auto_tighten=False`, and `auto_sfx=False` (and migrated active saved `creator.json` profiles) so clips render cleanly without unexpected background SFX or mid-clip jump cuts unless explicitly opted in.
+  - Excluded `"bruh"` files from `pick_custom_sfx_tracks()` auto-selection.
+- **Fixed FFmpeg `-t` Input Trimming Bug & >1 Minute Clip Length (`PeakCut/studio/render.py`, `PeakCut/studio/live.py`, `PeakCut/studio/brain.py`)**:
+  - Placed FFmpeg `-t` input duration arguments before `-i` across segments concat, teaser concat, and single-clip inputs in `_render_in()` so source streams trim cleanly to their exact cut span instead of reading full 60–78s buffer files.
+  - Updated default clip bounds to `min_len=20`, `max_len=40` and capped live trigger merging at `<= 40–45s`, tuning `HEAD`/`RULES` in `brain.py` for 30–40s accident, crash, fail, laughter, and reaction Shorts.
+
+### Tests and Verification
+- `.venv\Scripts\python.exe -m compileall -q studio tests`: Passed.
+- `node --check` on `web/index.html` scripts: `JS syntax OK`.
+- `.venv\Scripts\python.exe tests\test_auto_edit.py`: 18/18 checks passed (including multi-segment FFmpeg duration verification: `2.42s`).
+- `.venv\Scripts\python.exe tests\run.py`: **All 38 test suites passed** (exit code 0).
+- Restarted server daemon on `http://127.0.0.1:8765` and verified `/healthz` (`{"ok":true}`).
+
 ## [2026-11-27] — Signature Viral Brand Auto-Editing Engine
 
 ### Added

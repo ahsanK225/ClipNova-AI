@@ -44,10 +44,10 @@ Lines marked (CHAT) are where the live chat suddenly got much busier, which usua
 Video title: {title}
 Channel: {uploader}
 
-Pick up to {n} moments that would work as standalone viral clips for someone who has never seen the stream:
-1. SHOR / HIGH ENERGY: Loud shouting, screaming, sudden hype, intense shock, rage quits, wild laughter, chaotic reactions.
+Pick up to {n} moments that would work as standalone viral YouTube Shorts (30-40s sweet spot) for someone who has never seen the stream:
+1. ACCIDENTS, FAILS & WILD REACTIONS: Streamer crashing/getting blown up/dying hilariously, unexpected accidents or physics bugs, uncontrollable laughter, sudden shock, intense shouting, chaotic panic.
 2. MAZAQ / HUMOR: Funny moments, witty jokes, hilarious roasts, trolling, comedic fails, playful banter, streamer laughing uncontrollably.
-3. CLUTCH & ACTION: Insane gameplay clutch plays, ridiculous physics/glitches, crazy escapes, unexpected plot twists.
+3. CLUTCH & GAMEPLAY PAYOFFS: Insane gameplay clutch plays, crazy escapes, unexpected plot twists where the streamer reacts strongly.
 """
 
 LIVE_NOTE = """
@@ -58,12 +58,12 @@ Most checks should return []. Only return a moment you would stop scrolling for.
 
 RULES = """
 Rules:
-- Each clip is {min_len} to {max_len} seconds. Use the [seconds] values for start and end.
-- GOLDEN RETENTION TIMELINE RULE (TRIGGER IN FIRST 10-15s, FULL 25-30s REACTION):
-  * The trigger phrase, viral climax, or punchline MUST occur within the FIRST 10 to 15 seconds of the clip (target ~12s)! Never let the viewer wait 20+ seconds for the hook—they will swipe away.
-  * LEAD-IN / SETUP: Start 10 to 14 seconds (ideal 12s) before the trigger/climax so the trigger occurs within the first 10-15s of the clip.
-  * POST-TRIGGER REACTION & AFTERMATH (MANDATORY 25-30s): Always include 25 to 30 seconds (target 28s) of footage AFTER the trigger/climax. The viewer MUST see the full reaction, laughter, screaming, chat spam, and continuing gameplay aftermath!
-  * Total clip duration should be 38 to 44 seconds (target ~40-42s), capturing the complete viral narrative without cutting off early.
+- Each clip MUST stay strictly within {min_len} to {max_len} seconds (NEVER exceed {max_len}s or 55s — these are YouTube Shorts!). Use the [seconds] values for start and end.
+- GOLDEN RETENTION TIMELINE RULE (30-40s YOUTUBE SHORTS SWEET SPOT):
+  * The trigger phrase, accident/crash, laugh burst, or punchline MUST occur within the FIRST 8 to 14 seconds of the clip (target ~10-12s)! Never let the viewer wait 20+ seconds for the hook—they will swipe away.
+  * LEAD-IN / SETUP: Start 8 to 12 seconds before the accident/trigger so the viewer sees quick context leading into the moment.
+  * POST-TRIGGER REACTION & AFTERMATH: Always include 20 to 28 seconds after the trigger/accident so the viewer sees the full reaction, unstoppable laughter, screaming, and aftermath.
+  * Total clip duration MUST aim for 30 to 40 seconds (and NEVER exceed {max_len} seconds), capturing the complete accident + reaction cleanly as one continuous clip.
 - Start on the setup line, not mid-sentence. End right after the full payoff or reaction, on the last word of a
   complete sentence: never in the middle of a sentence or a thought. The clip must make sense on its own.
 - Do not pick intros, sponsor reads, "like and subscribe", or dead air.

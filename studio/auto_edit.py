@@ -258,12 +258,14 @@ def pick_custom_sfx_tracks(max_count: int = 2) -> list[dict[str, Any]]:
         return []
     customs = [
         t for t in tracks
-        if t.get("category") == "custom" and 0.1 <= float(t.get("duration") or 1.2) <= 5.0
+        if t.get("category") == "custom"
+        and 0.1 <= float(t.get("duration") or 1.2) <= 5.0
+        and "bruh" not in f"{t.get('id') or ''} {t.get('title') or ''}".lower()
     ]
     if not customs:
         return []
     # Prefer punchy impact/whoosh/boom/laugh names first, then deterministic order
-    prio_re = re.compile(r"(whoosh|boom|vine|impact|hit|slam|pop|bruh|rizz|laugh|ding|horn|alert)", re.I)
+    prio_re = re.compile(r"(whoosh|boom|vine|impact|hit|slam|pop|rizz|laugh|ding|horn|alert)", re.I)
     customs.sort(key=lambda t: (0 if prio_re.search(str(t.get("title") or "")) else 1, float(t.get("duration") or 2.0)))
     return customs[:max_count]
 
@@ -281,9 +283,9 @@ def apply_brand_edit(
     """
     o = (job or {}).get("options") or {}
     cr = creator or {}
-    profile_id = str(clip.get("brand_style") or o.get("brand_style") or cr.get("brand_style") or "viral_gaming").strip().lower()
+    profile_id = str(clip.get("brand_style") or o.get("brand_style") or cr.get("brand_style") or "off").strip().lower()
     if profile_id not in BRAND_PROFILES:
-        profile_id = "viral_gaming"
+        profile_id = "off"
     prof = BRAND_PROFILES[profile_id]
     clip["brand_style"] = profile_id
 
@@ -295,8 +297,8 @@ def apply_brand_edit(
     if profile_id == "off":
         return {"applied": False, "profile": "off"}
 
-    # 1. Smart mid-clip jump-cut tightening (only on single-span auto/manual clips when not manually re-segmented)
-    auto_tighten = bool(clip.get("auto_tighten", o.get("auto_tighten", cr.get("auto_tighten", True))))
+    # 1. Smart mid-clip jump-cut tightening (only when explicitly enabled on continuous clips)
+    auto_tighten = bool(clip.get("auto_tighten", o.get("auto_tighten", cr.get("auto_tighten", False))))
     segs = clip.get("segments")
     if auto_tighten and not (isinstance(segs, list) and segs) and not clip.get("manual_words") and not clip.get("teaser_enabled"):
         tight_segs = tighten_clip_segments(
@@ -335,8 +337,8 @@ def apply_brand_edit(
             vfx_list.append({"type": vt, "time": round(bt, 2), "auto": True})
         clip["vfx_cues"] = vfx_list
 
-    # 4. Custom SFX cues from user's own Sounds folder (preserve manual Studio sfx_cues)
-    auto_sfx = bool(clip.get("auto_sfx", o.get("auto_sfx", cr.get("auto_sfx", True))))
+    # 4. Custom SFX cues from user's own Sounds folder (only when explicitly enabled; preserves manual Studio edits)
+    auto_sfx = bool(clip.get("auto_sfx", o.get("auto_sfx", cr.get("auto_sfx", False))))
     if auto_sfx and int(prof["max_sfx"]) > 0 and "sfx_cues" not in clip:
         custom_sfx = pick_custom_sfx_tracks(max_count=int(prof["max_sfx"]))
         sfx_list: list[dict[str, Any]] = []

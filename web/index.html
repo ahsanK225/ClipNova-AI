@@ -196,6 +196,10 @@ main{background:var(--bg);margin:8px 8px 8px 0;border-radius:var(--r-lg);height:
 .topbar.tabbed{border-color:var(--line);display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .topbar.tabbed .titles{flex:0 1 auto;min-width:120px;max-width:210px}
 .topbar.tabbed .utabs{position:relative!important;transform:none!important;margin:0 4px;flex:0 0 auto;align-self:center;max-width:100%;overflow-y:hidden}
+#global_ai_bar select{width:auto;height:28px;padding:0 4px}
+#global_ai_bar #top_ai_provider{max-width:8rem}
+#global_ai_bar #top_ai_model{width:clamp(90px,10vw,160px)}
+@media(max-width:640px){.topbar.tabbed #global_ai_bar{order:5;flex-basis:100%}#global_ai_bar .global-ai-pill{flex-wrap:wrap}}
 #global_ai_bar{margin-left:auto;display:flex;align-items:center;flex-shrink:1;min-width:0;max-width:100%}
 .topbar.tabbed #actions{margin-left:4px;display:flex;align-items:center;flex-shrink:0}
 .utabs:empty{display:none}
@@ -1616,6 +1620,7 @@ dialog[open]{animation:fadein .16s ease}
   text-align: left;
   transition: border-color 0.15s ease, background 0.15s ease, transform 0.15s ease;
 }
+.cal-week-mini-slot span:last-child{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .cal-week-mini-slot:hover {
   border-color: rgba(0, 240, 255, 0.45);
   transform: translateX(2px);
@@ -2502,8 +2507,8 @@ function drawAdd(variant) {
       ${langSeg(c?.lang || "en")}
       <div class="ob wide"><div class="ot">Clips</div><div class="nsteps">
         ${stepper("o_max", "How many", c?.max_clips ?? 6, 1, 20, 1, "")}
-        ${stepper("o_min", "Shortest", c?.min_len ?? 15, 5, 120, 5, "s")}
-        ${stepper("o_maxlen", "Longest", c?.max_len ?? 60, 10, 180, 5, "s")}
+        ${stepper("o_min", "Shortest", c?.min_len ?? 20, 5, 120, 5, "s")}
+        ${stepper("o_maxlen", "Longest", c?.max_len ?? 40, 10, 180, 5, "s")}
       </div></div>
       <div class="ob wide"><label class="f"><span class="ot" style="margin:0">Big text on every clip <span style="font-weight:400">(optional)</span></span>
         <input id="o_hook" maxlength="60" autocomplete="off" value="${esc(c?.hook_text || "")}" placeholder="Left empty, the AI writes a different one for each clip" aria-label="Big text on every clip"></label></div>
@@ -4165,12 +4170,17 @@ async function syncChannelAnalytics(cid, btn) {
   if (btn) btn.classList.add("spinning");
   try {
     toast("🔄 Polling YouTube Data API for latest view counts...", "ok");
-    const res = await send(`/api/creators/${cid}/analytics/sync`, {}, "POST");
-    if (res?.ok) {
-      toast("✅ YouTube channel velocity synced! Publishing slots recalibrated.", "ok");
-      const cr = creator();
-      if ($("#creator_calendar_view")) renderCreatorCalendarCard(cr, $("#creator_calendar_view"), false);
+    const sel = window._calAccountId || "all";
+    const cal = window._calCache?.[`${cid}::${sel}`];
+    const chosen = (cal?.available_accounts || []).filter(a => sel === "all" || a.id === sel);
+    if (!chosen.length) throw new Error("Connect a YouTube channel first.");
+    if (!Array.isArray(cal.analytics?.observed_by_hour_pkt)) throw new Error("Restart PeakCut after recording ends to enable channel view tracking.");
+    for (const account of chosen) {
+      const res = await send(`/api/creators/${cid}/analytics/sync?account_id=${encodeURIComponent(account.id)}`, {}, "POST");
+      if (res?.profile?.last_sync_status !== "success") throw new Error(`Could not sync ${account.name}.`);
     }
+    toast("YouTube view counts updated.", "ok");
+    if (creator()?.id === cid && $("#creator_calendar_view")) await renderCreatorCalendarCard(creator(), $("#creator_calendar_view"));
   } catch (err) {
     toast(`Sync error: ${err.message}`, "bad");
   } finally {
@@ -4374,8 +4384,8 @@ function _calBuildSmoothAreaSvg(velocity, maxV) {
   if (!velocity || velocity.length < 2) return "";
   const W = 1000, H = 100;
   const pts = velocity.map((v, idx) => {
-    const x = (idx / (velocity.length - 1)) * W;
-    const norm = Math.max(0.08, Math.min(1, v / maxV));
+    const x = ((idx + 0.5) / velocity.length) * W;
+    const norm = Math.max(0, Math.min(1, v / maxV));
     const y = H - norm * (H - 14) - 4;
     return [x, y];
   });
@@ -4410,6 +4420,12 @@ function _calBuildSmoothAreaSvg(velocity, maxV) {
 async function renderCreatorCalendarCard(c, targetEl, isCompact = false, useCache = false) {
   if (!targetEl || !c) return;
   window._calCache = window._calCache || {};
+  const renderToken = Symbol();
+  targetEl._calendarRender = renderToken;
+  if (window._calCreator !== c.id) {
+    window._calCreator = c.id;
+    window._calAccountId = "all";
+  }
   const selAcc = window._calAccountId || "all";
   const cacheKey = `${c.id}::${selAcc}`;
   let calData = (useCache && window._calCache[cacheKey]) ? window._calCache[cacheKey] : null;
@@ -4422,9 +4438,22 @@ async function renderCreatorCalendarCard(c, targetEl, isCompact = false, useCach
     </div>`;
     try {
       calData = await api(`/api/creators/${c.id}/calendar?account_id=${encodeURIComponent(selAcc)}`);
+      // An already-running recorder may still serve the older single-channel slot response.
+      const connected = calData.available_accounts || [];
+      if (connected.length && !("observed_by_hour_pkt" in (calData.analytics || {}))) {
+        const chosen = connected.filter(a => selAcc === "all" || a.id === selAcc);
+        const parts = await Promise.all(chosen.map(async a => {
+          const part = selAcc === "all" ? await api(`/api/creators/${c.id}/calendar?account_id=${encodeURIComponent(a.id)}`) : calData;
+          return {posts:(part.scheduled || []).map(p => ({...p, account:a.id})), slots:(part.upcoming_slots || []).map(s => ({...s, account_id:a.id}))};
+        }));
+        calData = {...calData, scheduled:parts.flatMap(p => p.posts),
+          upcoming_slots:parts.flatMap(p => p.slots).sort((a,b) => a.video_ts-b.video_ts)};
+      }
+      if (targetEl._calendarRender !== renderToken) return;
       window._calCache[cacheKey] = calData;
     } catch (err) {
-      console.warn("Failed to load creator calendar endpoint:", err);
+      if (targetEl._calendarRender === renderToken) targetEl.innerHTML = `<div class="err">Calendar unavailable. ${esc(err.message)}</div>`;
+      return;
     }
   }
   const availAccounts = calData?.available_accounts || [];
@@ -4434,26 +4463,34 @@ async function renderCreatorCalendarCard(c, targetEl, isCompact = false, useCach
   const commPosts = (calData?.scheduled || []).filter(p => p.kind === "community" || p.is_community);
   const slots = calData?.upcoming_slots || [];
   const analytics = calData?.analytics || {};
-  const velocity = analytics?.hourly_velocity || [];
+  const measured = analytics.observed_by_hour_pkt?.length === 24;
+  const velocity = measured ? analytics.observed_by_hour_pkt : analytics.hourly_velocity || [];
+  const accountsInView = availAccounts.filter(a => activeAccountId === "all" || a.id === activeAccountId);
+  const channelName = sl => activeAccountId === "all" ? (availAccounts.find(a => a.id === sl.account_id)?.name || "") : "";
+  const dailyCap = accountsInView.reduce((n,a) => n + Number(a.daily_cap || 3), 0) || (calData.max_per_day || 3);
+  const pairedPost = p => commPosts.find(cp => cp.account === p.account && (cp.video_post_id
+    ? cp.video_post_id === p.id : p.clip && p.job && cp.clip === p.clip && cp.job === p.job));
   const detectedPeaks = analytics?.detected_peaks_pkt || [18, 0, 6];
   const primedSlots = analytics?.primed_slots_pkt || calData?.preferred_times_pkt || ["06:00 PM", "12:00 AM", "06:00 AM"];
   const currentMode = analytics?.mode || "analytics";
   const primingOffset = Number(analytics?.priming_offset_hours ?? 1.5);
   const minGap = analytics?.min_gap_hours || calData?.min_gap_hours || 5.0;
-  const total48hViews = analytics?.total_tracked_views_48h || 49596;
+  const total48hViews = measured ? analytics.total_tracked_views_48h : null;
   const primedHoursSet = new Set(detectedPeaks.map(p => (Math.round(p - primingOffset) + 24) % 24));
-  const nowHourPkt = new Date().getHours();
+  const pktHour = d => Number(d.toLocaleString("en-GB", {timeZone:"Asia/Karachi", hour:"2-digit", hourCycle:"h23"}));
+  const nowHourPkt = pktHour(new Date());
   const isPausedMotion = !!window._calMotionPaused;
 
   // Determine today's scheduled count (match calendar cycle date first, fallback local date)
-  const todayStr = new Date().toLocaleDateString("en-CA");
+  const pktDate = d => d.toLocaleDateString("en-CA", {timeZone:"Asia/Karachi"});
+  const todayStr = pktDate(new Date());
   const todayVPosts = vPosts.filter(p => {
     if (p.calendar_slot?.cycle_date) return p.calendar_slot.cycle_date === todayStr;
     const t = p.scheduled_at || p.due_at;
     if (!t) return false;
-    return new Date(t * 1000).toLocaleDateString("en-CA") === todayStr;
+    return pktDate(new Date(t * 1000)) === todayStr;
   });
-  const todayCount = todayVPosts.length;
+  const todayCount = accountsInView.length ? accountsInView.reduce((n,a) => n + Number(a.today_used || 0), 0) : todayVPosts.length;
   const nextSlot = slots[0] || null;
   const nextSlotTs = nextSlot ? (nextSlot.video_ts || nextSlot.video_timestamp) : null;
 
@@ -4472,34 +4509,27 @@ async function renderCreatorCalendarCard(c, targetEl, isCompact = false, useCach
   vPosts.forEach(p => {
     const t = Number(p.scheduled_at || p.due_at || p.calendar_slot?.video_ts || 0);
     if (!t) return;
-    // Check if an existing upcoming slot already matches within 90 min
-    let alreadyInUpcoming = false;
-    for (const arr of Object.values(groupedDays)) {
-      if (arr.some(sl => Math.abs((sl.video_ts || sl.video_timestamp || 0) - t) < 5400)) {
-        alreadyInUpcoming = true;
-        break;
-      }
-    }
-    if (!alreadyInUpcoming) {
+    {
       const dt = new Date(t * 1000);
       const cs = p.calendar_slot || {};
-      const pktH = dt.getHours();
+      const pktH = pktHour(dt);
       const inferredSlotNum = cs.slot_num && !(pktH >= 20 && cs.slot_num === 1)
         ? cs.slot_num
         : (pktH >= 12 && pktH < 20 ? 1 : (pktH >= 20 || pktH === 0) ? 2 : 3);
-      const cycDate = cs.cycle_date || dt.toLocaleDateString("en-CA");
-      const timePkt = cs.video_time_pkt || dt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      const cycDate = cs.cycle_date || pktDate(dt);
+      const timePkt = cs.video_time_pkt || dt.toLocaleTimeString("en-US", { timeZone:"Asia/Karachi", hour: "2-digit", minute: "2-digit" });
       const commDt = new Date((t + 1800) * 1000);
       addSlotToDay({
         video_ts: t,
         video_time_pkt: timePkt,
         video_us_east_str: cs.video_us_east_str || dt.toLocaleTimeString("en-US", { timeZone: "America/New_York", hour: "2-digit", minute: "2-digit" }) + " ET",
         video_us_west_str: cs.video_us_west_str || dt.toLocaleTimeString("en-US", { timeZone: "America/Los_Angeles", hour: "2-digit", minute: "2-digit" }) + " PT",
-        community_time_pkt: cs.community_time_pkt || commDt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        community_time_pkt: cs.community_time_pkt || commDt.toLocaleTimeString("en-US", { timeZone:"Asia/Karachi", hour: "2-digit", minute: "2-digit" }),
         cycle_date: cycDate,
         slot_num: inferredSlotNum,
         priming_note: cs.priming_note || "",
         peak_target_pkt: cs.peak_target_pkt || "",
+        account_id: p.account || p.account_id,
         _bookedVideo: p,
       });
     }
@@ -4508,43 +4538,45 @@ async function renderCreatorCalendarCard(c, targetEl, isCompact = false, useCach
   Object.keys(groupedDays).forEach(d => {
     groupedDays[d].sort((a, b) => (a.video_ts || a.video_timestamp || 0) - (b.video_ts || b.video_timestamp || 0));
   });
-  const dayKeys = Object.keys(groupedDays).sort((a, b) => a.localeCompare(b)).slice(0, isCompact ? 2 : 4);
+  const dayKeys = Object.keys(groupedDays).filter(d => d >= todayStr || groupedDays[d].some(sl => sl.video_ts > Date.now()/1000)).sort((a, b) => a.localeCompare(b)).slice(0, isCompact ? 2 : 4);
 
   // Build 7-day rolling Week Matrix days
   const weekDays = [];
   for (let offset = 0; offset < 7; offset++) {
-    const d = new Date();
-    d.setDate(d.getDate() + offset);
-    const key = d.toLocaleDateString("en-CA");
+    const startDay = dayKeys[0] < todayStr ? dayKeys[0] : todayStr;
+    const d = new Date(startDay + "T12:00:00Z");
+    d.setUTCDate(d.getUTCDate() + offset);
+    const key = pktDate(d);
     weekDays.push({
       key,
-      isToday: offset === 0,
-      weekday: d.toLocaleDateString([], { weekday: "short" }),
-      dateNum: d.toLocaleDateString([], { month: "short", day: "numeric" }),
+      isToday: key === todayStr,
+      weekday: d.toLocaleDateString([], { timeZone:"Asia/Karachi", weekday: "short" }),
+      dateNum: d.toLocaleDateString([], { timeZone:"Asia/Karachi", month: "short", day: "numeric" }),
       slots: groupedDays[key] || [],
     });
   }
 
   // Generate 24-hour velocity spectrum bars + smooth SVG area overlay
-  const maxV = Math.max(100, ...velocity);
+  const maxV = Math.max(1, ...velocity);
   const velocitySvgHtml = _calBuildSmoothAreaSvg(velocity, maxV);
   const velocityBarsHtml = velocity.length ? velocity.map((v, h) => {
     const isPeak = detectedPeaks.includes(h);
     const isPrimeWin = !isPeak && primedHoursSet.has(h);
     const isNow = h === nowHourPkt;
-    const heightPct = Math.max(12, Math.min(92, Math.round((v / maxV) * 88)));
+    const heightPct = v > 0 ? Math.max(2, Math.min(92, Math.round((v / maxV) * 88))) : 0;
     const ampm = h < 12 ? "AM" : "PM";
     const displayH = (h % 12) || 12;
     const timeLabel = `${displayH}:00 ${ampm} PKT`;
-    const nyHour = (h - 10 + 24) % 24;
-    const nyLabel = `${(nyHour % 12) || 12}:00 ${nyHour < 12 ? "AM" : "PM"} EST`;
+    const nyTime = new Date(todayStr + "T" + String(h).padStart(2,"0") + ":00:00+05:00");
+    const nyLabel = nyTime.toLocaleTimeString("en-US", {timeZone:"America/New_York",hour:"numeric",minute:"2-digit",timeZoneName:"short"});
+    const barLabel = measured ? v.toLocaleString() + " observed views" : "Planning estimate";
     return `
-      <div class="cal-velocity-bar-col" style="--h-idx:${h}" title="${timeLabel} (${nyLabel}): ~${v.toLocaleString()} views/hr">
+      <div class="cal-velocity-bar-col" style="--h-idx:${h}" title="${timeLabel} (${nyLabel}): ${barLabel}">
         ${isNow ? `<div class="cal-now-marker" title="Current PKT Hour"></div>` : ""}
         <div class="cal-bar-tooltip">
           <div style="font-weight:800;color:#F8FAFC">${timeLabel} <span style="color:#94A3B8;font-weight:600">· ${nyLabel}</span></div>
-          <div>⚡ ~${v.toLocaleString()} views/hr</div>
-          ${isPeak ? '<div style="color:#00F0FF;font-weight:800">🔥 Detected Surge Peak</div>' : ""}
+          <div>⚡ ${barLabel}</div>
+          ${isPeak ? '<div style="color:#00F0FF;font-weight:800">🔥 Planned peak</div>' : ""}
           ${isPrimeWin ? '<div style="color:#34D399;font-weight:800">⚡ Optimal Upload Prime Window</div>' : ""}
           ${isNow ? '<div style="color:#10B981;font-weight:700">● Current Hour</div>' : ""}
         </div>
@@ -4556,16 +4588,10 @@ async function renderCreatorCalendarCard(c, targetEl, isCompact = false, useCach
 
   const formatSlotCard = (sl, idx, showDateBadge = false) => {
     const slotTimestamp = sl.video_ts || sl.video_timestamp;
-    const matchedVideo = sl._bookedVideo || vPosts.find(p => {
-      const t = p.scheduled_at || p.due_at;
-      if (!t || !slotTimestamp) return false;
-      return Math.abs(t - slotTimestamp) < 5400;
-    });
-    const commPost = matchedVideo
-      ? commPosts.find(cp => cp.video_post_id === matchedVideo.id || cp.clip === matchedVideo.clip)
-      : null;
+    const matchedVideo = sl._bookedVideo;
+    const commPost = matchedVideo && pairedPost(matchedVideo);
     const commTime = commPost
-      ? new Date((commPost.scheduled_at || commPost.due_at) * 1000).toLocaleString([], { hour: "2-digit", minute: "2-digit" })
+      ? new Date((commPost.scheduled_at || commPost.due_at) * 1000).toLocaleString("en-US", { timeZone:"Asia/Karachi", hour: "2-digit", minute: "2-digit" })
       : sl.community_time_pkt;
     const thumbUrl = matchedVideo?.job && matchedVideo?.cover
       ? `/media/${matchedVideo.job}/${matchedVideo.cover}`
@@ -4578,7 +4604,7 @@ async function renderCreatorCalendarCard(c, targetEl, isCompact = false, useCach
         <article class="cal-slot-card slot-${sl.slot_num} has-video cal-stagger-card" style="--stagger:${idx}">
           <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;flex-wrap:wrap">
             <span class="cal-slot-badge slot${sl.slot_num}">
-              Slot ${sl.slot_num} ${showDateBadge ? `· ${esc(sl.cycle_date)}` : ""}
+              Slot ${sl.slot_num} ${esc(channelName(sl))} ${showDateBadge ? `· ${esc(sl.cycle_date)}` : ""}
             </span>
             <span style="font-size:10px;font-weight:800;padding:2px 8px;border-radius:999px;background:rgba(16,185,129,0.16);color:#10B981;border:1px solid rgba(16,185,129,0.38)">
               ${matchedVideo.remote_id || matchedVideo.status === "posted" ? "✓ SCHEDULED ON YOUTUBE" : "✓ SCHEDULED"}
@@ -4659,7 +4685,7 @@ async function renderCreatorCalendarCard(c, targetEl, isCompact = false, useCach
       <article class="cal-slot-card slot-${sl.slot_num} cal-stagger-card" style="--stagger:${idx}">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:6px">
           <span class="cal-slot-badge slot${sl.slot_num}">
-            Slot ${sl.slot_num} ${showDateBadge ? `· ${esc(sl.cycle_date)}` : ""}
+            Slot ${sl.slot_num} ${esc(channelName(sl))} ${showDateBadge ? `· ${esc(sl.cycle_date)}` : ""}
           </span>
           <span style="font-size:10px;font-weight:800;color:#10B981;display:inline-flex;align-items:center;gap:4px">
             <span style="width:6px;height:6px;border-radius:50%;background:#10B981"></span> OPEN
@@ -4688,8 +4714,8 @@ async function renderCreatorCalendarCard(c, targetEl, isCompact = false, useCach
           <span style="font-size:10.5px">Paired Community: <b>${esc(sl.community_time_pkt)} PKT (+30m)</b></span>
         </div>
 
-        <button type="button" class="btn sm" onclick="openCalendarSlotPicker('${esc(c.id)}', ${slotTimestamp}, ${sl.slot_num}, '${esc(sl.video_time_pkt)}', '${esc(sl.video_us_east_str)} · ${esc(sl.video_us_west_str)}', '${esc(sl.cycle_date)}')" style="margin-top:auto;padding:7px 12px;font-size:11.5px;background:linear-gradient(135deg,rgba(0,240,255,0.14),rgba(99,102,241,0.22));border:1px solid rgba(0,240,255,0.34);color:var(--cal-heading);font-weight:700;border-radius:9px;justify-content:center;cursor:pointer;display:inline-flex;align-items:center;gap:6px">
-          <span>➕</span> Queue Clip to Slot
+        <button type="button" class="btn sm" onclick="openCalendarSlotPicker('${esc(c.id)}', ${slotTimestamp}, ${sl.slot_num}, '${esc(sl.video_time_pkt)}', '${esc(sl.video_us_east_str)} · ${esc(sl.video_us_west_str)}', '${esc(sl.cycle_date)}', this.dataset.account)" data-account="${esc(sl.account_id || '')}" style="margin-top:auto;padding:7px 12px;font-size:11.5px;background:linear-gradient(135deg,rgba(0,240,255,0.14),rgba(99,102,241,0.22));border:1px solid rgba(0,240,255,0.34);color:var(--cal-heading);font-weight:700;border-radius:9px;justify-content:center;cursor:pointer;display:inline-flex;align-items:center;gap:6px">
+          <span>➕</span> Queue Clip to Slot ${esc(channelName(sl))}
         </button>
       </article>
     `;
@@ -4720,7 +4746,7 @@ async function renderCreatorCalendarCard(c, targetEl, isCompact = false, useCach
             <p style="margin:4px 0 0 0;font-size:12px;color:var(--cal-muted);display:flex;align-items:center;gap:6px;flex-wrap:wrap">
               <span>🇵🇰 Daily Slots: <b style="color:var(--cal-heading)">${primedSlots.join(" · ")} PKT</b></span>
               <span style="opacity:0.4">•</span>
-              <span>Cadence: <b>Max 3/day · ${minGap}h gap</b></span>
+              <span>Cadence: <b>Max 3/day per channel · ${minGap}h gap</b></span>
               <span style="opacity:0.4">•</span>
               <span>Community Auto-Post <b>(+30m)</b></span>
             </p>
@@ -4771,25 +4797,23 @@ async function renderCreatorCalendarCard(c, targetEl, isCompact = false, useCach
         <div class="cal-kpi-card cal-stagger-card" style="--stagger:0">
           <div class="cal-kpi-label"><span>⏳ Next Publish Window</span><span style="color:var(--accent)">PKT</span></div>
           <div class="cal-kpi-value">${nextSlotTs ? esc(_calFormatRel(nextSlotTs)) : "Open"}</div>
-          <div class="cal-kpi-sub">${nextSlot ? `${esc(nextSlot.video_time_pkt)} PKT · NY ${esc(nextSlot.video_us_east_str)}` : "Ready for clips"}</div>
+          <div class="cal-kpi-sub">${nextSlot ? `${esc(channelName(nextSlot))} ${esc(nextSlot.video_time_pkt)} PKT · NY ${esc(nextSlot.video_us_east_str)}` : "Ready for clips"}</div>
         </div>
         <div class="cal-kpi-card cal-stagger-card" style="--stagger:1">
-          <div class="cal-kpi-label"><span>⚡ Today's Daily Cap</span><span style="color:${todayCount >= 3 ? "#10B981" : "#38BDF8"}">${todayCount}/3</span></div>
-          <div class="cal-kpi-value">${todayCount} of 3 Filled</div>
+          <div class="cal-kpi-label"><span>⚡ Today's Daily Cap</span><span style="color:${todayCount >= dailyCap ? "#10B981" : "#38BDF8"}">${todayCount}/${dailyCap}</span></div>
+          <div class="cal-kpi-value">${todayCount} of ${dailyCap} Filled</div>
           <div class="cal-quota-bar" aria-label="Daily upload quota">
-            <span class="cal-quota-pip ${todayCount >= 1 ? "filled" : ""}"></span>
-            <span class="cal-quota-pip ${todayCount >= 2 ? "filled" : ""}"></span>
-            <span class="cal-quota-pip ${todayCount >= 3 ? "filled" : ""}"></span>
+            ${Array.from({length:dailyCap}, (_,i) => `<span class="cal-quota-pip ${i < todayCount ? "filled" : ""}"></span>`).join("")}
           </div>
         </div>
         <div class="cal-kpi-card cal-stagger-card" style="--stagger:2">
-          <div class="cal-kpi-label"><span>🔥 48h Channel Velocity</span><span style="color:#A855F7">PRIME</span></div>
-          <div class="cal-kpi-value">~${Number(total48hViews).toLocaleString()} <span style="font-size:11px;font-weight:600;color:var(--cal-muted)">views</span></div>
-          <div class="cal-kpi-sub">Warmup <b>${primingOffset}h prior</b> · Min gap <b>${minGap}h</b></div>
+          <div class="cal-kpi-label"><span>🔥 48h Channel Velocity</span><span style="color:#A855F7">48h</span></div>
+          <div class="cal-kpi-value">${total48hViews == null ? "Awaiting view data" : Number(total48hViews).toLocaleString() + " views"}</div>
+          <div class="cal-kpi-sub">${measured ? `${analytics.observed_accounts} channel(s) measured` : "Two view snapshots needed per channel"}</div>
         </div>
         <div class="cal-kpi-card cal-stagger-card" style="--stagger:3">
           <div class="cal-kpi-label"><span>📢 Paired Community</span><span style="color:#C084FC">+30m</span></div>
-          <div class="cal-kpi-value">${commPosts.length} Paired</div>
+          <div class="cal-kpi-value">${vPosts.filter(pairedPost).length} Paired</div>
           <div class="cal-kpi-sub">Auto-links each Short at +30m</div>
         </div>
       </div>
@@ -4803,12 +4827,12 @@ async function renderCreatorCalendarCard(c, targetEl, isCompact = false, useCach
               <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
                 <span style="font-weight:800;color:var(--cal-heading);font-size:13.5px">48-Hour Views Velocity &amp; Algorithm Priming Engine</span>
                 <span class="pill" style="font-size:10px;padding:2px 8px;border-radius:999px;background:${currentMode === "analytics" ? "rgba(16,185,129,0.14)" : "rgba(0,240,255,0.14)"};color:${currentMode === "analytics" ? "#10B981" : "var(--accent)"};border:1px solid ${currentMode === "analytics" ? "rgba(16,185,129,0.32)" : "rgba(0,240,255,0.32)"};font-weight:700">
-                  ${currentMode === "analytics" ? "⚡ Auto YouTube Peaks" : currentMode === "custom" ? "⚙️ Custom Peaks" : "🇺🇸 USA Standard"}
+                  ${currentMode === "analytics" ? "Creator timing plan" : currentMode === "custom" ? "⚙️ Custom Peaks" : "🇺🇸 USA Standard"}
                 </span>
               </div>
               <div style="font-size:11px;color:var(--cal-muted);margin-top:2px">
                 ${currentMode === "analytics"
-                  ? `Audience surge peaks at <b>${detectedPeaks.map(p => (p % 12 || 12) + ":00 " + (p < 12 ? "AM" : "PM") + " PKT").join(" · ")}</b>. Uploads fire <b>${primingOffset}h prior</b> so Shorts feed warms up before peak.`
+                  ? `Planned peaks at <b>${detectedPeaks.map(p => (p % 12 || 12) + ":00 " + (p < 12 ? "AM" : "PM") + " PKT").join(" · ")}</b>. Uploads fire <b>${primingOffset}h prior</b> so Shorts feed warms up before peak.`
                   : currentMode === "custom"
                   ? `Manual peak hours set at <b>${detectedPeaks.map(p => (p % 12 || 12) + ":00 " + (p < 12 ? "AM" : "PM") + " PKT").join(" · ")}</b>.`
                   : `Default USA high-engagement peak slots active (6:00 PM · 12:00 AM · 6:00 AM PKT).`}
@@ -4834,9 +4858,9 @@ async function renderCreatorCalendarCard(c, targetEl, isCompact = false, useCach
 
         <div style="background:var(--cal-chart-bg);border:1px solid var(--cal-border);border-radius:12px;padding:12px 14px">
           <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:6px">
-            <span style="font-size:11px;font-weight:700;color:var(--cal-text)">24-Hour Viewer Velocity Curve &amp; Spectrum (PKT Clock)</span>
+            <span style="font-size:11px;font-weight:700;color:var(--cal-text)">${measured ? "Observed view gains by hour · last 48h (PKT)" : "Estimated audience pattern · creator planning model (PKT)"}</span>
             <div style="display:flex;align-items:center;gap:10px;font-size:10px;color:var(--cal-muted);font-weight:600">
-              <span>🔥 Surge Peak</span>
+              <span>🔥 Planned peak</span>
               <span style="color:#10B981">⚡ Upload Prime (-${primingOffset}h)</span>
               <span style="color:#10B981">│ Now (${(nowHourPkt % 12) || 12}${nowHourPkt < 12 ? "AM" : "PM"})</span>
             </div>
@@ -4847,11 +4871,11 @@ async function renderCreatorCalendarCard(c, targetEl, isCompact = false, useCach
               ${velocityBarsHtml}
             </div>
           </div>
-          <div style="display:grid;grid-template-columns:repeat(8, 1fr);font-size:9.5px;color:var(--cal-dim);margin-top:7px;text-align:center">
+          <div style="display:grid;grid-template-columns:repeat(24, minmax(0,1fr));font-size:9.5px;color:var(--cal-dim);margin-top:7px;text-align:center">
             ${[0, 3, 6, 9, 12, 15, 18, 21].map(hr => {
               const lbl = `${hr % 12 || 12} ${hr < 12 ? "AM" : "PM"}`;
-              const hasPeak = detectedPeaks.some(p => Math.abs(p - hr) <= 1);
-              return `<span style="${hasPeak ? "color:var(--accent);font-weight:800" : ""}">${lbl}${hasPeak ? " ★" : ""}</span>`;
+              const hasPeak = detectedPeaks.includes(hr);
+              return `<span style="grid-column:${hr+1};white-space:nowrap;justify-self:center;${hasPeak ? "color:var(--accent);font-weight:800" : ""}">${lbl}${hasPeak ? " ★" : ""}</span>`;
             }).join("")}
           </div>
         </div>
@@ -4867,7 +4891,7 @@ async function renderCreatorCalendarCard(c, targetEl, isCompact = false, useCach
           <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
             <span class="cal-flow-step">✂️ Clip</span><span class="cal-flow-arrow">→</span>
             <span class="cal-flow-step">⚡ -${primingOffset}h Prime</span><span class="cal-flow-arrow">→</span>
-            <span class="cal-flow-step">📅 3/Day Cap</span><span class="cal-flow-arrow">→</span>
+            <span class="cal-flow-step">📅 3/day per channel</span><span class="cal-flow-arrow">→</span>
             <span class="cal-flow-step">📢 Post (+30m)</span>
           </div>
         </div>
@@ -4883,11 +4907,7 @@ async function renderCreatorCalendarCard(c, targetEl, isCompact = false, useCach
             const dayTitle = isToday
               ? `⚡ Today · ${dObj.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" })}`
               : `🗓️ ${dObj.toLocaleDateString([], { weekday: "long", month: "short", day: "numeric" })}`;
-            const dayVideos = daySlots.filter(sl => Boolean(sl._bookedVideo) || vPosts.some(p => {
-              const t = p.scheduled_at || p.due_at;
-              const st = sl.video_ts || sl.video_timestamp;
-              return t && st && Math.abs(t - st) < 5400;
-            }));
+            const dayVideos = daySlots.filter(sl => sl._bookedVideo);
 
             return `
               <div class="cal-timeline-day">
@@ -4895,10 +4915,10 @@ async function renderCreatorCalendarCard(c, targetEl, isCompact = false, useCach
                 <div class="cal-day-header">
                   <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
                     <span class="cal-day-badge ${isToday ? "today" : "future"}">${dayTitle}</span>
-                    <span style="font-size:11px;color:${dayVideos.length > 0 ? "#10B981" : "var(--cal-muted)"};font-weight:700">${dayVideos.length}/3 slots filled</span>
+                    <span style="font-size:11px;color:${dayVideos.length > 0 ? "#10B981" : "var(--cal-muted)"};font-weight:700">${dayVideos.length}/${dailyCap} slots filled</span>
                   </div>
                   <span style="font-size:11px;color:var(--cal-dim);font-weight:600">
-                    ${isToday ? `${Math.max(0, 3 - dayVideos.length)} slots remaining today` : dayVideos.length >= 3 ? "Daily Quota Full" : "Rolling Next-Day Buffer"}
+                    ${isToday ? `${Math.max(0, dailyCap - dayVideos.length)} slots remaining today` : dayVideos.length >= dailyCap ? "Daily Quota Full" : "Rolling Next-Day Buffer"}
                   </span>
                 </div>
                 <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(290px, 1fr));gap:12px">
@@ -4914,11 +4934,7 @@ async function renderCreatorCalendarCard(c, targetEl, isCompact = false, useCach
       ${viewMode === "week" ? `
         <div role="tabpanel" class="cal-week-grid">
           ${weekDays.map((wd, wIdx) => {
-            const wFilledCount = wd.slots.filter(sl => Boolean(sl._bookedVideo) || vPosts.some(p => {
-              const t = p.scheduled_at || p.due_at;
-              const st = sl.video_ts || sl.video_timestamp;
-              return t && st && Math.abs(t - st) < 5400;
-            })).length;
+            const wFilledCount = wd.slots.filter(sl => sl._bookedVideo).length;
             return `
             <div class="cal-week-cell ${wd.isToday ? "is-today" : ""} cal-stagger-card" style="--stagger:${wIdx}">
               <div style="display:flex;align-items:center;justify-content:space-between;padding-bottom:6px;border-bottom:1px solid var(--cal-border)">
@@ -4927,32 +4943,29 @@ async function renderCreatorCalendarCard(c, targetEl, isCompact = false, useCach
                   <div style="font-size:14px;font-weight:800;color:var(--cal-heading)">${esc(wd.dateNum)}</div>
                 </div>
                 <span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:999px;background:${wFilledCount > 0 ? "rgba(16,185,129,0.14)" : "var(--cal-panel-bg)"};border:1px solid ${wFilledCount > 0 ? "rgba(16,185,129,0.35)" : "var(--cal-border)"};color:${wFilledCount > 0 ? "#10B981" : "var(--cal-muted)"}">
-                  ${wFilledCount > 0 ? `${wFilledCount}/${Math.max(3, wd.slots.length)} ✓` : `${wd.slots.length || 3} slots`}
+                  ${wFilledCount > 0 ? `${wFilledCount}/${dailyCap} ✓` : `${wd.slots.length} slots`}
                 </span>
               </div>
               <div style="display:flex;flex-direction:column;gap:6px;flex:1">
                 ${(wd.slots.length ? wd.slots : []).map(sl => {
                   const slotTs = sl.video_ts || sl.video_timestamp;
-                  const mv = sl._bookedVideo || vPosts.find(p => {
-                    const t = p.scheduled_at || p.due_at;
-                    return t && slotTs && Math.abs(t - slotTs) < 5400;
-                  });
+                  const mv = sl._bookedVideo;
                   if (mv) {
                     return `
                       <button type="button" class="cal-week-mini-slot filled" data-act="openclip" data-j="${esc(mv.job)}" data-c="${esc(mv.clip)}" title="Scheduled: ${esc(mv.title || "Clip")} — click to open clip">
                         <span style="font-weight:800;color:#10B981;white-space:nowrap">✓ ${esc(sl.video_time_pkt.replace(" AM", "a").replace(" PM", "p"))}</span>
-                        <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--cal-heading)">${esc(mv.title || "Scheduled Clip")}</span>
+                        <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--cal-heading)">${esc(channelName(sl))} ${esc(mv.title || "Scheduled Clip")}</span>
                       </button>
                     `;
                   }
                   return `
-                    <button type="button" class="cal-week-mini-slot" onclick="openCalendarSlotPicker('${esc(c.id)}', ${slotTs}, ${sl.slot_num}, '${esc(sl.video_time_pkt)}', '${esc(sl.video_us_east_str)} · ${esc(sl.video_us_west_str)}', '${esc(sl.cycle_date)}')" style="padding:5px 7px;font-size:10px">
+                    <button type="button" class="cal-week-mini-slot" onclick="openCalendarSlotPicker('${esc(c.id)}', ${slotTs}, ${sl.slot_num}, '${esc(sl.video_time_pkt)}', '${esc(sl.video_us_east_str)} · ${esc(sl.video_us_west_str)}', '${esc(sl.cycle_date)}', this.dataset.account)" data-account="${esc(sl.account_id || '')}" style="padding:5px 7px;font-size:10px">
                       <span style="font-weight:700;color:var(--accent);white-space:nowrap">S${sl.slot_num} · ${esc(sl.video_time_pkt.replace(" AM", "a").replace(" PM", "p"))}</span>
-                      <span style="color:var(--cal-muted);font-weight:700">+Add</span>
+                      <span style="color:var(--cal-muted);font-weight:700" title="${esc(channelName(sl))}">+Add ${esc(channelName(sl))}</span>
                     </button>
                   `;
                 }).join("")}
-                ${!wd.slots.length ? `<div style="margin:auto;font-size:11px;color:var(--cal-muted);line-height:1.4;text-align:center;padding:12px 4px">Auto-opens as earlier slots fill</div>` : ""}
+                ${!wd.slots.length ? `<div style="margin:auto;font-size:11px;color:var(--cal-muted);line-height:1.4;text-align:center;padding:12px 4px">No available slots</div>` : ""}
               </div>
             </div>
           `;
@@ -4976,9 +4989,9 @@ async function renderCreatorCalendarCard(c, targetEl, isCompact = false, useCach
                 const due = p.scheduled_at || p.due_at;
                 const isFutureQueue = due && due > (Date.now() / 1000 + 60);
                 const queueRel = _calFormatRel(due);
-                const datePkt = due ? new Date(due * 1000).toLocaleString([], { weekday: "short", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "Scheduled";
-                const commPost = commPosts.find(cp => cp.video_post_id === p.id || cp.clip === p.clip);
-                const commTime = commPost ? new Date((commPost.scheduled_at || commPost.due_at) * 1000).toLocaleString([], { hour: "2-digit", minute: "2-digit" }) : "";
+                const datePkt = due ? new Date(due * 1000).toLocaleString("en-US", { timeZone:"Asia/Karachi", weekday: "short", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "Scheduled";
+                const commPost = pairedPost(p);
+                const commTime = commPost ? new Date((commPost.scheduled_at || commPost.due_at) * 1000).toLocaleString("en-US", { timeZone:"Asia/Karachi", hour: "2-digit", minute: "2-digit" }) : "";
                 const thumbUrl = p.job && p.cover ? `/media/${p.job}/${p.cover}` : "";
                 return `
                   <article class="cal-slot-card slot-1 has-video cal-stagger-card" style="--stagger:${idx}">
@@ -6989,11 +7002,12 @@ function selectCalendarPickerClip(idx, autoplay = false) {
   }
 }
 
-async function openCalendarSlotPicker(cid, slotTs, slotNum, pktTimeStr, usaTimeStr, cycleDate) {
+async function openCalendarSlotPicker(cid, slotTs, slotNum, pktTimeStr, usaTimeStr, cycleDate, accountId) {
   const dlg = $("#cal_picker_dlg");
   if (!dlg) return;
 
-  window._calPickerCtx = { cid, slotTs, slotNum, pktTimeStr, usaTimeStr, cycleDate };
+  const pickerContext = { cid, slotTs, slotNum, pktTimeStr, usaTimeStr, cycleDate, accountId };
+  window._calPickerCtx = pickerContext;
 
   dlg.innerHTML = `
     <div style="background:#0F172A;color:#fff;border:1px solid #1E293B;border-radius:20px;max-width:1080px;width:95vw;max-height:88vh;display:flex;flex-direction:column;box-shadow:0 30px 90px rgba(0,0,0,0.9);overflow:hidden;animation:calFadeInUp 0.25s ease">
@@ -7006,7 +7020,7 @@ async function openCalendarSlotPicker(cid, slotTs, slotNum, pktTimeStr, usaTimeS
           <div>
             <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
               <h2 id="cal_picker_title" style="margin:0;font-size:16px;font-weight:800;color:#F8FAFC">
-                Schedule Ready Video · Slot ${slotNum}
+                Schedule Ready Video · Slot ${slotNum} ${esc((S.accounts || []).find(a => a.id === accountId)?.name || "")}
               </h2>
               <span class="pill" style="font-size:10px;padding:2px 8px;border-radius:10px;background:rgba(0,240,255,0.15);color:#00F0FF;border:1px solid rgba(0,240,255,0.3);font-weight:700">USA Publishing Calendar</span>
             </div>
@@ -7034,7 +7048,8 @@ async function openCalendarSlotPicker(cid, slotTs, slotNum, pktTimeStr, usaTimeS
   dlg.showModal();
 
   try {
-    const data = await api(`/api/creators/${cid}/ready-clips`);
+    const data = await api(`/api/creators/${cid}/ready-clips?account_id=${encodeURIComponent(accountId || "")}`);
+    if (window._calPickerCtx !== pickerContext) return;
     const clips = data?.clips || [];
     window._calPickerClips = clips;
     const container = $("#cal_picker_content");
@@ -7149,7 +7164,7 @@ async function assignClipToCalendarSlot(cid, jid, cid_clip, slotTs, pktTimeStr) 
       job_id: jid,
       clip_id: cid_clip,
       slot_ts: slotTs,
-      account_id: (window._calAccountId && window._calAccountId !== "all") ? window._calAccountId : undefined
+      account_id: window._calPickerCtx?.accountId || undefined
     }, "POST");
     if (res && res.ok) {
       toast(`✅ Scheduled for ${pktTimeStr} PKT! Paired Community Post (+30m) active.`, "ok");
@@ -7214,17 +7229,17 @@ function drawCreatorForm() {
           </div>
           <div class="two">
             <label class="f" style="margin:0">Editing Brand Style<select data-k="brand_style">
-              <option value="viral_gaming" ${(!c.brand_style || c.brand_style === "viral_gaming") ? "selected" : ""}>🔥 Viral Gaming Signature (Zoom + Shake + Color Pop)</option>
+              <option value="off" ${(!c.brand_style || c.brand_style === "off") ? "selected" : ""}>Clean Continuous Clips (No Auto-FX / Original)</option>
+              <option value="viral_gaming" ${c.brand_style === "viral_gaming" ? "selected" : ""}>🔥 Viral Gaming Signature (Zoom + Shake + Color Pop)</option>
               <option value="chaos_meme" ${c.brand_style === "chaos_meme" ? "selected" : ""}>💀 Unhinged Meme Energy (Fast Cuts + Shake + Flash)</option>
               <option value="cinematic" ${c.brand_style === "cinematic" ? "selected" : ""}>🎬 Cinematic Storyteller (Slow Zoom + Film Grade)</option>
               <option value="clean" ${c.brand_style === "clean" ? "selected" : ""}>✨ Clean Minimal Pro (Tight Pauses + Crisp Color)</option>
-              <option value="off" ${c.brand_style === "off" ? "selected" : ""}>Raw / Manual Studio Only (No Auto-FX)</option>
             </select></label>
             <label class="f" style="margin:0">Channel Watermark Tag<input data-k="brand_watermark" value="${esc(c.brand_watermark || '')}" placeholder="e.g. @TheParadoxFiles (optional)" maxlength="32"></label>
           </div>
           <div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:8px">
-            <label class="sw" style="margin:0;font-size:12px"><input type="checkbox" data-k="auto_tighten" ${c.auto_tighten === false ? "" : "checked"}><span>✂️ Auto Mid-Clip Jump Cuts<small>Cuts dead pauses (&gt;0.85s) inside clips while keeping captions 1:1 synced.</small></span></label>
-            <label class="sw" style="margin:0;font-size:12px"><input type="checkbox" data-k="auto_sfx" ${c.auto_sfx === false ? "" : "checked"}><span>🔊 Auto Climax SFX (My Sounds Folder)<small>Drops your custom uploaded sound effects on the loudest reaction beat.</small></span></label>
+            <label class="sw" style="margin:0;font-size:12px"><input type="checkbox" data-k="auto_tighten" ${c.auto_tighten ? "checked" : ""}><span>✂️ Auto Mid-Clip Jump Cuts<small>Cuts dead pauses (&gt;0.85s) inside clips while keeping captions 1:1 synced.</small></span></label>
+            <label class="sw" style="margin:0;font-size:12px"><input type="checkbox" data-k="auto_sfx" ${c.auto_sfx ? "checked" : ""}><span>🔊 Auto Climax SFX (My Sounds Folder)<small>Drops your custom uploaded sound effects on the loudest reaction beat.</small></span></label>
           </div>
         </div>
         <label class="f">Caption style<select data-k="style" data-caption-style ${c.captions === false ? "disabled" : ""}>${opts(S.status.styles, c.style)}</select></label>
@@ -8547,8 +8562,17 @@ window.loadDlgCalendarSlots = async function(cid, c) {
   if (!sel) return;
   try {
     const cal = await api(`/api/creators/${cid}/calendar`);
-    if (window._calCache) window._calCache[cid] = cal;
-    const slots = cal?.upcoming_slots || [];
+    const channelIds = new Set((cal.available_accounts || []).map(a => a.id));
+    const chosen = $$("#clipdlg [data-pacc]:checked").map(i => i.value).filter(id => channelIds.has(id));
+    // An explicit time must be free on every checked channel.
+    const slotsByTime = new Map();
+    for (const sl of cal.upcoming_slots || []) {
+      if (sl.account_id && !chosen.includes(sl.account_id)) continue;
+      const entry = slotsByTime.get(sl.video_ts) || {slot:sl, accounts:new Set()};
+      entry.accounts.add(sl.account_id);
+      slotsByTime.set(sl.video_ts, entry);
+    }
+    const slots = [...slotsByTime.values()].filter(e => !e.slot.account_id || e.accounts.size === chosen.length).map(e => e.slot);
     if (!slots.length) {
       sel.innerHTML = `<option value="">⚡ Auto: Next available slot</option>`;
       return;
@@ -11183,6 +11207,11 @@ function openCustomLayoutStudio(context) {
 
 document.addEventListener("change", async e => {
   const t = e.target;
+  if (t.matches("[data-pacc]") && D.jid) {
+    const job = jobOf(D.jid);
+    const clip = job?.clips?.find(cl => cl.id === D.cid);
+    if (clip) loadDlgCalendarSlots(job.creator, clip);
+  }
   if (t.id === "top_ai_provider") {
     const prov = t.value;
     toast(`Switching AI to ${prov}…`, "ok");
@@ -12553,7 +12582,7 @@ HOOKS:
       const selSlotTs = a === "postqueue" ? Number($("#dlg_cal_slot_select")?.value || 0) : 0;
       const res = await send("/api/posts", {job:D.jid, clip:D.cid, accounts:accs, now:a === "postnow", slot_ts: selSlotTs || undefined});
       const crId = jobOf(D.jid)?.creator;
-      if (crId && window._calCache) delete window._calCache[crId];
+      if (crId && window._calCache) for (const key of Object.keys(window._calCache)) if (key.startsWith(crId + "::")) delete window._calCache[key];
       const vPost = (res?.posts || []).find(p => p.kind !== "community");
       const cs = vPost?.calendar_slot;
       if (a === "postnow") {
