@@ -1,6 +1,17 @@
 ﻿# Changelog
 All notable project changes are documented here.
 
+## [2026-11-28] — YouTube Shorts Staggered Upload Guard & Calendar Status Accuracy
+
+### Fixed
+- **Prevented Simultaneous YouTube API Upload Bursts (`PeakCut/studio/posting.py`)**:
+  - Added `_next_staggered_upload_ts()` enforcing >=45 minute (`YT_STAGGER_UPLOAD_MIN_GAP_SEC`) spacing between `videos.insert` uploads on the same channel even when multiple future slots are scheduled at once, with background `_run()` execution instead of instant burst threads.
+  - Removed the automated `"💬 Top Comment: ..."` prefix from Shorts video descriptions (top comments continue posting natively via `youtube_post_comment()`).
+  - Updated `_post_community()` to defer until the parent video upload completes and cancel cleanly if the parent video fails or is cancelled.
+- **Calendar Failed/Staggered Status Accuracy (`PeakCut/web/index.html`)**:
+  - Displayed actual PKT publish timestamps on immediate `"Post Now"` / staggered posts instead of stale slot clock labels (eliminating duplicate `09:30p` display).
+  - Replaced misleading green `✓` badges with `⚠ UPLOAD FAILED` (red) for errored posts and `⏳ STAGGERED QUEUE` (cyan) for queued posts awaiting staggered upload.
+
 ## [2026-11-27] — Strict 30–35s Rage/Mistake/Masti Shorts & Antigravity Live Co-Pilot Bridge
 
 ### Added

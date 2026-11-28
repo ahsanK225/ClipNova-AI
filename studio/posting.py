@@ -1,4 +1,5 @@
 """Post queue: decides when each finished clip goes to which account, posts it, and tracks views."""
+import re
 import secrets
 import threading
 import time
@@ -7,6 +8,65 @@ from pathlib import Path
 import json
 
 from . import accounts, alerts, calendar, config, creators, ctx, jobs, live, media, render, safe
+
+YT_MIN_IMMEDIATE_GAP_SEC = 45 * 60  # 45 min cooldown between immediate YouTube uploads on same channel
+YT_STAGGER_UPLOAD_MIN_GAP_SEC = 45 * 60  # 45 min gap between any two YouTube API uploads on same channel
+
+_YT_UNSAFE_REPLACEMENTS = [
+    (re.compile(r"\bstrippers?\b", re.IGNORECASE), "club scene"),
+    (re.compile(r"\bfuck(?:ing|ed|er|s)?\b", re.IGNORECASE), "freaking"),
+    (re.compile(r"\bshits?\b", re.IGNORECASE), "stuff"),
+    (re.compile(r"\bbitch(?:es)?\b", re.IGNORECASE), "snitch"),
+    (re.compile(r"\b(?:porn|nsfw|nudes?)\b", re.IGNORECASE), "wild"),
+    (re.compile(r"\bkill\s+yourself\b", re.IGNORECASE), "rage quit"),
+]
+
+
+def sanitize_youtube_shorts_text(text: str) -> str:
+    """Soften high-risk demonetization/suppression words that trigger YouTube Shorts 0-view safety throttling."""
+    out = str(text or "")
+    for pat, repl in _YT_UNSAFE_REPLACEMENTS:
+        out = pat.sub(repl, out)
+    return out
+
+
+def _yt_needs_spacing(account_id: str, existing_posts: list, now_ts: float) -> str:
+    """Return a non-empty reason if posting immediately to this YouTube account risks 0-view spam throttling."""
+    today = _day(now_ts)
+    today_count = 0
+    for op in existing_posts:
+        if op.get("account") != account_id or op.get("platform") != "youtube" or op.get("kind") == "community":
+            continue
+        if op.get("status") not in ("posted", "posting", "scheduled"):
+            continue
+        ts = op.get("posted_at") or op.get("due_at") or 0
+        is_immediate_or_done = op.get("status") in ("posted", "posting") or (op.get("status") == "scheduled" and op.get("now"))
+        if is_immediate_or_done and abs(now_ts - ts) < YT_MIN_IMMEDIATE_GAP_SEC:
+            return "recent upload within 45 min"
+        if is_immediate_or_done and _day(ts) == today:
+            today_count += 1
+    if today_count >= calendar.MAX_VIDEOS_PER_DAY:
+        return f"daily safe cap ({calendar.MAX_VIDEOS_PER_DAY} Shorts/day) reached"
+    return ""
+
+
+def _next_staggered_upload_ts(account_id: str, existing_posts: list, now_ts: float, target_publish_ts: float | None = None) -> float:
+    """Space out YouTube API uploads on the same channel by >=45 min so queued slots never burst-upload at once."""
+    last_ts = 0.0
+    for op in existing_posts:
+        if op.get("account") != account_id or op.get("platform") != "youtube" or op.get("kind") == "community":
+            continue
+        if op.get("status") not in ("posted", "posting", "scheduled"):
+            continue
+        t = float(op.get("due_at") or 0) if op.get("status") == "scheduled" else float(op.get("posted_at") or op.get("due_at") or 0)
+        if t > last_ts:
+            last_ts = t
+    if last_ts <= 0 or (now_ts - last_ts) >= YT_STAGGER_UPLOAD_MIN_GAP_SEC:
+        return now_ts
+    upload_at = last_ts + YT_STAGGER_UPLOAD_MIN_GAP_SEC
+    if target_publish_ts and target_publish_ts > now_ts + 300:
+        upload_at = min(upload_at, max(now_ts, target_publish_ts - 900))
+    return upload_at
 
 _lock = threading.RLock()
 _FILE = config.DATA_DIR / "posts.json"
@@ -48,9 +108,9 @@ def _mirror(p):
     clip = next((c for c in job["clips"] if c["id"] == p.get("clip")), None) if job else None
     if clip is not None:
         clip.setdefault("posts", {})[p["id"]] = {
-            k: p.get(k) for k in ("account_name", "platform", "status", "url", "due_at",
+            k: p.get(k) for k in ("account_name", "platform", "status", "url", "remote_id", "due_at",
                                   "scheduled_at", "error", "kind", "title", "formatted_text",
-                                  "calendar_slot")
+                                  "calendar_slot", "comment_posted", "comment_pending", "pinned_comment")
         }
         jobs.save(job)
 
@@ -92,9 +152,23 @@ def _post_community(p):
             raise RuntimeError("That account was disconnected.")
 
         video_url = p.get("video_url", "")
-        if not video_url:
-            vpost = next((op for op in _mine() if op.get("job") == p["job"] and op.get("clip") == p["clip"] and op.get("kind") != "community"), None)
-            if vpost:
+        vpost = None
+        if p.get("video_post_id"):
+            vpost = next((op for op in _mine() if op.get("id") == p.get("video_post_id")), None)
+        if not vpost:
+            vpost = next((op for op in _mine() if op.get("job") == p["job"] and op.get("clip") == p["clip"] and op.get("account") == p.get("account") and op.get("kind") != "community"), None)
+        if vpost:
+            if vpost.get("status") in ("failed", "cancelled", "deleted"):
+                p.update(status="cancelled", error=f"Parent video {vpost.get('status')}")
+                _save()
+                _mirror(p)
+                return
+            if vpost.get("status") in ("scheduled", "posting") and not vpost.get("remote_id"):
+                p.update(status="scheduled", due_at=time.time() + 300)
+                _save()
+                _mirror(p)
+                return
+            if not video_url:
                 video_url = vpost.get("url") or ""
                 if not video_url and vpost.get("remote_id"):
                     video_url = f"https://www.youtube.com/shorts/{vpost['remote_id']}"
@@ -199,18 +273,31 @@ def enqueue(job, clip, account_ids, now=False, force=False, target_ts=None) -> l
 
             # Compute slot using USA-Focused Automatic Publishing Calendar or target_ts
             cid_owner = job.get("creator")
+            effective_now = bool(now)
             if target_ts:
                 due = float(target_ts)
                 slot_info = calendar.format_slot_info(due, creator_id=cid_owner)
             else:
                 all_current = existing_mine + made
                 slot_info = calendar.find_next_available_slot(aid, all_current, creator_id=cid_owner)
-                due = time.time() if now else slot_info["video_ts"]
+                if effective_now and acc["platform"] == "youtube" and not force:
+                    reason = _yt_needs_spacing(aid, all_current, time.time())
+                    if reason:
+                        effective_now = False
+                        creators.log(
+                            job.get("creator", ""),
+                            f"⏳ YouTube Anti-Spam Guard ({reason}): Scheduled for {slot_info['video_pkt_str']} instead of immediate burst so views don't drop to 0."
+                        )
+                due = time.time() if effective_now else slot_info["video_ts"]
+
+            upload_due = due
+            if acc["platform"] == "youtube" and not effective_now:
+                upload_due = _next_staggered_upload_ts(aid, existing_mine + made, time.time(), due)
 
             p = {"id": secrets.token_hex(8), "user": ctx.uid(), "job": job["id"], "clip": clip["id"], "creator": job["creator"],
                  "account": aid, "account_name": acc["name"], "platform": acc["platform"], "status": "scheduled",
-                 "due_at": due, "scheduled_at": due, "calendar_slot": slot_info, "kind": "video",
-                 "now": now, "created": time.time(), "title": clip.get("title") or clip.get("hook") or "Clip",
+                 "due_at": upload_due, "scheduled_at": due, "calendar_slot": slot_info, "kind": "video",
+                 "now": effective_now, "created": time.time(), "title": clip.get("title") or clip.get("hook") or "Clip",
                  "score": clip.get("score", 0), "tries": 0, "url": "", "remote_id": "", "error": None, "views": None}
             _posts.append(p)
             made.append(p)
@@ -218,7 +305,7 @@ def enqueue(job, clip, account_ids, now=False, force=False, target_ts=None) -> l
             # Rule 6: AUTOMATIC COMMUNITY POST FOR YOUTUBE
             # Automatically schedule paired Community Post for exactly 30 minutes after video goes live
             if acc["platform"] == "youtube":
-                comm_due = (time.time() + 30) if now else (due + calendar.COMMUNITY_OFFSET_SECONDS)
+                comm_due = (time.time() + 30) if effective_now else (due + calendar.COMMUNITY_OFFSET_SECONDS)
                 comm_text = calendar.build_community_post_text(
                     title=clip.get("seo_title") or clip.get("title") or clip.get("hook") or "",
                     description=clip.get("description") or "",
@@ -231,7 +318,7 @@ def enqueue(job, clip, account_ids, now=False, force=False, target_ts=None) -> l
                     "account": aid, "account_name": acc["name"], "platform": acc["platform"], "status": "scheduled",
                     "due_at": comm_due, "scheduled_at": comm_due, "calendar_slot": slot_info,
                     "kind": "community", "is_community": True, "video_post_id": p["id"],
-                    "now": now, "created": time.time(),
+                    "now": effective_now, "created": time.time(),
                     "title": f"📢 Community: {clip.get('title') or clip.get('hook') or 'Short'}",
                     "formatted_text": comm_text,
                     "score": clip.get("score", 0), "tries": 0, "url": "", "remote_id": "", "error": None, "views": None
@@ -243,8 +330,8 @@ def enqueue(job, clip, account_ids, now=False, force=False, target_ts=None) -> l
         _save()
     for p in made:
         _mirror(p)
-        # Directly upload video to YouTube cloud with native schedule (no local waiting required):
-        if p.get("platform") == "youtube" and p.get("kind") != "community":
+        # Upload immediately ONLY when staggered due_at is now; queued slots wait cleanly in _run() to avoid API bursts:
+        if p.get("platform") == "youtube" and p.get("kind") != "community" and float(p.get("due_at") or 0) <= time.time() + 10:
             threading.Thread(target=ctx.bind(lambda post=p: _upload_worker(post)), daemon=True).start()
     return made
 
@@ -264,8 +351,13 @@ def on_clip_ready(job, clip):
 def _caption(clip, creator):
     # A description the person wrote themselves is posted as it is, without the AI's hashtags added to it, and
     # one that already ends with its hashtags does not get them twice.
-    tags = "" if clip.get("fixed_description") or clip.get("hashtags_in_description") else " ".join("#" + h for h in clip.get("hashtags", []))
-    return "\n\n".join(x for x in (clip.get("description", ""), tags, creator.get("post_footer", "")) if x)
+    desc_text = clip.get("description", "") or ""
+    if clip.get("fixed_description") or clip.get("hashtags_in_description"):
+        tags = ""
+    else:
+        existing_lower = desc_text.lower()
+        tags = " ".join("#" + h for h in clip.get("hashtags", []) if ("#" + str(h).lower()) not in existing_lower)
+    return "\n\n".join(x for x in (desc_text, tags, creator.get("post_footer", "")) if x)
 
 
 def _post(p):
@@ -288,51 +380,53 @@ def _post(p):
             if h not in yt_tags:
                 yt_tags.append(h)
         if acc["platform"] == "youtube":
-            try:
-                probe = media.probe(path)
-                # If vertical video is below 2K (e.g. 1080x1920), generate pristine 1440x2560 master.
-                # YouTube strictly assigns VP9 / AV1 codec tier and high bitrate (15-25M) to 1440p+ uploads,
-                # preventing YouTube mobile/desktop player from downscaling the Short to blurry 240p/360p!
-                if probe.get("height", 0) < 2160 and probe.get("width", 0) < 1440:
-                    temp_yt2k = path.with_name(f"{path.stem}_yt2k.mp4")
-                    render.scale_to_2k(path, temp_yt2k)
-                    if temp_yt2k.is_file() and temp_yt2k.stat().st_size > 1024:
-                        upload_path = temp_yt2k
-            except Exception as ue:
-                creators.log(p["creator"], f"YouTube 2K VP9 pipeline notice: {ue}")
+            clip_dur = float(clip.get("duration") or 0)
+            if not clip_dur:
+                try:
+                    clip_dur = float(media.probe(path).get("duration") or 0)
+                except Exception:
+                    clip_dur = 45.0
+            is_short = clip_dur <= 61.0
 
-            pcomment = str(clip.get("pinned_comment") or "").strip()
-            desc = cap + "\n\n#Shorts"
-            if pcomment:
-                desc = f"💬 Top Comment: {pcomment}\n\n" + desc
-            publish_at = p.get("due_at") if (p.get("due_at", 0) > time.time() + 60 and not p.get("now")) else None
+            title = sanitize_youtube_shorts_text(title)
+            safe_cap = sanitize_youtube_shorts_text(cap)
+            pcomment = sanitize_youtube_shorts_text(str(clip.get("pinned_comment") or "").strip())
+            desc = safe_cap if "#shorts" in safe_cap.lower() else (safe_cap + "\n\n#Shorts" if safe_cap else "#Shorts")
+            target_pub = float(p.get("scheduled_at") or p.get("due_at") or 0)
+            publish_at = target_pub if (target_pub > time.time() + 60 and not p.get("now")) else None
             privacy = "private" if publish_at else creator.get("privacy", "public")
-            try:
-                rid, url = accounts.youtube_upload(acc, upload_path, title, desc, yt_tags, privacy, publish_at=publish_at)
-            finally:
-                if temp_yt2k and temp_yt2k.is_file():
-                    temp_yt2k.unlink(missing_ok=True)
-            # Automatically set high-CTR cover thumbnail with hook banner & facecam on YouTube
-            cover_file = clip.get("cover") or f"{clip['id']}.jpg"
-            cover_path = Path(job["dir"]) / "clips" / cover_file
-            if not cover_path.is_file():
-                cover_path = Path(job["dir"]) / cover_file
-            if cover_path.is_file():
-                try:
-                    if accounts.youtube_set_thumbnail(acc, rid, cover_path):
-                        creators.log(p["creator"], f"Uploaded viral cover thumbnail to YouTube: {cover_file}")
-                except Exception as te:
-                    creators.log(p["creator"], f"YouTube thumbnail notice: {te}")
+            rid, url = accounts.youtube_upload(acc, upload_path, title, desc, yt_tags, privacy, publish_at=publish_at)
+            # Only set custom API thumbnail for long-form videos (> 61s); calling thumbnails.set on Shorts hurts feed indexing.
+            if not is_short:
+                cover_file = clip.get("cover") or f"{clip['id']}.jpg"
+                cover_path = Path(job["dir"]) / "clips" / cover_file
+                if not cover_path.is_file():
+                    cover_path = Path(job["dir"]) / cover_file
+                if cover_path.is_file():
+                    try:
+                        if accounts.youtube_set_thumbnail(acc, rid, cover_path):
+                            creators.log(p["creator"], f"Uploaded viral cover thumbnail to YouTube: {cover_file}")
+                    except Exception as te:
+                        creators.log(p["creator"], f"YouTube thumbnail notice: {te}")
             if pcomment:
-                try:
-                    accounts.youtube_post_comment(acc, rid, pcomment)
-                    creators.log(p["creator"], f"Posted top comment to {acc['name']}: {pcomment[:50]}")
-                except Exception as ce:
-                    err_msg = str(ce)
-                    if "insufficient" in err_msg.lower() or "403" in err_msg:
-                        creators.log(p["creator"], f"YouTube comment note: Channel account needs to be Reconnected in Accounts tab for comment posting permissions: {err_msg[:100]}")
-                    else:
-                        creators.log(p["creator"], f"YouTube comment note: {ce}")
+                p["pinned_comment"] = pcomment
+                if publish_at:
+                    p["comment_pending"] = True
+                    p["comment_posted"] = False
+                    creators.log(p["creator"], f"💬 Top comment queued: will auto-post once scheduled video goes live.")
+                else:
+                    try:
+                        accounts.youtube_post_comment(acc, rid, pcomment)
+                        p["comment_posted"] = True
+                        p["comment_pending"] = False
+                        creators.log(p["creator"], f"Posted top comment to {acc['name']}: {pcomment[:50]}")
+                    except Exception as ce:
+                        p["comment_pending"] = False
+                        err_msg = str(ce)
+                        if "insufficient" in err_msg.lower() or "403" in err_msg:
+                            creators.log(p["creator"], f"YouTube comment note: Channel account needs to be Reconnected in Accounts tab for comment posting permissions: {err_msg[:100]}")
+                        else:
+                            creators.log(p["creator"], f"YouTube comment note: {ce}")
         elif acc["platform"] == "instagram":
             rid, url = accounts.instagram_upload(acc, path, f"{title}\n\n{cap}", job["id"])
         elif acc["platform"] == "tiktok":
@@ -340,10 +434,10 @@ def _post(p):
         else:
             raise RuntimeError("That kind of account is no longer supported.")
         p.update(status="posted", posted_at=time.time(), remote_id=rid, url=url, error=None)
-        if acc["platform"] == "youtube" and p.get("due_at", 0) > time.time() + 60 and not p.get("now"):
-            p["scheduled_at"] = p["due_at"]
+        if acc["platform"] == "youtube" and publish_at:
+            p["scheduled_at"] = publish_at
             p["is_scheduled"] = True
-            lt_str = time.strftime("%Y-%m-%d %H:%M", time.localtime(p["due_at"]))
+            lt_str = time.strftime("%Y-%m-%d %H:%M", time.localtime(publish_at))
             creators.log(p["creator"], f"Uploaded & Scheduled natively on YouTube for {lt_str}: {title}")
         else:
             creators.log(p["creator"], f"Posted to {acc['name']}: {title}")
@@ -401,10 +495,45 @@ def _post(p):
     _mirror(p)
 
 
+def post_top_comment(pid: str, text: str = None) -> dict:
+    """Posts the clip's top/pinned comment to a live YouTube video."""
+    with _lock:
+        p = next((x for x in _mine() if x.get("id") == pid), None)
+        if not p:
+            raise KeyError(f"Post {pid} not found")
+    if p.get("platform") != "youtube":
+        raise ValueError("Top comment posting is only supported for YouTube videos.")
+    rid = p.get("remote_id")
+    if not rid:
+        raise ValueError("This video has not been uploaded to YouTube yet.")
+    acc = accounts.get(p.get("account")) or next((a for a in accounts._all() if a.get("platform") == "youtube"), None)
+    if not acc:
+        raise RuntimeError("YouTube account is disconnected.")
+    comment_text = sanitize_youtube_shorts_text(str(text or p.get("pinned_comment") or "").strip())
+    if not comment_text and p.get("job") and p.get("clip"):
+        job = jobs.get(p["job"])
+        clip = next((c for c in job.get("clips", []) if c.get("id") == p["clip"]), None) if job else None
+        if clip:
+            comment_text = sanitize_youtube_shorts_text(str(clip.get("pinned_comment") or "").strip())
+    if not comment_text:
+        raise ValueError("No top comment text found for this clip.")
+    res = accounts.youtube_post_comment(acc, rid, comment_text)
+    with _lock:
+        p["comment_posted"] = True
+        p["comment_pending"] = False
+        p["pinned_comment"] = comment_text
+        p["comment_error"] = None
+        _save()
+    _mirror(p)
+    creators.log(p.get("creator", ""), f"💬 Posted top comment to {acc['name']}: {comment_text[:50]}")
+    return {"ok": True, "video_id": rid, "comment_text": comment_text, "comment_id": res.get("id", "")}
+
+
 def _run():
     while True:
         time.sleep(15)
-        due = [p for p in list(_posts) if p["status"] == "scheduled" and p["due_at"] <= time.time() and p.get("user")]
+        now_ts = time.time()
+        due = [p for p in list(_posts) if p["status"] == "scheduled" and p["due_at"] <= now_ts and p.get("user")]
         for p in due:
             try:
                 with ctx.as_user(p["user"]):
@@ -420,6 +549,27 @@ def _run():
                         _post(p)
             except Exception:  # noqa: BLE001
                 pass
+        pending_comments = [
+            p for p in list(_posts)
+            if p.get("status") == "posted"
+            and p.get("platform") == "youtube"
+            and p.get("comment_pending")
+            and not p.get("comment_posted")
+            and p.get("remote_id")
+            and p.get("user")
+            and now_ts >= float(p.get("due_at") or p.get("posted_at") or 0) + 90
+        ]
+        for p in pending_comments:
+            try:
+                with ctx.as_user(p["user"]):
+                    post_top_comment(p["id"])
+            except Exception as ce:  # noqa: BLE001
+                with _lock:
+                    p["comment_tries"] = int(p.get("comment_tries") or 0) + 1
+                    p["comment_error"] = str(ce)[-200:]
+                    if p["comment_tries"] >= 3:
+                        p["comment_pending"] = False
+                    _save()
 
 
 def _stats_for(recent):

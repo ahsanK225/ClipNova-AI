@@ -105,7 +105,7 @@ try:
                 return _Proc(1, "simulated hw init failure")
             return _Proc(0, "")
 
-        with patch.dict(os.environ, {"PEAKCUT_CPU_ENCODE": ""}, clear=False), \
+        with patch.dict(os.environ, {"PEAKCUT_CPU_ENCODE": "0"}, clear=False), \
              patch("studio.render._supported_encoders", return_value={"h264_amf", "libx264"}), \
              patch("studio.render.subprocess.run", side_effect=fake_subproc):
             used = render._encode_with_fallback(["ffmpeg", "-y", "-i", "in.mp4", "-pix_fmt"], "out.mp4")

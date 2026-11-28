@@ -4517,7 +4517,9 @@ async function renderCreatorCalendarCard(c, targetEl, isCompact = false, useCach
         ? cs.slot_num
         : (pktH >= 12 && pktH < 20 ? 1 : (pktH >= 20 || pktH === 0) ? 2 : 3);
       const cycDate = cs.cycle_date || pktDate(dt);
-      const timePkt = cs.video_time_pkt || dt.toLocaleTimeString("en-US", { timeZone:"Asia/Karachi", hour: "2-digit", minute: "2-digit" });
+      const csTimeDiff = cs.video_ts ? Math.abs(Number(cs.video_ts) - t) : 0;
+      const actualTimePkt = dt.toLocaleTimeString("en-US", { timeZone:"Asia/Karachi", hour: "2-digit", minute: "2-digit" });
+      const timePkt = (cs.video_time_pkt && csTimeDiff <= 1800 && !p.now) ? cs.video_time_pkt : actualTimePkt;
       const commDt = new Date((t + 1800) * 1000);
       addSlotToDay({
         video_ts: t,
@@ -4606,8 +4608,8 @@ async function renderCreatorCalendarCard(c, targetEl, isCompact = false, useCach
             <span class="cal-slot-badge slot${sl.slot_num}">
               Slot ${sl.slot_num} ${esc(channelName(sl))} ${showDateBadge ? `· ${esc(sl.cycle_date)}` : ""}
             </span>
-            <span style="font-size:10px;font-weight:800;padding:2px 8px;border-radius:999px;background:rgba(16,185,129,0.16);color:#10B981;border:1px solid rgba(16,185,129,0.38)">
-              ${matchedVideo.remote_id || matchedVideo.status === "posted" ? "✓ SCHEDULED ON YOUTUBE" : "✓ SCHEDULED"}
+            <span style="font-size:10px;font-weight:800;padding:2px 8px;border-radius:999px;background:${matchedVideo.error && !matchedVideo.remote_id ? "rgba(239,68,68,0.18)" : (matchedVideo.remote_id || matchedVideo.status === "posted" ? "rgba(16,185,129,0.16)" : "rgba(56,189,248,0.16)")};color:${matchedVideo.error && !matchedVideo.remote_id ? "#FCA5A5" : (matchedVideo.remote_id || matchedVideo.status === "posted" ? "#10B981" : "#38BDF8")};border:1px solid ${matchedVideo.error && !matchedVideo.remote_id ? "rgba(239,68,68,0.42)" : (matchedVideo.remote_id || matchedVideo.status === "posted" ? "rgba(16,185,129,0.38)" : "rgba(56,189,248,0.38)")}" title="${esc(matchedVideo.error || "")}">
+              ${matchedVideo.error && !matchedVideo.remote_id ? "⚠ UPLOAD FAILED" : (matchedVideo.remote_id || matchedVideo.status === "posted" ? "✓ SCHEDULED ON YOUTUBE" : "⏳ STAGGERED QUEUE")}
             </span>
           </div>
 
@@ -4951,9 +4953,14 @@ async function renderCreatorCalendarCard(c, targetEl, isCompact = false, useCach
                   const slotTs = sl.video_ts || sl.video_timestamp;
                   const mv = sl._bookedVideo;
                   if (mv) {
+                    const hasErr = Boolean(mv.error && !mv.remote_id);
+                    const isUploaded = Boolean(mv.remote_id || mv.status === "posted");
+                    const badgeIcon = hasErr ? "⚠" : (isUploaded ? "✓" : "⏳");
+                    const badgeCol = hasErr ? "#F87171" : (isUploaded ? "#10B981" : "#38BDF8");
+                    const titleTip = hasErr ? `Failed: ${mv.error}` : `Scheduled: ${mv.title || "Clip"} — click to open clip`;
                     return `
-                      <button type="button" class="cal-week-mini-slot filled" data-act="openclip" data-j="${esc(mv.job)}" data-c="${esc(mv.clip)}" title="Scheduled: ${esc(mv.title || "Clip")} — click to open clip">
-                        <span style="font-weight:800;color:#10B981;white-space:nowrap">✓ ${esc(sl.video_time_pkt.replace(" AM", "a").replace(" PM", "p"))}</span>
+                      <button type="button" class="cal-week-mini-slot filled" data-act="openclip" data-j="${esc(mv.job)}" data-c="${esc(mv.clip)}" title="${esc(titleTip)}">
+                        <span style="font-weight:800;color:${badgeCol};white-space:nowrap">${badgeIcon} ${esc(sl.video_time_pkt.replace(" AM", "a").replace(" PM", "p"))}</span>
                         <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--cal-heading)">${esc(channelName(sl))} ${esc(mv.title || "Scheduled Clip")}</span>
                       </button>
                     `;
@@ -12413,11 +12420,26 @@ HOOKS:
       return tick();
     }
     if (a === "stoplive") {
-      if (!await ask("Stop recording?", "Clips already made are kept. The rest of the buffer is cleared.", "Stop recording", true)) return;
-      const j = jobOf(d.j); if (j) { j.status = "done"; j.stage = "Stopped by you"; }
-      S.creators.forEach(c => { if (c.live_job === d.j) c.live_job = null; }); render();
+      b.disabled = true;
+      const wasHtml = b.innerHTML;
+      b.innerHTML = `<span>⏳</span> Stopping…`;
+      const jid = d.j || creator()?.live_job;
+      const j = jid ? jobOf(jid) : null;
+      if (j) { j.status = "done"; j.stage = "Stopped by you"; }
+      S.creators.forEach(c => {
+        if (c.live_job === jid || (creatorId() && c.id === creatorId())) c.live_job = null;
+      });
+      render();
       toast("Recording stopped. Clips already made are kept.", "ok");
-      api(`/api/live/${d.j}/stop`, {method:"POST"}).catch(e => toast(e.message, "bad")).finally(tick); return;
+      try {
+        if (jid) await send(`/api/live/${jid}/stop`, {});
+        if (creatorId()) await send(`/api/creators/${creatorId()}/stop-live`, {}).catch(() => {});
+      } catch (e) {
+        // graceful ignore
+      } finally {
+        tick();
+      }
+      return;
     }
     if (a === "startlivefrombar") {
       b.disabled = true;
